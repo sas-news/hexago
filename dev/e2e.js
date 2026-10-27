@@ -86,6 +86,47 @@ function check(name, ok, detail) {
   check('page state sane', st0 && st0.size === 9 && Array.isArray(st0.board) && st0.board.length === 61, 'size=' + (st0 && st0.size));
   check('default AI level is strongest', st0 && st0.aiLevel === 'max', 'aiLevel=' + (st0 && st0.aiLevel));
 
+  /* 2b. modal UX: backdrop click, Escape, result close button */
+  const modalOpen = async id => page.evaluate(mid => !document.getElementById(mid).classList.contains('hidden'), id);
+  await page.evaluate(() => document.getElementById('btnOpenSettings').click());
+  const settingsOpened = await modalOpen('setModal');
+  await page.mouse.click(10, 600);
+  await page.waitForTimeout(120);
+  const settingsAfterBackdrop = await modalOpen('setModal');
+  check('settings modal closes on backdrop click', settingsOpened && !settingsAfterBackdrop, 'open=' + settingsOpened + ' after=' + settingsAfterBackdrop);
+  await page.evaluate(() => document.getElementById('btnOpenSettings').click());
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(120);
+  const settingsAfterEsc = await modalOpen('setModal');
+  check('settings modal closes on Escape', !settingsAfterEsc);
+  const resultClose = await page.evaluate(() => {
+    document.getElementById('resModal').classList.remove('hidden');
+    const btn = document.getElementById('btnCloseResult');
+    if (btn) btn.click();
+    return { hasButton: !!btn, hiddenAfter: document.getElementById('resModal').classList.contains('hidden') };
+  });
+  check('result modal has a working close button', resultClose.hasButton && resultClose.hiddenAfter, JSON.stringify(resultClose));
+
+  /* 2c. resign requires a second tap (no accidental resignation) */
+  const resignCheck = await page.evaluate(async () => {
+    const d = window.__hexagoDebug;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    d.setAllHuman();
+    document.querySelector('#playerCountBtns [data-count="2"]')?.click();
+    d.newGame(9);
+    await sleep(80);
+    const btn = document.getElementById('btnResign');
+    btn.click();
+    const armedText = btn.textContent;
+    const overAfterFirst = d.state().over;
+    btn.click();
+    await sleep(120);
+    const overAfterSecond = d.state().over;
+    document.getElementById('resModal').classList.add('hidden');
+    return { armedText: armedText.trim(), overAfterFirst, overAfterSecond };
+  });
+  check('resign needs a second confirmation tap', /本当に投了/.test(resignCheck.armedText) && resignCheck.overAfterFirst === false && resignCheck.overAfterSecond === true, JSON.stringify(resignCheck));
+
   /* 3. manual think through worker: legal moves, board untouched */
   await page.evaluate(() => {
     window.__hexagoDebug.setAllHuman();
@@ -186,7 +227,72 @@ function check(name, ok, detail) {
   check('AI vs AI game progresses', stones >= 4, 'stones=' + stones + ' turn=' + st.turn);
   check('UI stays responsive during search', lag.max < 250, 'max frame gap=' + Math.round(lag.max) + 'ms over ' + lag.n + ' frames');
 
-  /* 7. no page errors */
+  /* 7. mid-game human <-> AI switching (both directions) */
+  const seatSwitch = await page.evaluate(async () => {
+    const d = window.__hexagoDebug;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const quickSeat = seat => document.querySelector('#quickSeats [data-seat-toggle="' + seat + '"]');
+    const legalMove = () => { for (let i = 0; i < d.state().board.length; i++) if (!d.state().board[i] && d.sim(i)) return i; return -1; };
+    d.setAllHuman();
+    document.querySelector('#playerCountBtns [data-count="2"]')?.click();
+    document.querySelector('#aiLevelBtns [data-ai="weak"]')?.click();
+    d.newGame(9);
+    await sleep(100);
+    const out = {};
+    // human p1 moves -> p2 turn
+    out.p1 = d.playMove(30);
+    await sleep(100);
+    out.turnAfterP1 = d.state().turn;
+    out.p2HumanBefore = d.mine();
+    out.quickVisible = !document.getElementById('quickSeats').classList.contains('hidden');
+    out.quickButtons = document.querySelectorAll('#quickSeats [data-seat-toggle]').length;
+    // p2 human -> AI mid-game via the in-game quick toggle
+    quickSeat(2).click();
+    await sleep(50);
+    out.aiSeat2 = d.seats()[2] === 'ai';
+    out.p2AIMine = d.mine();
+    const t0 = Date.now();
+    while (Date.now() - t0 < 8000 && d.state().board.filter(Boolean).length < 2) await sleep(100);
+    out.stonesAfterAI = d.state().board.filter(Boolean).length;
+    out.turnAfterAI = d.state().turn;
+    // AI -> human mid-game via the same quick toggle
+    quickSeat(2).click();
+    await sleep(100);
+    out.humanSeat2Again = d.seats()[2] === 'human';
+    out.turnNowMine = d.mine();
+    // p1 human moves, then p2 human must be able to move
+    const m1 = legalMove(); out.p1Second = m1 >= 0 ? d.playMove(m1) : false;
+    await sleep(100);
+    out.p2HumanMine = d.mine();
+    const m2 = legalMove();
+    out.p2HumanMove = m2 >= 0 ? d.playMove(m2) : false;
+    out.stonesAfterHuman = d.state().board.filter(Boolean).length;
+    return out;
+  });
+  check('quick seat toggles are visible in game', seatSwitch.quickVisible === true && seatSwitch.quickButtons === 2, 'buttons=' + seatSwitch.quickButtons);
+  check('mid-game human -> AI switch makes AI play', seatSwitch.aiSeat2 && seatSwitch.p2AIMine === false && seatSwitch.stonesAfterAI >= 2 && seatSwitch.turnAfterAI === 1, JSON.stringify(seatSwitch));
+  check('mid-game AI -> human switch gives control back', seatSwitch.humanSeat2Again && seatSwitch.turnNowMine === true && seatSwitch.p1Second && seatSwitch.p2HumanMine === true && seatSwitch.p2HumanMove === true, 'stones=' + seatSwitch.stonesAfterHuman);
+
+  /* 8. AI -> human while the AI is still thinking: search must be discarded */
+  const cancelSwitch = await page.evaluate(async () => {
+    const d = window.__hexagoDebug;
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const quickSeat = seat => document.querySelector('#quickSeats [data-seat-toggle="' + seat + '"]');
+    d.setAllHuman();
+    d.newGame(9);
+    await sleep(100);
+    d.playMove(30);              // p2 turn, human
+    await sleep(50);
+    quickSeat(2).click();        // start AI search (weak = 0.5s + 120ms delay)
+    await sleep(30);
+    quickSeat(2).click();        // take the seat back mid-search
+    await sleep(1500);
+    const st = d.state();
+    return { stones: st.board.filter(Boolean).length, turn: st.turn, seat2: st.seats[2], aiBusy: st.aiBusy, mine: d.mine() };
+  });
+  check('AI -> human during search discards the AI move', cancelSwitch.stones === 1 && cancelSwitch.turn === 2 && cancelSwitch.seat2 === 'human' && cancelSwitch.aiBusy === false && cancelSwitch.mine === true, JSON.stringify(cancelSwitch));
+
+  /* 9. no page errors */
   const relevantErrors = errors.filter(e => !/tailwindcss\.com should not be used in production|ERR_|Failed to load resource/i.test(e));
   check('no page/console errors', relevantErrors.length === 0, relevantErrors.slice(0, 3).join(' | ') || 'none');
 
