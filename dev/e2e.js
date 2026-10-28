@@ -127,7 +127,7 @@ function check(name, ok, detail) {
     const res = await d.think(5000);
     return { visits: res.visits, ms: Math.round(res.elapsedMs), move: res.move, legal: res.move === -1 ? true : !!d.sim(res.move), workers: d.engine().workers };
   });
-  check('max level: 5s search across 4 workers', maxLevel.visits >= 50000 && maxLevel.legal, JSON.stringify(maxLevel));
+  check('5s search across the worker pool', maxLevel.visits >= 50000 && maxLevel.legal, JSON.stringify(maxLevel));
 
   /* 4. sizes 13/19/25 */
   for (const size of [13, 19, 25]) {

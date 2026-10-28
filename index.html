@@ -2567,12 +2567,12 @@ let aiMainAPI = null, aiMainEngines = Object.create(null);
 function aiBudgetMs() {
   if (aiTestBudgetMs != null) return aiTestBudgetMs;
   // 最強固定。大盤は1手の影響が大きいので少し長く考える（上限あり）。
-  return P.length >= 250 ? 6500 : 5000;
+  return P.length >= 250 ? 8000 : 6000;
 }
 function aiPoolWant() {
   const cores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4;
   // メインスレッドを空けるため cores-1 を上限に。低メモリ端末では控えめに。
-  let want = Math.min(4, Math.max(1, cores - 1));
+  let want = Math.min(6, Math.max(1, cores - 1));
   const mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 8;
   if (mem <= 4) want = Math.min(want, 2);
   return Math.max(1, want);
