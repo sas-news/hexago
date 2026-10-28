@@ -84,7 +84,8 @@ function check(name, ok, detail) {
   /* 2. page API sanity */
   const st0 = await page.evaluate(() => window.__hexagoDebug.state());
   check('page state sane', st0 && st0.size === 9 && Array.isArray(st0.board) && st0.board.length === 61, 'size=' + (st0 && st0.size));
-  check('default AI level is strongest', st0 && st0.aiLevel === 'max', 'aiLevel=' + (st0 && st0.aiLevel));
+  const aiUi = await page.evaluate(() => ({ selector: !!document.querySelector('#aiLevelBtns'), budget: window.__hexagoDebug.state().aiBudget }));
+  check('single fixed AI strength (no difficulty selector)', !aiUi.selector, 'aiBudget=' + aiUi.budget);
 
   /* 3. manual think through worker: legal moves, board untouched */
   await page.evaluate(() => {
@@ -157,7 +158,7 @@ function check(name, ok, detail) {
   await page.evaluate(() => {
     const d = window.__hexagoDebug;
     document.querySelector('#playerCountBtns [data-count="2"]')?.click();
-    document.querySelector('#aiLevelBtns [data-ai="weak"]')?.click();
+    d.setAIBudgetMs(150);
     d.setAllAI();
     d.newGame(9);
     // rAF lag probe while the worker searches

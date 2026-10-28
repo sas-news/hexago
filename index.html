@@ -115,16 +115,6 @@ canvas{display:block;touch-action:manipulation}
         <button data-count="2" class="opt">2人</button><button data-count="3" class="opt">3人</button><button data-count="4" class="opt">4人</button><button data-count="5" class="opt">5人</button><button data-count="6" class="opt">6人</button>
       </div>
     </div>
-    <div id="aiConfig" class="flex flex-col gap-1.5">
-      <label class="text-xs font-bold tracking-wider text-neutral-500">AIの強さ（思考時間）</label>
-      <div class="grid grid-cols-4 gap-2" id="aiLevelBtns">
-        <button type="button" data-ai="weak" class="opt">弱</button>
-        <button type="button" data-ai="normal" class="opt">標準</button>
-        <button type="button" data-ai="strong" class="opt">強</button>
-        <button type="button" data-ai="max" class="opt">最強</button>
-      </div>
-      <p class="text-[11px] leading-relaxed text-neutral-500">AIはモンテカルロ木探索（MCTS）で先を読みます。強いほど1手の思考時間が長くなります（端末性能に依存）。</p>
-    </div>
     <div id="seatBox" class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col gap-2">
       <span class="text-xs font-bold text-neutral-600">プレイヤー枠（人間 / AI）</span>
       <p class="text-[11px] leading-relaxed text-neutral-500">初期状態はすべて人間です。対局中の人間 / AI 切替は即時反映されます。人数・盤サイズの変更は次の対局から適用されます。</p>
@@ -1419,7 +1409,7 @@ function hash(a) { // cyrb53
 }
 const KEY = 'hexago-save-v1';
 function save() {
-  try { sessionStorage.setItem(KEY, JSON.stringify({ G, onlineAI, pendingSize, mode, seats, theme: theme.id, sound: snd.on, aiLevel })); } catch (e) { }
+  try { sessionStorage.setItem(KEY, JSON.stringify({ G, onlineAI, pendingSize, mode, seats, theme: theme.id, sound: snd.on })); } catch (e) { }
 }
 function load() {
   try {
@@ -1428,7 +1418,6 @@ function load() {
     build(s.G.size); if (s.G.board.length !== P.length) return false;
     G = s.G; onlineAI = !!s.onlineAI; pendingSize = s.pendingSize || G.size; seats = s.seats || seats; seats = Array.from({length:7}, (_, i) => i === 0 ? 0 : (seats[i] === 'ai' ? 'ai' : 'human')); playerCount = Math.max(2, Math.min(6, G.playerCount || 3)); G.playerCount=playerCount; G.damage=Array.from({length:playerCount+1},(_,i)=>(G.damage||[])[i]||0); G.out=Array.from({length:playerCount+1},(_,i)=>!!((G.out||[])[i])); seats.length = 7; seatOwners = Array(7).fill(null); seatNicknames = ['', '', '', '', '', '', '']; roomPool = Object.create(null); disconnectedNicknames = Object.create(null); G.aiSeats = Array.from({length:playerCount+1},(_,i)=>i===0?false:(seats[i] !== 'human')); G.aiSeat = G.aiSeats.findIndex((v,i)=>i>0&&v); mode = 'local';
     if (THEMES[s.theme]) theme = THEMES[s.theme]; if (s.sound === false) snd.on = false;
-    if (s.aiLevel && AI_LEVELS.some(l => l.id === s.aiLevel)) aiLevel = s.aiLevel;
     setSeen(); return true;
   } catch (e) { return false; }
 }
@@ -2227,29 +2216,21 @@ const aiSeatOf = p => mode === 'online' ? !!(G.aiSeats ? G.aiSeats[p] : G.aiSeat
 // Blob Worker として起動する。強さに応じて複数 Worker で同じ局面を並列探索し（root parallel MCTS）、
 // ルート直下の訪問数を合算して着手を選ぶ。Worker が使えない環境ではメインスレッドで短い予算、
 // それも失敗した場合だけ従来の1手読み AI (aiChoose) にフォールバックする。
-const AI_LEVELS = [
-  { id: 'weak', label: '弱', ms: 500, workers: 1 },
-  { id: 'normal', label: '標準', ms: 1500, workers: 1 },
-  { id: 'strong', label: '強', ms: 3000, workers: 2 },
-  { id: 'max', label: '最強', ms: 5000, workers: 4 },
-];
-let aiLevel = 'max', lastAIStats = null;
+// AIは常に最強設定の1本。強さの段階は持たない（テスト用に debug から予算だけ上書き可能）。
+let aiTestBudgetMs = null, lastAIStats = null;
 let aiGeneration = 0, aiWorkerError = '', aiMsgSeq = 0, aiWaiters = new Map();
 let aiPool = [];   // [{ index, worker, url, failed }]
 let aiMainAPI = null, aiMainEngines = Object.create(null);
 
 function aiBudgetMs() {
-  const lv = AI_LEVELS.find(l => l.id === aiLevel) || AI_LEVELS[AI_LEVELS.length - 1];
-  let ms = lv.ms;
-  // 大きい盤（19路・25路）は1手の影響が大きいので少しだけ増やす。端末負荷を考えて上限あり。
-  if (P.length >= 250) ms = Math.round(ms * 1.3);
-  return Math.min(ms, 9000);
+  if (aiTestBudgetMs != null) return aiTestBudgetMs;
+  // 最強固定。大盤は1手の影響が大きいので少し長く考える（上限あり）。
+  return P.length >= 250 ? 6500 : 5000;
 }
 function aiPoolWant() {
-  const lv = AI_LEVELS.find(l => l.id === aiLevel) || AI_LEVELS[AI_LEVELS.length - 1];
   const cores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4;
   // メインスレッドを空けるため cores-1 を上限に。低メモリ端末では控えめに。
-  let want = Math.min(lv.workers || 1, Math.max(1, cores - 1));
+  let want = Math.min(4, Math.max(1, cores - 1));
   const mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 8;
   if (mem <= 4) want = Math.min(want, 2);
   return Math.max(1, want);
@@ -2646,7 +2627,7 @@ function syncSettings() {
   const participantView = mode === 'online' && boardView === 'participant';
   $('onlineRoleConfig').classList.toggle('hidden', mode !== 'online');
   $('seatBox').classList.toggle('hidden', participantView);
-  ['boardSizeConfig', 'playerCountConfig', 'soundConfig', 'aiConfig'].forEach(id => $(id).classList.toggle('hidden', participantView));
+  ['boardSizeConfig', 'playerCountConfig', 'soundConfig'].forEach(id => $(id).classList.toggle('hidden', participantView));
   $('btnNew').classList.toggle('hidden', participantView);
   $('hostRoomSection').classList.toggle('hidden', participantView);
   $('joinRoomSection').classList.toggle('hidden', !participantView);
@@ -2669,10 +2650,6 @@ function syncSettings() {
     $('seatBtns').appendChild(row);
   }
   document.querySelectorAll('[data-bulk]').forEach(b => b.disabled = !canManageRoom());
-  document.querySelectorAll('#aiLevelBtns .opt').forEach(b => {
-    b.classList.toggle('on', b.dataset.ai === aiLevel);
-    b.disabled = participantView;
-  });
   $('btnSound').textContent = snd.on ? 'ON' : 'OFF'; $('btnSound').classList.toggle('on', snd.on);
   $('btnCreate').disabled = !!(mode === 'online' && roomCode && !isHost);
   $('btnJoin').disabled = !!(mode === 'online' && isHost);
@@ -2701,10 +2678,6 @@ document.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => setAllSe
 $('btnHostBoard').onclick = () => { boardView = 'host'; syncSettings(); };
 $('btnParticipantBoard').onclick = () => { boardView = 'participant'; syncSettings(); };
 $('btnSound').onclick = () => { snd.on = !snd.on; syncSettings(); snd.click(); save(); };
-document.querySelectorAll('#aiLevelBtns .opt').forEach(b => b.onclick = () => {
-  if (aiLevel === b.dataset.ai) return;
-  snd.click(); aiLevel = b.dataset.ai; syncSettings(); save();
-});
 $('btnOpenSettings').onclick = () => { snd.click(); syncSettings(); $('setModal').classList.remove('hidden'); };
 $('btnOpenRules').onclick = () => { snd.click(); $('rulesModal').classList.remove('hidden'); };
 $('btnCloseRules').onclick = () => $('rulesModal').classList.add('hidden');
@@ -3039,9 +3012,10 @@ window.addEventListener('pagehide', () => {
 
 // ===== デバッグ用フック（E2E 検証・AI 性能確認用。UI には影響しない） =====
 window.__hexagoDebug = {
-  state: () => ({ board: G.board.slice(), turn: G.turn, over: G.over, phase: G.phase, playerCount: G.playerCount, size: G.size, seats: seats.slice(), mode, aiBusy, aiLevel, seen: G.seen.length, lastAI: lastAIStats }),
+  state: () => ({ board: G.board.slice(), turn: G.turn, over: G.over, phase: G.phase, playerCount: G.playerCount, size: G.size, seats: seats.slice(), mode, aiBusy, aiBudget: aiBudgetMs(), seen: G.seen.length, lastAI: lastAIStats }),
   think: (budget) => aiThink(aiStateSnapshot(), budget || aiBudgetMs()),
   engine: () => ({ worker: aiPool.length > 0, workers: aiPool.length, wantWorkers: aiPoolWant(), error: aiWorkerError, sourceLength: aiEngineSourceText().length }),
+  setAIBudgetMs: (ms) => { aiTestBudgetMs = ms == null ? null : Math.max(1, ms | 0); return aiBudgetMs(); },
   legacy: () => aiChoose(),
   sim: (i) => sim(G.board, i, G.turn),
   playMove: (i) => { const ok = play(i); if (ok) after(); return ok; },
