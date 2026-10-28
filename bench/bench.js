@@ -24,6 +24,7 @@ const path = require('path');
 const crypto = require('crypto');
 const rules = require('./lib/rules');
 const oldAiLib = require('./lib/old-ai');
+const styleLib = require('./lib/style');
 
 const VERSION = '1.0.0';
 const ENGINE_PATH = path.join(__dirname, '..', 'dev', 'ai-engine.js');
@@ -39,6 +40,7 @@ const MODE_FLAGS = {
   '--old-vs-new': 'old-vs-new',
   '--new-vs-new': 'new-vs-new',
   '--probe': 'probe',
+  '--style': 'style',
 };
 
 const USAGE = [
@@ -49,25 +51,31 @@ const USAGE = [
   '  node bench/bench.js --old-vs-new    [options]',
   '  node bench/bench.js --new-vs-new    [options]',
   '  node bench/bench.js --probe         [options]',
+  '  node bench/bench.js --style         [options]',
   '',
   'Modes:',
   '  --old-vs-random   page AI (extracted from index.html) vs uniform random legal player',
   '  --old-vs-new      page AI vs dev/ai-engine.js engine (budget --time)',
   '  --new-vs-new      dev/ai-engine.js with budget --time vs the same engine with --time2',
   '  --probe           run the new engine on hand-built positions; assert legality, print bestMoves',
+  '  --style           self-play the engine (optionally two engines with --engine2) and report',
+  '                    behaviour metrics: own-stone adjacency by phase, opening distances,',
+  '                    own-eye / own-territory fills, passes, openings, game length',
   '',
   'Options:',
-  '  --games N        number of games            (default 10; 4 for --new-vs-new)',
+  '  --games N        number of games            (default 10; 4 for --new-vs-new/--style)',
   '  --size N         9 | 13 | 19 | 25          (default 9)',
   '  --players N      2..6                      (default 2)',
   '  --time ms        new-engine budget, engine A / old-vs-new (default 300)',
-  '  --time2 ms       new-engine budget, engine B (new-vs-new, default 800)',
+  '  --time2 ms       new-engine budget, engine B (new-vs-new default 800; --style B, default = --time)',
   '  --playouts N     optional engine maxPlayouts cap (engine A / old-vs-new)',
   '  --playouts2 N    optional engine maxPlayouts cap (engine B)',
   '  --seed N         deterministic seed        (default 1)',
   '  --json           machine-readable JSON on stdout (diagnostics included)',
   '  --page PATH      alternative index.html ({repo}/index.html by default)',
   '  --engine PATH    alternative engine file ({repo}/dev/ai-engine.js by default)',
+  '  --engine2 PATH   optional second engine for --style (A/B head-to-head style comparison)',
+  '  --opening N      opening window in moves for --style (default 12)',
   '  --verbose        progress dots on stderr',
   '  --help           show this help',
   '',
@@ -90,8 +98,12 @@ function parseArgs(argv) {
     help: false,
     page: null,
     engine: null,
+    engine2: null,
+    opening: 12,
+    timeExplicit: false,
+    time2Explicit: false,
   };
-  const VALUE_KEYS = ['games', 'size', 'players', 'time', 'time2', 'seed', 'playouts', 'playouts2', 'page', 'engine'];
+  const VALUE_KEYS = ['games', 'size', 'players', 'time', 'time2', 'seed', 'playouts', 'playouts2', 'page', 'engine', 'engine2', 'opening'];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (MODE_FLAGS[arg]) {
@@ -115,15 +127,18 @@ function parseArgs(argv) {
       if (VALUE_KEYS.indexOf(key) < 0) throw new Error('unknown option: --' + key);
       if (key === 'page') { cfg.page = val; continue; }
       if (key === 'engine') { cfg.engine = val; continue; }
+      if (key === 'engine2') { cfg.engine2 = val; continue; }
       const num = Number(val);
       if (!Number.isFinite(num) || !Number.isInteger(num)) throw new Error('option --' + key + ' expects an integer, got ' + JSON.stringify(val));
       cfg[key] = num;
+      if (key === 'time') cfg.timeExplicit = true;
+      if (key === 'time2') cfg.time2Explicit = true;
       continue;
     }
     throw new Error('unexpected argument: ' + arg);
   }
   if (cfg.help || !cfg.mode) return cfg;
-  if (cfg.games == null) cfg.games = cfg.mode === 'new-vs-new' ? 4 : 10;
+  if (cfg.games == null) cfg.games = (cfg.mode === 'new-vs-new' || cfg.mode === 'style') ? 4 : 10;
   if (rules.VALID_SIZES.indexOf(cfg.size) < 0) throw new Error('--size must be one of 9, 13, 19, 25');
   if (cfg.players < 2 || cfg.players > 6) throw new Error('--players must be 2..6');
   if (cfg.games < 1) throw new Error('--games must be >= 1');
@@ -132,6 +147,9 @@ function parseArgs(argv) {
   if (cfg.seed < 0) throw new Error('--seed must be >= 0');
   if (cfg.playouts != null && cfg.playouts < 1) throw new Error('--playouts must be >= 1');
   if (cfg.playouts2 != null && cfg.playouts2 < 1) throw new Error('--playouts2 must be >= 1');
+  if (cfg.opening < 1 || cfg.opening > 60) throw new Error('--opening must be 1..60');
+  // --style: if a second engine is given without an explicit --time2, use the same budget (fair A/B).
+  if (cfg.mode === 'style' && cfg.engine2 && !cfg.time2Explicit) cfg.time2 = cfg.time;
   return cfg;
 }
 
@@ -903,6 +921,318 @@ function formatMatchReport(res) {
 }
 
 // ---------------------------------------------------------------------------
+// style mode: behaviour metrics of self-played engines
+// ---------------------------------------------------------------------------
+
+function styleEngineLine(label, meta) {
+  return label + ' : ' + (meta.version || '(no version tag)') + (meta.sha256 ? ' [' + meta.sha256.slice(0, 12) + ']' : '') +
+    ' | budget ' + meta.budgetMs + ' ms/move' + (meta.maxPlayouts ? ' | maxPlayouts ' + meta.maxPlayouts : '') +
+    ' | ' + meta.path;
+}
+
+function fmtHist(hist, histMax) {
+  const parts = [];
+  for (let k = 0; k < hist.length; k++) {
+    if (!hist[k]) continue;
+    parts.push((k > histMax ? (histMax + 1) + '+' : String(k)) + ':' + hist[k]);
+  }
+  return parts.length ? parts.join(' ') : '-';
+}
+
+function runStyle(cfg) {
+  const R = rules.createRules(cfg.size);
+  const diagnostics = { node: process.version, engineA: null, engineB: null, engineVerifyA: null, engineVerifyB: null };
+  const warnings = [];
+
+  const pathA = enginePathOf(cfg);
+  const loadedA = loadNewEngine(pathA);
+  diagnostics.engineA = { path: pathA, exists: fs.existsSync(pathA), version: loadedA.version || null, sha256: loadedA.sha256 || null, reason: loadedA.reason || null };
+  if (!loadedA.ok) return engineUnavailableResult(cfg, diagnostics, loadedA.reason);
+  diagnostics.engineVerifyA = verifyEngine(loadedA.api, R, { players: cfg.players, seed: cfg.seed });
+  if (!diagnostics.engineVerifyA.ok) {
+    return {
+      ok: false, code: 'ENGINE_BROKEN', mode: cfg.mode, size: cfg.size, players: cfg.players, games: cfg.games, seed: cfg.seed,
+      error: 'engine A contract checks failed: ' + diagnostics.engineVerifyA.errors.join(' | '), diagnostics: diagnostics,
+    };
+  }
+  for (let k = 0; k < diagnostics.engineVerifyA.warnings.length; k++) warnings.push('engine A: ' + diagnostics.engineVerifyA.warnings[k]);
+
+  let loadedB = null;
+  if (cfg.engine2) {
+    const pathB = path.resolve(process.cwd(), cfg.engine2);
+    loadedB = loadNewEngine(pathB);
+    diagnostics.engineB = { path: pathB, exists: fs.existsSync(pathB), version: loadedB.version || null, sha256: loadedB.sha256 || null, reason: loadedB.reason || null };
+    if (!loadedB.ok) {
+      return {
+        ok: false, code: 'ENGINE_UNAVAILABLE', mode: cfg.mode, size: cfg.size, players: cfg.players, games: cfg.games, seed: cfg.seed,
+        error: 'engine B (--engine2): ' + loadedB.reason, diagnostics: diagnostics,
+      };
+    }
+    diagnostics.engineVerifyB = verifyEngine(loadedB.api, R, { players: cfg.players, seed: cfg.seed });
+    if (!diagnostics.engineVerifyB.ok) {
+      return {
+        ok: false, code: 'ENGINE_BROKEN', mode: cfg.mode, size: cfg.size, players: cfg.players, games: cfg.games, seed: cfg.seed,
+        error: 'engine B contract checks failed: ' + diagnostics.engineVerifyB.errors.join(' | '), diagnostics: diagnostics,
+      };
+    }
+    for (let k = 0; k < diagnostics.engineVerifyB.warnings.length; k++) warnings.push('engine B: ' + diagnostics.engineVerifyB.warnings[k]);
+  }
+
+  const twoEngine = !!loadedB;
+  const tracker = styleLib.createStyleTracker(R, {
+    openingMoves: cfg.opening,
+    engineKeys: twoEngine ? ['A', 'B'] : ['A'],
+    twoEngine: twoEngine,
+  });
+  const ctx = {
+    R: R, cfg: cfg, tracker: tracker,
+    engineA: loadedA.api, engineB: loadedB ? loadedB.api : null,
+    timeA: cfg.time, timeB: cfg.time2,
+    playA: cfg.playouts, playB: cfg.playouts2,
+    twoEngine: twoEngine,
+    illegal: 0, crashes: 0, mutatedInput: 0,
+  };
+  const t0 = Date.now();
+  try {
+    for (let gi = 0; gi < cfg.games; gi++) playStyleGame(ctx, gi);
+  } catch (e) {
+    if (e && /createEngine|think\(\)/.test(String(e.message))) {
+      return { ok: false, code: 'ENGINE_BROKEN', mode: cfg.mode, size: cfg.size, players: cfg.players, games: cfg.games, seed: cfg.seed, error: truncate(e.message, 800), diagnostics: diagnostics };
+    }
+    throw e;
+  }
+  const elapsedMs = Date.now() - t0;
+  const summary = tracker.summary();
+
+  return {
+    ok: true,
+    code: 'OK',
+    bench: 'hexago-bench',
+    version: VERSION,
+    mode: 'style',
+    size: cfg.size,
+    points: R.n,
+    players: cfg.players,
+    games: cfg.games,
+    seed: cfg.seed,
+    openingMoves: cfg.opening,
+    engines: {
+      A: { path: pathA, version: loadedA.version || null, sha256: loadedA.sha256 || null, budgetMs: cfg.time, maxPlayouts: cfg.playouts || null },
+      B: loadedB ? { path: path.resolve(process.cwd(), cfg.engine2), version: loadedB.version || null, sha256: loadedB.sha256 || null, budgetMs: cfg.time2, maxPlayouts: cfg.playouts2 || null } : null,
+    },
+    elapsedMs: elapsedMs,
+    totals: {
+      illegal: ctx.illegal,
+      crashes: ctx.crashes,
+      mutatedInput: ctx.mutatedInput,
+      moves: summary.gameLength.totalMoves,
+      avgGameLength: summary.gameLength.mean,
+      passes: summary.passes.total,
+      resignations: summary.resignations.total,
+    },
+    style: summary,
+    warnings: warnings,
+    diagnostics: diagnostics,
+    gameLog: tracker.gameLog.map(function (g) {
+      return {
+        game: g.game, seats: g.seatKeys.slice(1), endReason: g.endReason, moves: g.totalMoves, boardMoves: g.boardMovesTotal,
+        passes: g.passes, resignations: g.resignations, firstPass: g.firstPass,
+        eyeFills: g.eyeFills, territoryFills: g.territoryFills, selfAdjacent: g.selfAdjacent,
+        scores: g.scores, winners: g.winners, durationMs: g.durationMs,
+      };
+    }),
+  };
+}
+
+function playStyleGame(ctx, gi) {
+  const R = ctx.R, cfg = ctx.cfg, tracker = ctx.tracker;
+  const state = R.newState(cfg.players);
+  const seatKeys = [null];
+  const agents = [null];
+  for (let p = 1; p <= cfg.players; p++) {
+    let key = 'A';
+    if (ctx.twoEngine) {
+      const oddSeat = (p % 2 === 1);
+      key = ((gi % 2 === 0) === oddSeat) ? 'A' : 'B';
+    }
+    seatKeys[p] = key;
+    const api = key === 'A' ? ctx.engineA : ctx.engineB;
+    const engine = api.createEngine({ size: cfg.size, playerCount: cfg.players });
+    if (!engine || typeof engine.think !== 'function') throw new Error('createEngine() did not return a usable engine (' + key + ')');
+    agents[p] = {
+      key: key,
+      engine: engine,
+      budget: key === 'A' ? ctx.timeA : ctx.timeB,
+      cap: key === 'A' ? ctx.playA : ctx.playB,
+      moves: 0,
+      ms: 0,
+      visitsSum: 0,
+      visitsN: 0,
+      playoutsSum: 0,
+      playoutsN: 0,
+    };
+  }
+  tracker.beginGame(gi, seatKeys);
+
+  let endReason = null;
+  let forfeitSeat = -1;
+  const maxMoves = Math.max(200, R.n * 8);
+  while (!state.over) {
+    if (state.moves > maxMoves) { endReason = 'max-moves'; break; }
+    const p = state.turn;
+    const rec = agents[p];
+    const key = rec.key;
+    const view = {
+      board: state.board.slice(),
+      turn: state.turn,
+      playerCount: state.playerCount,
+      out: state.out.slice(),
+      passes: state.passes,
+      seen: state.seen.slice(),
+    };
+    const snapBoard = view.board.slice();
+    const snapSeen = view.seen.slice();
+    const options = { budgetMs: rec.budget, seed: rules.mixSeed(cfg.seed, gi, state.moves, state.turn) };
+    if (rec.cap) options.maxPlayouts = rec.cap;
+    const t0 = process.hrtime.bigint();
+    let res = null;
+    let threw = null;
+    try { res = rec.engine.think(view, options); } catch (e) { threw = e; }
+    const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+    rec.moves++;
+    rec.ms += ms;
+    if (threw) { ctx.crashes++; endReason = 'crash'; forfeitSeat = p; break; }
+    if (!res || !Number.isInteger(res.move)) { ctx.illegal++; endReason = 'illegal'; forfeitSeat = p; break; }
+    let mutated = view.seen.length !== snapSeen.length;
+    if (!mutated) for (let i = 0; i < snapBoard.length; i++) if (view.board[i] !== snapBoard[i]) { mutated = true; break; }
+    if (mutated) ctx.mutatedInput++;
+    const stats = {
+      ms: ms,
+      visits: Number.isFinite(res.visits) ? res.visits : null,
+      playouts: Number.isFinite(res.playouts) ? res.playouts : null,
+    };
+    if (stats.visits != null) { rec.visitsSum += stats.visits; rec.visitsN++; }
+    if (stats.playouts != null) { rec.playoutsSum += stats.playouts; rec.playoutsN++; }
+
+    const move = res.move;
+    if (move === -1) {
+      tracker.recordPass(state, key);
+      if (R.doPass(state)) { endReason = 'pass'; break; }
+    } else if (move === -2) {
+      if (cfg.players !== 2) { ctx.illegal++; endReason = 'illegal'; forfeitSeat = p; break; }
+      tracker.recordResign(key);
+      R.resign(state);
+      if (state.over) endReason = 'resign';
+    } else if (move < 0 || move >= R.n) {
+      ctx.illegal++;
+      endReason = 'illegal';
+      forfeitSeat = p;
+      break;
+    } else {
+      const sim = R.simMove(state.board, move, state.turn, state.seenSet);
+      if (!sim) { ctx.illegal++; endReason = 'illegal'; forfeitSeat = p; break; }
+      tracker.recordMove(state, move, key, stats);
+      const applied = R.applyMove(state, move);
+      tracker.recordCapture(key, applied.cap.length);
+    }
+  }
+
+  let summary = null;
+  if (endReason === 'pass') summary = R.finishByPass(state);
+  else if (endReason === 'resign' || endReason === 'max-moves' || !endReason) summary = R.scoreState(state);
+
+  const outcomes = new Array(cfg.players + 1).fill('L');
+  if (!summary) {
+    for (let q = 1; q <= cfg.players; q++) outcomes[q] = (state.out[q] || q === forfeitSeat) ? 'L' : 'W';
+  } else {
+    for (let q = 1; q <= cfg.players; q++) {
+      if (state.out[q]) outcomes[q] = 'L';
+      else if (summary.top.indexOf(q) >= 0) outcomes[q] = summary.top.length === 1 ? 'W' : 'D';
+    }
+  }
+  tracker.endGame({
+    endReason: endReason || 'pass',
+    outcomes: outcomes,
+    scores: summary ? summary.scores.slice(1) : null,
+    winners: summary ? summary.top.slice() : null,
+  });
+}
+
+function formatStyleReport(res) {
+  const L = [];
+  const st = res.style;
+  L.push('=== HEXAGO bench v' + res.version + ' | style ===');
+  L.push('node ' + res.diagnostics.node + ' | size ' + res.size + ' (' + res.points + ' pts) | players ' + res.players +
+    ' | games ' + res.games + ' | seed ' + res.seed + ' | opening window ' + res.openingMoves + ' moves');
+  L.push(styleEngineLine('engine A', res.engines.A));
+  if (res.engines.B) L.push(styleEngineLine('engine B', res.engines.B));
+  for (let k = 0; k < res.warnings.length; k++) L.push('warning: ' + res.warnings[k]);
+  L.push('');
+
+  const gl = st.gameLength;
+  const reasons = Object.keys(st.endReasons).map(function (k) { return k + ' ' + st.endReasons[k]; }).join(', ');
+  L.push('games ' + st.games + ' | avg length ' + gl.mean + ' moves incl. passes (min ' + gl.min + ', max ' + gl.max + '; board moves ' + gl.boardMovesMean + ')' + (reasons ? ' | end: ' + reasons : ''));
+  L.push('illegal ' + res.totals.illegal + ' | crashes ' + res.totals.crashes + ' | input mutations ' + res.totals.mutatedInput);
+  L.push('');
+
+  const ov = st.overall;
+  L.push("self-adjacency (move touches mover's own stones)");
+  L.push('  phase        moves  adjacent    rate');
+  const phases = ['opening', 'middlegame', 'endgame'];
+  for (let k = 0; k < phases.length; k++) {
+    const ph = ov.phases[phases[k]];
+    L.push('  ' + pad(phases[k], 11) + padLeft(ph.moves, 6) + padLeft(ph.selfAdjacent, 8) + padLeft(ph.selfAdjacentRatePct == null ? '-' : ph.selfAdjacentRatePct, 8) + '%');
+  }
+  L.push('  ' + pad('overall', 11) + padLeft(ov.moves, 6) + padLeft(ov.selfAdjacent, 8) + padLeft(ov.selfAdjacentRatePct, 8) + '%');
+  L.push('');
+
+  const od = ov.openingDistances;
+  L.push('opening distances (first ' + res.openingMoves + ' moves; n=' + od.moves + ', nearest-own n=' + od.nearestOwn.n + ', no own stones ' + od.nearestOwn.missing + ')');
+  L.push('  nearest own : mean ' + od.nearestOwn.mean + '   hist ' + fmtHist(od.nearestOwn.hist, od.nearestOwn.histMax));
+  L.push('  centre      : mean ' + od.centre.mean + '   hist ' + fmtHist(od.centre.hist, od.centre.histMax));
+  const byMove = st.openingDistByMove.map(function (m) {
+    return m.moveIdx + ': own ' + (m.nearestOwnMean == null ? '-' : m.nearestOwnMean) + '/c' + m.centreMean;
+  });
+  L.push('  by move     : ' + byMove.join(' | '));
+  L.push('');
+
+  L.push('own-area fills');
+  L.push('  own eye fills              : ' + ov.eyeFills + ' (' + ov.eyeFillRatePct + '% of moves)  opening ' + ov.phases.opening.eyeFills + ' / middle ' + ov.phases.middlegame.eyeFills + ' / endgame ' + ov.phases.endgame.eyeFills);
+  L.push('  own settled-territory fills: ' + ov.territoryFills + ' (' + ov.territoryFillRatePct + '%)  opening ' + ov.phases.opening.territoryFills + ' / middle ' + ov.phases.middlegame.territoryFills + ' / endgame ' + ov.phases.endgame.territoryFills);
+  L.push('  captures                   : ' + ov.captures + ' (' + (ov.moves ? Math.round((1000 * ov.captures) / ov.moves) / 1000 : 0) + '/move)');
+  L.push('');
+
+  const fp = st.passes.firstPass;
+  L.push('passes       : ' + st.passes.total + ' total (' + st.passes.perGame + '/game) | first pass avg move ' + fp.meanMoveIdx + ', empty points ' + fp.meanEmptyFracPct + '% (min ' + fp.minEmptyFracPct + '%, max ' + fp.maxEmptyFracPct + '%)');
+  L.push('resignations : ' + st.resignations.total + ' (' + st.resignations.perGame + '/game)');
+  const div = st.openingDiversity;
+  L.push('opening diversity: ' + div.games + ' games -> ' + div.distinctFirstMoves + ' distinct first moves, ' + div.distinctOpeningSequences + ' distinct first-' + div.openingSequenceLength + ' sequences');
+  L.push('  first moves: ' + div.firstMoves.map(function (e) { return e.move + e.coord + 'x' + e.count; }).join(', '));
+  L.push('  sample openings: ' + div.sampleSequences.map(function (seq) { return '[' + seq.join(' ') + ']'; }).join(' '));
+  L.push('');
+
+  L.push('timing (engine-reported visits/playouts; wall clock)');
+  L.push('  A: ' + ov.timing.msPerMove + ' ms/move, visits ' + ov.timing.avgVisits + '/mv, playouts ' + ov.timing.avgPlayouts + '/mv');
+  if (st.perEngine.B) {
+    const b = st.perEngine.B;
+    L.push('  B: ' + b.timing.msPerMove + ' ms/move, visits ' + b.timing.avgVisits + '/mv, playouts ' + b.timing.avgPlayouts + '/mv');
+    L.push('');
+    L.push('per-engine style');
+    L.push('  eng   moves  selfAdj  eyeFill  terrFill  eyeFills  terrFills  passes  record');
+    const keys = ['A', 'B'];
+    for (let k = 0; k < keys.length; k++) {
+      const e = st.perEngine[keys[k]];
+      L.push('  ' + pad(keys[k], 4) + padLeft(e.moves, 6) + padLeft(e.selfAdjacentRatePct, 8) + '%' + padLeft(e.eyeFillRatePct, 8) + '%' + padLeft(e.territoryFillRatePct, 9) + '%' +
+        padLeft(e.eyeFills, 10) + padLeft(e.territoryFills, 11) + padLeft(e.passes, 8) + '  ' +
+        (e.record ? e.record.W + '-' + e.record.L + '-' + e.record.D + ' (' + e.record.winratePct + '%)' : '-'));
+    }
+  }
+  L.push('');
+  L.push('elapsed ' + round(res.elapsedMs / 1000, 2) + ' s (' + round(res.elapsedMs / 1000 / res.games, 2) + ' s/game)');
+  return L.join('\n');
+}
+
+// ---------------------------------------------------------------------------
 // failure report (no game numbers available)
 // ---------------------------------------------------------------------------
 
@@ -1160,9 +1490,10 @@ function main() {
   }
 
   const isProbe = cfg.mode === 'probe';
+  const isStyle = cfg.mode === 'style';
   let res;
   try {
-    res = isProbe ? runProbe(cfg) : runMatch(cfg);
+    res = isProbe ? runProbe(cfg) : (isStyle ? runStyle(cfg) : runMatch(cfg));
   } catch (e) {
     const payload = { ok: false, code: 'FATAL', mode: cfg.mode, error: truncate(e && e.stack || e, 2000) };
     if (cfg.json) process.stdout.write(JSON.stringify(payload, null, 2) + '\n');
@@ -1175,13 +1506,18 @@ function main() {
     process.stdout.write(JSON.stringify(res, null, 2) + '\n');
   } else if (res.code === 'ENGINE_UNAVAILABLE') {
     process.stdout.write('new engine not available: ' + res.error + '\n');
-    process.stdout.write('  expected: ' + enginePathOf(cfg) + '\n');
-    process.stdout.write('  (--old-vs-random works without the new engine; --engine PATH overrides)\n');
+    const ud = res.diagnostics || {};
+    if (ud.engineA && ud.engineA.path) process.stdout.write('  engine A : ' + ud.engineA.path + (ud.engineA.exists ? '' : ' (missing)') + '\n');
+    if (ud.engineB && ud.engineB.path) process.stdout.write('  engine B : ' + ud.engineB.path + (ud.engineB.exists ? '' : ' (missing)') + '\n');
+    if (!ud.engineA && !ud.engineB) process.stdout.write('  expected: ' + enginePathOf(cfg) + '\n');
+    process.stdout.write('  (--old-vs-random works without the new engine; --engine/--engine2 PATH overrides)\n');
   } else if (res.code === 'PROBE_FAILED' || (isProbe && res.positions)) {
     process.stdout.write(formatProbeReport(res) + '\n');
     if (!res.ok) process.stdout.write('detail: ' + JSON.stringify(res.positions.filter(function (p) { return !p.legal; }).map(function (p) { return { name: p.name, move: p.move, reason: p.reason }; })) + '\n');
   } else if (!res.ok && res.code !== 'RULES_CROSSCHECK_FAILED') {
     process.stdout.write(formatFailureReport(res) + '\n');
+  } else if (isStyle) {
+    process.stdout.write(formatStyleReport(res) + '\n');
   } else {
     process.stdout.write(formatMatchReport(res) + '\n');
   }

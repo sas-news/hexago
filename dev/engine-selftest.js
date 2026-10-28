@@ -409,6 +409,49 @@ section('4b. dead-stone cleanup (page detectDeadStones parity)');
 }
 
 /* ------------------------------------------------------------------ *
+ *  4c. hex-shape patterns (HEXAGO is not Go)
+ * ------------------------------------------------------------------ */
+section('4c. hex-shape patterns (diagonal miai vs straight cut)');
+{
+  const g = E.geometry(9);
+  const n = g.n, c = g.center, nbs = g.NB[c], nd = g.nbDirFlat;
+  const per = g.nbOff[c + 1] - g.nbOff[c];
+  let diag = null, straight = null;
+  for (let k = 0; k < per; k++) {
+    for (let k2 = k + 1; k2 < per; k2++) {
+      const d1 = nd[g.nbOff[c] + k], d2 = nd[g.nbOff[c] + k2];
+      let dd = Math.abs(d1 - d2); dd = dd > 3 ? 6 - dd : dd;
+      if (dd === 2 && !diag) diag = [nbs[k], nbs[k2]];
+      if (dd === 3 && !straight) straight = [nbs[k], nbs[k2]];
+    }
+  }
+  const common = (a, b) => g.NB[a].filter(x => g.NB[b].includes(x));
+  const eng = E.createEngine({ size: 9, playerCount: 2 });
+  const diagShared = common(diag[0], diag[1]);
+  const straightShared = common(straight[0], straight[1]);
+  const bd = new Array(n).fill(0); bd[diag[0]] = 1; bd[diag[1]] = 1;
+  const bs = new Array(n).fill(0); bs[straight[0]] = 1; bs[straight[1]] = 1;
+  const be = new Array(n).fill(0); be[straight[0]] = 2; be[straight[1]] = 2;
+  const beD = new Array(n).fill(0); beD[diag[0]] = 2; beD[diag[1]] = 2;
+  check('diagonal pair has TWO shared liberties, straight pair ONE',
+    diagShared.length === 2 && straightShared.length === 1,
+    'diag=' + diagShared.length + ' straight=' + straightShared.length);
+  const diagScores = diagShared.map(x => eng._patternScore(bd, x, 1));
+  const straightScore = eng._patternScore(bs, straightShared[0], 1);
+  check('own diagonal miai connection valued above straight (cuttable) connection',
+    Math.min.apply(null, diagScores) >= 90 && straightScore >= 50 && Math.min.apply(null, diagScores) > straightScore + 20,
+    'diag=' + JSON.stringify(diagScores) + ' straight=' + straightScore);
+  const cutScore = eng._patternScore(be, straightShared[0], 1);
+  const peepScore = eng._patternScore(beD, diagShared[0], 1);
+  check('cutting an enemy straight pair valued above peeping a diagonal pair',
+    cutScore >= 65 && peepScore >= 35 && cutScore > peepScore, 'cut=' + cutScore + ' peep=' + peepScore);
+  const eyeB = new Array(n).fill(0);
+  for (const x of nbs) eyeB[x] = 1;
+  check('filling our own eye is strongly negative', eng._patternScore(eyeB, c, 1) <= -300, '' + eng._patternScore(eyeB, c, 1));
+  check('empty point has neutral pattern score', eng._patternScore(new Array(n).fill(0), c, 1) === 0);
+}
+
+/* ------------------------------------------------------------------ *
  *  5. pass / endgame and always-legal behaviour
  * ------------------------------------------------------------------ */
 
@@ -483,6 +526,96 @@ section('5. pass / endgame / always-legal');
   }
   check('tiny budget on random positions: always page-legal', allLegal, msg);
   check('think() never mutates state.board', allUntouched);
+}
+
+/* ------------------------------------------------------------------ *
+ *  5b. v2 opening variety / framework play / pass & eye endgame
+ * ------------------------------------------------------------------ */
+section('5b. v2 opening variety / framework / pass & eye endgame');
+{
+  const g = E.geometry(9), n = g.n, c = g.center;
+  const empty = new Array(n).fill(0);
+  const mk = (board, turn, passes) => ({ size: 9, playerCount: 2, turn, board, out: fullOut(2), passes: passes || 0, seen: [] });
+  const eng = E.createEngine({ size: 9, playerCount: 2 });
+
+  const firsts = [];
+  for (let s = 1; s <= 8; s++) firsts.push(eng.think(mk(empty.slice(), 1, 0), { maxPlayouts: 250, seed: s * 77 }).move);
+  const uniq = new Set(firsts);
+  check('opening variety: >=3 distinct first moves over 8 seeds, never pass',
+    uniq.size >= 3 && firsts.every(m => m >= 0), JSON.stringify(firsts));
+
+  const one = empty.slice(); one[c] = 1;
+  let far = 0, secondMoves = [];
+  for (let s = 1; s <= 6; s++) {
+    const r = eng.think(mk(one.slice(), 2, 0), { maxPlayouts: 350, seed: s * 31 });
+    secondMoves.push(r.move);
+    if (r.move >= 0 && g.dist(c, r.move) >= 2) far++;
+  }
+  check('framework play: >=3/6 second moves at distance >=2 from the only stone',
+    far >= 3, far + '/6 moves=' + JSON.stringify(secondMoves));
+
+  // settled position: own eyes only -> pass, never fill eyes
+  const eyesB = new Array(n).fill(1); eyesB[c] = 0; eyesB[g.NB[c][0]] = 0;
+  const rEye = eng.think(mk(eyesB, 1, 0), { maxPlayouts: 300, seed: 5 });
+  check('settled position (own eyes only): passes instead of filling its own eyes', rEye.move === -1, 'move=' + rEye.move);
+
+  // own small (2-point) territory + one real dame -> play the dame, not own territory
+  const b2 = new Array(n).fill(1);
+  const dame = g.NB[c][2];
+  let terrA = -1, terrB = -1;
+  for (let q = 0; q < n && terrA < 0; q++) {
+    if (q === c || q === dame || g.NB[q].includes(dame)) continue;
+    for (const q2 of g.NB[q]) {
+      if (q2 === c || q2 === dame || g.NB[q2].includes(dame)) continue;
+      terrA = q; terrB = q2; break;
+    }
+  }
+  b2[terrA] = 0; b2[terrB] = 0; b2[dame] = 0;
+  const p2At = g.NB[dame].filter(x => x !== c && x !== terrA && x !== terrB &&
+    !g.NB[terrA].includes(x) && !g.NB[terrB].includes(x))[0];
+  b2[p2At] = 2;
+  const rDame = eng.think(mk(b2, 1, 0), { maxPlayouts: 700, seed: 9 });
+  check('own territory + real dame: plays the dame, never fills own territory/eye',
+    rDame.move === dame, 'move=' + rDame.move + ' dame=' + dame + ' terr=' + terrA + ',' + terrB);
+
+  // a large own-bordered open area must NOT be treated as settled territory:
+  // the engine has to keep playing (defending/invading) instead of passing.
+  const bBig = new Array(n).fill(1);
+  const bigReg = [c];
+  for (const x of g.NB[c]) bigReg.push(x);
+  outer: for (const x of g.NB[c]) for (const y of g.NB[x]) { if (bigReg.indexOf(y) < 0) { bigReg.push(y); break outer; } }
+  for (const x of bigReg) bBig[x] = 0;
+  const rBig = eng.think(mk(bBig, 1, 0), { maxPlayouts: 400, seed: 17 });
+  check('large own-bordered open area is not treated as settled (keeps playing, does not pass)',
+    rBig.move >= 0 && bBig[rBig.move] === 0, 'move=' + rBig.move + ' region=' + bigReg.length);
+
+  // opponent settled territory only: the two remaining points are surrounded by
+  // opponent stones and are suicide for us -> pass
+  const b3 = new Array(n).fill(2);
+  b3[c] = 0; b3[g.NB[c][0]] = 0;
+  const rOpp = eng.think(mk(b3, 1, 0), { maxPlayouts: 300, seed: 11 });
+  check('only opponent territory left: passes', rOpp.move === -1, 'move=' + rOpp.move);
+
+  // opponent just passed in the midgame -> keep playing
+  const mid = new Array(n).fill(0);
+  const rnd = mulberry32(12345);
+  let placed = 0;
+  while (placed < 14) { const i = (rnd() * n) | 0; if (!mid[i]) { mid[i] = 1 + (placed % 2); placed++; } }
+  const rPass = eng.think(mk(mid, 1, 1), { maxPlayouts: 500, seed: 13 });
+  check('opponent passed in the midgame: keeps playing (no panic pass)', rPass.move >= 0);
+
+  // resignation: hopeless settled 2p position (full board, 50-11 stones for the
+  // mover); opt-in via resignThreshold only.
+  const hopeless = new Array(n).fill(0);
+  for (let q = 0; q < n; q++) hopeless[q] = q < 50 ? 1 : 2;
+  const rNoResign = eng.think(mk(hopeless, 2, 1), { maxPlayouts: 300, seed: 3 });
+  check('hopeless settled 2p position without resignThreshold: passes, never -2', rNoResign.move === -1, 'move=' + rNoResign.move);
+  const rResign = E.createEngine({ size: 9, playerCount: 2 }).think(mk(hopeless, 2, 1), { maxPlayouts: 300, seed: 3, resignThreshold: 0.9 });
+  check('hopeless settled 2p position with resignThreshold: resigns (-2)', rResign.move === -2, 'move=' + rResign.move);
+  const h3 = new Array(n).fill(1); h3[c] = 0;
+  const s3 = { size: 9, playerCount: 3, turn: 2, board: h3, out: [false, false, false, false], passes: 2, seen: [] };
+  const r3 = E.createEngine({ size: 9, playerCount: 3 }).think(s3, { maxPlayouts: 300, seed: 3, resignThreshold: 0.99 });
+  check('3+ players never resign', r3.move !== -2);
 }
 
 /* ------------------------------------------------------------------ *
@@ -611,7 +744,7 @@ section('7. throughput (61-point board, Node ' + process.version + ')');
   const pps = N / (ms / 1000);
   console.log('      measured: ' + pps.toFixed(0) + ' playouts/sec  (' + N + ' playouts in ' + ms.toFixed(1) + ' ms, ' + (E.geometry(9).n) + ' points)');
   console.log('      elapsedMs from result: ' + r.elapsedMs.toFixed(1) + '  move=' + r.move + '  winrate=' + r.winrate.toFixed(3));
-  check('throughput >= 3000 playouts/sec on 61 points', pps >= 3000, pps.toFixed(0) + ' pps');
+  check('throughput >= 4000 playouts/sec on 61 points', pps >= 4000, pps.toFixed(0) + ' pps');
 
   // empty board throughput (longer rollouts) reported for reference
   const empty = new Array(g.n).fill(0);

@@ -217,7 +217,7 @@ canvas{display:block;touch-action:manipulation}
 (function (globalScope) {
   'use strict';
 
-  var VERSION = 'hexago-mcts/1.2.0';
+  var VERSION = 'hexago-mcts/2.0.0';
 
   /* ------------------------------------------------------------------ *
    *  Utilities
@@ -284,29 +284,66 @@ canvas{display:block;touch-action:manipulation}
     var NB = new Array(n);
     var nbOff = new Int32Array(n + 1);
     var flat = [];
+    var dirFlat = [];
+    var maskArr = new Uint8Array(n);
     for (i = 0; i < n; i++) {
       var adj = [];
+      var mask = 0;
       for (d = 0; d < 6; d++) {
         var j = map[(P[i][0] + DIRS[d][0]) + ',' + (P[i][1] + DIRS[d][1])];
-        if (j !== undefined) adj.push(j);
+        if (j !== undefined) { adj.push(j); flat.push(j); dirFlat.push(d); mask |= (1 << d); }
       }
       NB[i] = adj;
-      nbOff[i] = flat.length;
-      for (var k = 0; k < adj.length; k++) flat.push(adj[k]);
+      nbOff[i] = flat.length - adj.length;
+      maskArr[i] = mask;
     }
     nbOff[n] = flat.length;
+    // hex distance matrix (build-time only) + ring lists for distance 2 and 3
+    var distMat = new Int16Array(n * n);
+    var a, b, dq, dr;
+    for (a = 0; a < n; a++) {
+      for (b = 0; b < n; b++) {
+        dq = P[a][0] - P[b][0]; dr = P[a][1] - P[b][1];
+        distMat[a * n + b] = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr));
+      }
+    }
+    var r2off = new Int32Array(n + 1), r2flat = [];
+    var r3off = new Int32Array(n + 1), r3flat = [];
+    for (a = 0; a < n; a++) {
+      r2off[a] = r2flat.length; r3off[a] = r3flat.length;
+      for (b = 0; b < n; b++) {
+        if (distMat[a * n + b] === 2) r2flat.push(b);
+        else if (distMat[a * n + b] === 3) r3flat.push(b);
+      }
+    }
+    r2off[n] = r2flat.length; r3off[n] = r3flat.length;
+    // opening anchors: centre, hex-distance-2 ring, and the 6 axis points at distance 3
+    var anchors = [];
+    var anchorSeen = Object.create(null);
+    var center = map['0,0'];
+    anchors.push(center); anchorSeen[center] = 1;
+    for (b = 0; b < n; b++) if (distMat[center * n + b] === 2 && !anchorSeen[b]) { anchors.push(b); anchorSeen[b] = 1; }
+    for (d = 0; d < 6; d++) {
+      var ai = map[(DIRS[d][0] * 3) + ',' + (DIRS[d][1] * 3)];
+      if (ai !== undefined && !anchorSeen[ai]) { anchors.push(ai); anchorSeen[ai] = 1; }
+    }
     var g = {
       size: size,
       side: side,
       n: n,
       P: P,
       NB: NB,
-      center: map['0,0'],
+      center: center,
       nbOff: nbOff,
       nbFlat: new Int32Array(flat),
-      dist: function (a, b) {
-        var dq = P[a][0] - P[b][0], dr = P[a][1] - P[b][1];
-        return Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr));
+      nbDirFlat: new Int8Array(dirFlat),
+      nbMask: maskArr,
+      ring2Off: r2off, ring2Flat: new Int32Array(r2flat),
+      ring3Off: r3off, ring3Flat: new Int32Array(r3flat),
+      openingAnchors: new Int16Array(anchors),
+      dist: function (a2, b2) {
+        var dq2 = P[a2][0] - P[b2][0], dr2 = P[a2][1] - P[b2][1];
+        return Math.max(Math.abs(dq2), Math.abs(dr2), Math.abs(dq2 + dr2));
       }
     };
     GEO_CACHE[size] = g;
@@ -357,6 +394,182 @@ canvas{display:block;touch-action:manipulation}
     var outFlags = new Uint8Array(8);
     var winArr = new Float64Array(8), valArr = new Float64Array(8);
     var outSc = new Int16Array(8);
+
+    /* ---------------- v2: hex shapes, global candidates, endgame state ---------------- */
+    var nbDirFlat = geo.nbDirFlat;
+    var nbMask = geo.nbMask;
+    var ring2Off = geo.ring2Off, ring2Flat = geo.ring2Flat;
+    var ring3Off = geo.ring3Off, ring3Flat = geo.ring3Flat;
+    var openingAnchors = geo.openingAnchors;
+    var BITIDX = new Int8Array(64);
+    for (var bidx = 0; bidx < 6; bidx++) BITIDX[1 << bidx] = bidx;
+
+    var terrStamp = new Int32Array(n), terrId = 0, terrQueue = new Int16Array(n);
+    var terrOwner = new Int8Array(n);      // 0 neutral, p>0 = region bordered only by p
+    var terrColorCount = new Int8Array(n); // number of border colours of the region
+    var terrSize = new Int16Array(n);      // size (points) of the empty region
+    var rootPat = new Int16Array(n);       // hex pattern score per root move
+    var rootUseful = new Uint8Array(n);    // 1 = the root move gains something
+    var rootLibs = new Int16Array(n);      // own liberties after the root move
+    var globalCand = new Int16Array(n), globalCount = 0;
+    var globalMark = new Int32Array(n), globalMarkId = 0;
+    var FULL_MASK = 0;
+    for (var fm = 0; fm < 6; fm++) FULL_MASK |= 1 << fm;
+    var stoneCountRoot = 0;
+    var emptyRoot = 0;
+    var noUsefulRoot = false;
+    var lastRootLibs = 0;
+    var curC = UCT_C;
+    var TERR_SMALL = Math.max(6, (n * 0.12) | 0);   // clearly enclosed: eye / tiny territory
+    var TERR_SETTLE = Math.max(TERR_SMALL, (n * 0.25) | 0); // late-game medium territory
+
+    function pop6(m) { var c = 0; while (m) { m &= m - 1; c++; } return c; }
+    function cycDiff(a, b) { var d = a - b; if (d < 0) d = -d; return d > 3 ? 6 - d : d; }
+
+    // Hex-shape score for placing colour `p` at the empty point `i` (board before move).
+    //  dirs: 1 = directly adjacent (already connected)
+    //        2 = diagonal two-space pair through `i` -> TWO shared liberties (miai)
+    //        3 = straight two-space pair through `i` -> ONE shared point (cuttable)
+    // This is the "hexago is not go" core: diagonal pairs are strong connections,
+    // straight pairs are cutting points.
+    function patternScore(board, i, p) {
+      var j, je, v, d, ownMask = 0, enMask = 0, ownN = 0, enN = 0;
+      for (j = nbOff[i], je = nbOff[i + 1]; j < je; j++) {
+        v = board[nbFlat[j]];
+        if (v === 0) continue;
+        d = nbDirFlat[j];
+        if (v === p) { ownMask |= 1 << d; ownN++; } else { enMask |= 1 << d; enN++; }
+      }
+      // own eye: every existing neighbour is our own stone -> never fill it
+      if (nbMask[i] !== 0 && ownMask === nbMask[i]) return -420;
+      var sc = 0, m, m2, b1, b2, dd;
+      m = ownMask;
+      while (m) {
+        b1 = m & -m; m ^= b1;
+        m2 = m;
+        while (m2) {
+          b2 = m2 & -m2; m2 ^= b2;
+          dd = cycDiff(BITIDX[b1], BITIDX[b2]);
+          if (dd === 2) sc += 95;       // miai connection (diagonal pair, two shared liberties)
+          else if (dd === 3) sc += 58;  // straight pair (one shared point)
+          else sc += 10;                // contact
+        }
+      }
+      m = enMask;
+      while (m) {
+        b1 = m & -m; m ^= b1;
+        m2 = m;
+        while (m2) {
+          b2 = m2 & -m2; m2 ^= b2;
+          dd = cycDiff(BITIDX[b1], BITIDX[b2]);
+          if (dd === 2) sc += 42;       // one shared liberty of an enemy diagonal pair (peep)
+          else if (dd === 3) sc += 72;  // the single shared point of an enemy straight pair = cut
+          else sc += 12;
+        }
+      }
+      if (ownN >= 3) sc += 26;          // bamboo-joint / thick connection
+      if (enN >= 3) sc += 14;           // contact-fight point
+      return sc;
+    }
+
+    function ownEyeAt(board, i, p) {
+      var j, je;
+      if (nbMask[i] === 0) return false;
+      for (j = nbOff[i], je = nbOff[i + 1]; j < je; j++) if (board[nbFlat[j]] !== p) return false;
+      return true;
+    }
+
+    function computeTerritory(board, pc) {
+      terrId++;
+      var i, j, je, t, v, k, s, qn, mask, cnt, owner, p;
+      for (i = 0; i < n; i++) {
+        if (board[i] !== 0 || terrStamp[i] === terrId) continue;
+        qn = 0; terrQueue[qn++] = i; terrStamp[i] = terrId;
+        mask = 0;
+        for (k = 0; k < qn; k++) {
+          s = terrQueue[k];
+          for (j = nbOff[s], je = nbOff[s + 1]; j < je; j++) {
+            t = nbFlat[j]; v = board[t];
+            if (v === 0) { if (terrStamp[t] !== terrId) { terrStamp[t] = terrId; terrQueue[qn++] = t; } }
+            else mask |= (1 << v);
+          }
+        }
+        cnt = pop6(mask); owner = 0;
+        // Only SMALL, single-colour-bordered regions are settled territory/eyes.
+        // A large region (even if only our own stones border it) is still open:
+        // treating it as settled made the engine ignore defence there and lose
+        // whole groups ("passes while the opponent invades/attacks").
+        if (cnt === 1 && (qn <= TERR_SMALL || (stoneCountRoot >= n * 0.6 && qn <= TERR_SETTLE))) {
+          for (p = 1; p <= pc; p++) if (mask & (1 << p)) { owner = p; break; }
+        }
+        for (k = 0; k < qn; k++) { terrOwner[terrQueue[k]] = owner; terrColorCount[terrQueue[k]] = cnt; terrSize[terrQueue[k]] = qn; }
+      }
+    }
+
+    function nearestStoneDist(board, i) {
+      var j, je;
+      for (j = nbOff[i], je = nbOff[i + 1]; j < je; j++) if (board[nbFlat[j]] !== 0) return 1;
+      for (j = ring2Off[i], je = ring2Off[i + 1]; j < je; j++) if (board[ring2Flat[j]] !== 0) return 2;
+      for (j = ring3Off[i], je = ring3Off[i + 1]; j < je; j++) if (board[ring3Flat[j]] !== 0) return 3;
+      return 4;
+    }
+
+    function buildGlobalCandidates() {
+      globalMarkId++;
+      globalCount = 0;
+      var i, a, j, je, e, adj;
+      for (i = 0; i < openingAnchors.length && globalCount < 24; i++) {
+        a = openingAnchors[i];
+        if (srcBoard[a] === 0 && globalMark[a] !== globalMarkId) { globalMark[a] = globalMarkId; globalCand[globalCount++] = a; }
+      }
+      var tries = 0;
+      while (globalCount < 26 && tries < 80) {
+        tries++;
+        e = (rng() * n) | 0;
+        if (srcBoard[e] !== 0 || globalMark[e] === globalMarkId) continue;
+        adj = 0;
+        for (j = nbOff[e], je = nbOff[e + 1]; j < je; j++) if (srcBoard[nbFlat[j]] !== 0) { adj = 1; break; }
+        if (adj) continue;
+        globalMark[e] = globalMarkId; globalCand[globalCount++] = e;
+      }
+    }
+
+    // Classify every root move: does it gain anything (capture/save/connection/
+    // cut/safe neutral point)?  If nothing gains, passing is the right move.
+    function classifyRootMoves(legal, turn) {
+      computeTerritory(srcBoard, pcCur);
+      noUsefulRoot = true;
+      var i, mv, j, je, ownN, enN, useful, owner, eye;
+      for (i = 0; i < legal.length; i++) {
+        mv = legal[i];
+        if (mv < 0) continue;
+        rootPat[mv] = patternScore(srcBoard, mv, turn);
+        ownN = 0; enN = 0;
+        for (j = nbOff[mv], je = nbOff[mv + 1]; j < je; j++) {
+          var v = srcBoard[nbFlat[j]];
+          if (v === turn) ownN++; else if (v !== 0) enN++;
+        }
+        eye = ownEyeAt(srcBoard, mv, turn);
+        owner = terrOwner[mv];
+        useful = rootCap[mv] > 0;
+        if (!useful && rootPat[mv] >= 40) useful = true;                     // connection / cut
+        if (!useful) {
+          var openPhase = emptyRoot > Math.max(4, (n * 0.35) | 0);
+          var safe = rootLibs[mv] >= 2;
+          var bigRegion = terrSize[mv] > TERR_SMALL;
+          if (openPhase && safe) useful = true;                              // open board: claim space safely
+          else if (safe && terrColorCount[mv] >= 2) useful = true;           // real dame, +1
+          else if (safe && bigRegion) useful = true;                         // large open area: defend/invade, never pass
+        }
+        if (owner === turn && !bigRegion && rootCap[mv] === 0) useful = false; // own SMALL settled territory
+        if (eye && rootCap[mv] === 0) useful = false;                        // own eye
+        if (rootLibs[mv] === 1 && rootCap[mv] === 0) useful = false;         // self-atari
+        rootUseful[mv] = useful ? 1 : 0;
+        if (useful) noUsefulRoot = false;
+      }
+      return noUsefulRoot;
+    }
+
 
     var pcCur = engPC;      // players in current think()
     var activeCount = pcCur;
@@ -561,6 +774,7 @@ canvas{display:block;touch-action:manipulation}
       if (!applyMove(simBoard, move, turn)) return 0;
       var cc = lastCapEnd - lastCapStart;
       if (cc > 0 && seenSet !== null && seenSet.has(hashBoard(simBoard))) return 0;
+      lastRootLibs = lastOwnLibs;
       return 1;
     }
 
@@ -568,8 +782,8 @@ canvas{display:block;touch-action:manipulation}
       var list = [], i;
       for (i = 0; i < n; i++) {
         if (srcBoard[i] !== 0) continue;
-        if (simExactLegal(i, turn)) { list.push(i); rootCap[i] = lastCapEnd - lastCapStart; }
-        else rootCap[i] = 0;
+        if (simExactLegal(i, turn)) { list.push(i); rootCap[i] = lastCapEnd - lastCapStart; rootLibs[i] = lastRootLibs; }
+        else { rootCap[i] = 0; rootLibs[i] = 0; }
       }
       capCount = 0;
       list.push(-1); // pass is always legal
@@ -590,27 +804,45 @@ canvas{display:block;touch-action:manipulation}
     }
 
     // Ascending heuristic order; untried.pop() therefore tries the best move first.
-    function orderRootMoves(moves, turn, allowPass, passEnds) {
-      var scored = [], mi, mv, sc, own, opp, empty, j, je, v;
+    // v2: captures/saves + hex-shape patterns + opening framework priors +
+    // endgame eye/own-territory penalties + diversity jitter.
+    function orderRootMoves(moves, turn, allowPass, passEnds, noUseful) {
+      var scored = [], mi, mv, sc, j, je, v, own, opp, save, eye, owner, dd;
+      var opening = stoneCountRoot <= Math.max(6, (n * 0.22) | 0);
+      var endgame = emptyRoot <= n * 0.55;
       for (mi = 0; mi < moves.length; mi++) {
         mv = moves[mi];
         if (mv === -1) {
           if (!allowPass) continue;
-          sc = passEnds ? 1e6 : -1e9; // passing can end the game
-        }
-        else {
-          sc = rootCap[mv] * 1000;
-          sc += countSavesAt(srcBoard, mv, turn) * 140;
-          own = 0; opp = 0; empty = 0;
+          sc = passEnds ? 1e7 : (noUseful ? 1e6 : -1e9);
+        } else {
+          save = countSavesAt(srcBoard, mv, turn);
+          sc = rootCap[mv] * 1000 + save * 140 + rootPat[mv];
+          own = 0; opp = 0;
           for (j = nbOff[mv], je = nbOff[mv + 1]; j < je; j++) {
             v = srcBoard[nbFlat[j]];
-            if (v === turn) own++; else if (v !== 0) opp++; else empty++;
+            if (v === turn) own++; else if (v !== 0) opp++;
           }
-          sc += own * 6 + opp * 5 + (6 - empty) * 0.5 + (n - geomDistCenter[mv]) * 0.12 + rng() * 0.4;
+          sc += own * 4 + opp * 3;
+          eye = ownEyeAt(srcBoard, mv, turn);
+          owner = terrOwner[mv];
+          if (eye && rootCap[mv] === 0) sc -= 900;                               // never fill our own eye
+          if (owner === turn && terrSize[mv] <= TERR_SMALL && rootCap[mv] === 0 && save === 0) sc -= 700; // never fill own eyes/tiny territory
+          else if (owner === 0 && rootLibs[mv] >= 2) sc += 10;                   // safe neutral point (dame, +1)
+          if (opening) {
+            dd = nearestStoneDist(srcBoard, mv);
+            sc += dd >= 3 ? 40 : dd === 2 ? 22 : dd === 1 ? 4 : 0;               // build a framework, not only adjacent
+            sc += (n - geomDistCenter[mv]) * 0.20;
+            if (nbMask[mv] !== FULL_MASK) sc -= 28;                              // edge penalty while opening
+            sc += rng() * 60;                                                    // opening variety (seeded)
+          } else if (endgame) {
+            sc += rng() * 4;
+          } else {
+            sc += rng() * 10;
+          }
         }
         scored.push([sc, mv]);
       }
-      // Deterministic: jitter comes from the seeded rng, ties break on move index.
       scored.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
       var out = new Array(scored.length);
       for (mi = 0; mi < scored.length; mi++) out[mi] = scored[mi][1];
@@ -625,6 +857,7 @@ canvas{display:block;touch-action:manipulation}
     var pboard = new Int8Array(n);
     var empList = new Int16Array(n), empPos = new Int16Array(n), empCount = 0;
     var candList = new Int16Array(n), candCount = 0;
+    var candOwn = new Int8Array(n), candEn = new Int8Array(n);
     var gStamp = new Int32Array(n);
     var gLibs = new Int16Array(n), gLibPt = new Int16Array(n), gSize = new Int16Array(n);
     var turnId = 0;
@@ -779,6 +1012,8 @@ canvas{display:block;touch-action:manipulation}
     }
 
     // One rollout turn. Returns 1 if a stone was placed, 0 if passing.
+    // v1.2.0 light local policy (kept for playing strength): captures/saves,
+    // then random local moves; never fill our own eyes (passes instead).
     function playoutTurn(p) {
       analyzeTurn(p);
       if (tBestCap >= 0 && rng() < 0.9) { if (tryAccept(p, tBestCap)) return 1; }
@@ -790,7 +1025,11 @@ canvas{display:block;touch-action:manipulation}
           if (isOwnEye(e, p)) continue;
           if (tryAccept(p, e)) return 1;
         }
-        for (a = 0; a < candCount; a++) { e = candList[a]; if (tryAccept(p, e)) return 1; }
+        for (a = 0; a < candCount; a++) {
+          e = candList[a];
+          if (isOwnEye(e, p)) continue;
+          if (tryAccept(p, e)) return 1;
+        }
       }
       return 0;
     }
@@ -834,6 +1073,15 @@ canvas{display:block;touch-action:manipulation}
         v = (s - best) / n;
         valArr[p] = v > 1 ? 1 : (v < -1 ? -1 : v);
       }
+      // Multiplayer: blend rank-1 probability with the score margin so a seat
+      // that cannot win still prefers to improve its rank / hurt the leader
+      // (kingmaking awareness) instead of playing randomly.
+      if (pcCur >= 3) {
+        for (p = 1; p <= pcCur; p++) {
+          if (outFlags[p]) continue;
+          winArr[p] = winArr[p] * 0.8 + (valArr[p] * 0.5 + 0.5) * 0.2;
+        }
+      }
     }
 
     /* ================================================================== *
@@ -855,22 +1103,50 @@ canvas{display:block;touch-action:manipulation}
     var histCapEnd = new Int32Array(MAX_DEPTH + 8);
     var histLen = 0;
 
-    function buildUntried() {
-      // treeBoard is the position of the node being expanded.
-      var arr = [], i, j, je, any;
+    // Tree expansion candidates: local tactical moves (pattern-ordered) PLUS
+    // global/framework candidates (strategic anchors and distant empty points),
+    // so the tree never becomes purely adjacent-move-only.
+    function buildUntried(mover, relDepth) {
+      var i, j, je, v, ownN, enN, adj, e, t;
+      var hi = [], mid = [], lo = [], glob = [];
       for (i = 0; i < n; i++) {
         if (treeBoard[i] !== 0) continue;
-        any = 0;
-        for (j = nbOff[i], je = nbOff[i + 1]; j < je; j++) if (treeBoard[nbFlat[j]] !== 0) { any = 1; break; }
-        if (any) arr.push(i);
+        ownN = 0; enN = 0; adj = 0;
+        for (j = nbOff[i], je = nbOff[i + 1]; j < je; j++) {
+          v = treeBoard[nbFlat[j]];
+          if (v === 0) continue;
+          adj = 1;
+          if (v === mover) ownN++; else enN++;
+        }
+        if (!adj) continue;
+        if (ownN >= 3 || enN >= 3) hi.push(i);
+        else if (ownN >= 2 || enN >= 2) {
+          if (patternScore(treeBoard, i, mover) >= 58) hi.push(i); else mid.push(i);
+        } else if (ownN >= 1) mid.push(i);
+        else lo.push(i);
       }
-      if (arr.length === 0) for (i = 0; i < n; i++) if (treeBoard[i] === 0) arr.push(i);
-      // Fisher-Yates
-      for (i = arr.length - 1; i > 0; i--) {
-        var k = (rng() * (i + 1)) | 0;
-        var tv = arr[i]; arr[i] = arr[k]; arr[k] = tv;
+      // shuffle each bucket, then concat low->high so pop() tries strong moves first
+      function shuf(a) { for (var q = a.length - 1; q > 0; q--) { var kq = (rng() * (q + 1)) | 0; var tv = a[q]; a[q] = a[kq]; a[kq] = tv; } }
+      shuf(lo); shuf(mid); shuf(hi);
+      var arr = lo;
+      for (i = 0; i < mid.length; i++) arr.push(mid[i]);
+      for (i = 0; i < hi.length; i++) arr.push(hi[i]);
+      // global / distant candidates only in the first plies below the root,
+      // otherwise the branching factor explodes and high-budget search degrades
+      if (relDepth <= 2) {
+        for (i = 0; i < globalCount; i++) {
+          e = globalCand[i];
+          if (treeBoard[e] !== 0) continue;
+          adj = 0;
+          for (j = nbOff[e], je = nbOff[e + 1]; j < je; j++) if (treeBoard[nbFlat[j]] !== 0) { adj = 1; break; }
+          if (adj) continue;
+          glob.push(e);
+        }
+        shuf(glob);
+        for (i = 0; i < glob.length && i < 8; i++) arr.push(glob[i]);
       }
-      arr.push(-1); // pass; then placed at a random position so it is not always last
+      // pass
+      arr.push(-1);
       if (arr.length > 1) {
         var pi = (rng() * arr.length) | 0;
         var tmp = arr[pi]; arr[pi] = arr[arr.length - 1]; arr[arr.length - 1] = tmp;
@@ -892,7 +1168,7 @@ canvas{display:block;touch-action:manipulation}
           var beta = rn / (rn + nv + 4 * nv * rn * b * b);
           q = (1 - beta) * q + beta * (ch.rw / rn);
         }
-        var v = q + UCT_C * Math.sqrt(ln / ch.n);
+        var v = q + curC * Math.sqrt(ln / ch.n);
         if (v > bestV) { bestV = v; best = ch; }
       }
       return best;
@@ -983,19 +1259,42 @@ canvas{display:block;touch-action:manipulation}
       }
 
       capCount = 0;
-      var emptyRoot = 0, i;
-      for (i = 0; i < n; i++) if (srcBoard[i] === 0) emptyRoot++;
+      var i;
+      emptyRoot = 0; stoneCountRoot = 0;
+      for (i = 0; i < n; i++) { if (srcBoard[i] === 0) emptyRoot++; else stoneCountRoot++; }
+      curC = UCT_C;
 
       // Fresh exact root legality (page rules: occupied / suicide / superko-on-capture).
       var legal = genRootLegal(turn);
       var legalMark = new Uint8Array(n);
       for (i = 0; i < legal.length; i++) if (legal[i] >= 0) legalMark[legal[i]] = 1;
-
-      // Do not offer "pass" while the board is still open: passing with lots of
-      // useful points left is almost never genuinely best (and looks broken).
-      // Pass is offered after an opponent pass, or in the endgame.
-      var allowPass = passes > 0 || emptyRoot <= Math.floor(n * 0.2) || legal.length <= 1;
+      buildGlobalCandidates();
+      var noUseful = classifyRootMoves(legal, turn);
       var passEnds = passes + 1 >= activeCount;
+
+      // First-class pass: offered when it can end the game, after an opponent
+      // pass, when the position is settled (nothing useful), or in the endgame.
+      var allowPass = passEnds || passes > 0 || noUseful || emptyRoot <= Math.floor(n * 0.5) || legal.length <= 1;
+
+      // Nothing on the board gains anything (own eyes / own settled territory /
+      // self-atari only): passing is the correct decision, do not fill.
+      if (noUseful) {
+        simBoard.set(srcBoard);
+        capCount = 0;
+        removeDeadStones(simBoard);
+        scoreBoardInto(simBoard, outSc, pc);
+        computeOutcome();
+        var passVal = winArr[rootMover], passScore = valArr[rootMover];
+        var resignHere = -1;
+        if (options.resignThreshold != null && pc === 2 && passVal < +options.resignThreshold && passScore < -0.35) resignHere = -2;
+        return {
+          move: resignHere, visits: 0, playouts: 0,
+          winrate: passVal, value: passScore,
+          bestMoves: [{ move: -1, visits: 1, value: passVal }],
+          rootMoves: [{ move: -1, visits: 1, winrate: passVal, value: passScore }],
+          elapsedMs: nowMs() - start, engine: VERSION
+        };
+      }
 
       var root = null;
       var oldRoot = engine._root;
@@ -1056,7 +1355,7 @@ canvas{display:block;touch-action:manipulation}
         var childMark = new Uint8Array(n);
         var kidsNow = root.children || [];
         for (i = 0; i < kidsNow.length; i++) if (kidsNow[i].move >= 0) childMark[kidsNow[i].move] = 1;
-        var ordered = orderRootMoves(legal, turn, allowPass, passEnds);
+        var ordered = orderRootMoves(legal, turn, allowPass, passEnds, noUseful);
         var untried = [];
         for (i = 0; i < ordered.length; i++) { if (ordered[i] === -1 || !childMark[ordered[i]]) untried.push(ordered[i]); }
         root.untried = untried;
@@ -1065,7 +1364,7 @@ canvas{display:block;touch-action:manipulation}
         root = makeNode(turn, -1, null, 0, passes, -1);
         root.boardCopy = new Int8Array(n); root.boardCopy.set(srcBoard);
         root.pc = pc; root.outSig = outSig;
-        root.untried = orderRootMoves(legal, turn, allowPass, passEnds);
+        root.untried = orderRootMoves(legal, turn, allowPass, passEnds, noUseful);
         root.children = [];
       }
       var rootDepth = root.depth;
@@ -1088,7 +1387,7 @@ canvas{display:block;touch-action:manipulation}
         while (true) {
           if (node.terminal) { leaf = node; break; }
           if (node.untried === null) {
-            node.untried = node.depth === rootDepth ? orderRootMoves(legal, turn, allowPass, passEnds) : buildUntried();
+            node.untried = node.depth === rootDepth ? orderRootMoves(legal, turn, allowPass, passEnds, noUseful) : buildUntried(node.mover, node.depth - rootDepth);
           }
           if (node.untried.length > 0) {
             var expanded = false;
@@ -1199,6 +1498,11 @@ canvas{display:block;touch-action:manipulation}
         histLen = 0;
 
         it++;
+        // Temperature: explore/fight more when behind, consolidate when ahead.
+        if ((it & 63) === 0 && it >= 64) {
+          var wrCur = root.n > 0 ? root.w / root.n : 0.5;
+          curC = wrCur < 0.35 ? UCT_C * 1.25 : (wrCur > 0.62 ? UCT_C * 0.9 : UCT_C);
+        }
         if (options.onProgress && (it & 255) === 0) {
           var bm = pickBestChild(root);
           if (bm >= 0) bestSoFar = bm.move;
@@ -1212,20 +1516,51 @@ canvas{display:block;touch-action:manipulation}
       if (best) move = best.move;
       else {
         // Fallback: best-ordered legal move (center preference when board is empty).
-        for (i = legal.length - 1; i >= 0; i--) {
-          if (legal[i] === -1) continue;
-          move = legal[i]; break;
-        }
+        for (i = legal.length - 1; i >= 0; i--) { if (legal[i] === -1) continue; move = legal[i]; break; }
         if (emptyRoot > 0 && legalMark[geo.center]) move = geo.center;
-        if (move === -1) move = -1;
+      }
+      // First-class pass decision: only pass when justified (otherwise use the
+      // best placement even if the noisy search ranked pass highest).
+      if (move === -1) {
+        var passJustified = passEnds || passes > 0 || noUseful;
+        if (!passJustified) {
+          var bestNon = null;
+          if (root.children) {
+            for (i = 0; i < root.children.length; i++) {
+              var cn0 = root.children[i];
+              if (cn0.move >= 0 && cn0.n > 0 && (bestNon === null || cn0.n > bestNon.n)) bestNon = cn0;
+            }
+          }
+          if (bestNon !== null) {
+            var passWr = best.n > 0 ? best.w / best.n : 0;
+            var nonWr = bestNon.w / bestNon.n;
+            if (!(emptyRoot <= Math.floor(n * 0.5) && passWr >= nonWr + 0.02)) move = bestNon.move;
+          }
+        }
+      }
+      // Never fill our own eye / own settled territory while a better move exists.
+      if (move >= 0 && rootCap[move] === 0) {
+        var badSelf = ownEyeAt(srcBoard, move, turn) || (terrOwner[move] === turn && terrSize[move] <= TERR_SMALL);
+        if (badSelf && root.children) {
+          var bestGood = null;
+          for (i = 0; i < root.children.length; i++) {
+            var cg = root.children[i];
+            if (cg.move < 0 || cg.n <= 0) continue;
+            if (rootCap[cg.move] === 0 && (ownEyeAt(srcBoard, cg.move, turn) || (terrOwner[cg.move] === turn && terrSize[cg.move] <= TERR_SMALL))) continue;
+            if (bestGood === null || cg.n > bestGood.n) bestGood = cg;
+          }
+          if (bestGood !== null) move = bestGood.move;
+        }
       }
       // Safety: never return an illegal placement.
       if (move >= 0 && !legalMark[move]) move = -1;
 
+      // Resignation: 2 players only, genuinely hopeless, opt-in.
       var resignThreshold = options.resignThreshold;
-      if (move >= 0 && resignThreshold != null && pc === 2 && root.n >= 256 && emptyRoot < n * 0.55) {
+      if (move >= 0 && resignThreshold != null && pc === 2 && root.n >= 128 && emptyRoot < n * 0.6) {
         var wr = root.n > 0 ? root.w / root.n : 1;
-        if (wr < +resignThreshold) move = -2;
+        var vl = root.n > 0 ? root.v / root.n : 0;
+        if (wr < +resignThreshold && vl < -0.35) move = -2;
       }
 
       // -------- assemble result --------
@@ -1297,6 +1632,13 @@ canvas{display:block;touch-action:manipulation}
       _rootLegalMoves: rootLegalMovesImpl,
       _scoreBoard: scoreBoardImpl,
       _deadStones: deadStonesImpl,
+      _patternScore: function (board, i, p) { return patternScore(board, i, p | 0); },
+      _territoryOwner: function (board) {
+        computeTerritory(board, pcCur);
+        var out = new Array(n);
+        for (var q = 0; q < n; q++) out[q] = terrOwner[q];
+        return out;
+      },
       _root: null
     };
     return engine;

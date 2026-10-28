@@ -41,6 +41,13 @@ node bench/bench.js --new-vs-new --games 10 --size 9 --time 100 --time2 800
 # legality/bestMoves probe on hand-built positions
 node bench/bench.js --probe --size 9 --time 300
 
+# behaviour/style metrics: self-play an engine, 150 ms/move, 6 games
+node bench/bench.js --style --games 6 --size 9 --players 2 --time 150 --seed 1 --engine dev/ai-engine.js
+
+# style A/B: v1.2.0 (frozen snapshot) vs the current engine on the same games
+node bench/bench.js --style --games 6 --size 9 --players 2 --time 150 --seed 1 \
+  --engine bench/test/engines/hexago-mcts-1.2.0.js --engine2 dev/ai-engine.js
+
 # machine-readable (includes every game, diagnostics, engine verification)
 node bench/bench.js --old-vs-random --games 40 --seed 1 --json
 ```
@@ -61,6 +68,7 @@ Rough runtimes on this machine (8 cores, Node 26): 40 games of
 | `--old-vs-new` | OLD AI from `index.html` | `dev/ai-engine.js` with `--time` budget |
 | `--new-vs-new` | `dev/ai-engine.js` with `--time` | same engine with `--time2` |
 | `--probe` | -- runs the new engine on constructed positions, asserts legality, prints `bestMoves` |
+| `--style` | self-play behaviour metrics: one engine on all seats, or engine A on odd seats / engine B on even seats when `--engine2` is given (see below) |
 
 Who moves first is alternated every game: on even game indexes agent A takes
 seat 1 (moves first), on odd indexes agent B does. For 3-6 players the two agents
@@ -73,7 +81,7 @@ games. Per-game logs record which seat held which agent.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--games N` | 10 (4 for `--new-vs-new`) | number of games |
+| `--games N` | 10 (4 for `--new-vs-new` / `--style`) | number of games |
 | `--size N` | 9 | board size: 9, 13, 19, 25 -> 61, 127, 271, 469 points |
 | `--players N` | 2 | 2..6 players |
 | `--time ms` | 300 | new-engine budget, engine A / `--old-vs-new` |
@@ -83,7 +91,9 @@ games. Per-game logs record which seat held which agent.
 | `--seed N` | 1 | deterministic seed (game RNG + old-AI `Math.random` + engine seed) |
 | `--json` | off | print one JSON object on stdout (all human output suppressed) |
 | `--page PATH` | `hexago/index.html` | alternative page file to extract the old AI from |
-| `--engine PATH` | `hexago/dev/ai-engine.js` | alternative engine module (see mock self-test) |
+| `--engine PATH` | `hexago/dev/ai-engine.js` | alternative engine module (see mock self-test); engine A for `--style` |
+| `--engine2 PATH` | -- | optional second engine for `--style` (A/B head-to-head style comparison) |
+| `--opening N` | 12 | opening window in moves for `--style` metrics |
 | `--verbose` | off | progress dots on stderr |
 
 Exit codes: `0` ok, `1` usage error, `2` new engine missing/broken (or old-AI
@@ -236,8 +246,115 @@ Re-run `--old-vs-new --games 10 --size 9 --players 2 --time 200` after every
 engine change; treat `--time 200` as a cheap regression gate, not a strength
 ceiling (use `--time 1000`+ or `--playouts` for reported strength).
 
+## Style / behaviour metrics (`--style`)
+
+Measures the behaviours reported as unnatural ("only plays next to its own
+stones", "does not space out in the opening", "fills its own eyes/territory in
+the endgame", "passes unnaturally"), so engine versions can be compared
+objectively. Definitions:
+
+- **Phases**: opening = game moves 1..`--opening` (default 12); endgame = after
+  the opening AND (empty points <= 25% of the board OR a pass has happened);
+  middlegame = everything else.
+- **Self-adjacency**: fraction of board moves whose point has at least one
+  neighbour stone of the mover's colour (computed on the position *before* the
+  move), overall and per phase.
+- **Opening distances** (first `--opening` moves): hex distance from the played
+  point to the mover's nearest own stone (null when the mover has none yet) and
+  to the board centre; mean + histogram per move index.
+- **Own-eye fills**: moves placed on an empty point that is an eye of one of the
+  mover's own groups. Local page-`countEyes`-equivalent: all neighbours of the
+  empty point are mover stones.
+- **Own settled-territory fills**: moves inside an empty region bordered only by
+  the mover's stones (page-`territory`-equivalent). Eye fills are a subset.
+- **Passes**: number, per game, and the *first* pass of each game: move index
+  and empty-point fraction at that moment. **Resignations** and **game length**
+  (including passes and board-move count separately) are reported too.
+- **Opening diversity**: over the run's games, number of distinct first moves
+  and distinct first-`--opening` sequences (plus the move list).
+- **Timing/visits/playouts** per engine, and per-engine W/L/D in `--engine2`
+  mode. Illegal moves / crashes / engine input mutations are still counted;
+  any illegal move ends the game as a forfeit and is reported (expected 0).
+
+Every report prints the engine sha256 prefix; use frozen snapshots in
+`bench/test/engines/` when comparing versions, because `dev/ai-engine.js` is
+under active development.
+
+### v1.2.0 baseline (frozen snapshot `hexago-mcts-1.2.0.js`, sha256 `e7572b94…`)
+
+Command:
+
+```bash
+node bench/bench.js --style --games 6 --size 9 --players 2 --time 150 --seed 1 \
+  --engine bench/test/engines/hexago-mcts-1.2.0.js
+```
+
+| metric | v1.2.0 |
+|---|---|
+| games / avg length | 6 games, 92.7 moves incl. passes (board moves 90.2; min 66, max 112), all ended by pass |
+| illegal / crashes / input mutations | 0 / 0 / 0 |
+| self-adjacency overall | **73.0%** (395/541 moves) |
+| self-adjacency opening / middle / endgame | **44.4%** (32/72) / **79.4%** (282/355) / **71.1%** (81/114) |
+| opening nearest-own distance | mean **1.8** (n=60; no own stone 12) hist 1:32 2:15 3:10 4:2 5+:1 |
+| opening centre distance | mean **1.8** hist 0:4 1:20 2:33 3:14 4:1 |
+| own eye fills | **35 (6.5%** of moves): opening 0 / middle 23 / endgame 12 |
+| own settled-territory fills | **52 (9.6%)**: opening 0 / middle 36 / endgame 16 |
+| captures | 222 (0.41/move) |
+| passes / first pass | 15 total (2.5/game); first pass avg move 89.8 at **14.5% empty** (9.8-18.0%) |
+| resignations | 0 |
+| opening diversity | 6 games -> **6 distinct first moves**, 6 distinct first-12 sequences |
+| throughput | 6 928 visits/move at 150 ms/move (~46 k visits/s) |
+| elapsed | 83.7 s (13.9 s/game) |
+
+Run the same command with `--engine dev/ai-engine.js` after engine changes to get
+the v2 row; add `--engine2` to measure both builds' style metrics on identical
+games (per-engine table in the report, `style.perEngine` in `--json`).
+
+### v1.2.0 vs v2.0.0 comparison
+
+Same command, only the engine snapshot changes (`--engine`), on frozen snapshots
+in `bench/test/engines/` (`hexago-mcts-1.2.0.js` sha `e7572b94…`,
+`hexago-mcts-2.0.0.js` sha `a54880fe…`, 62 KB; the live `dev/ai-engine.js` was
+being edited while v2 was written, so snapshots are used for reproducibility):
+
+| metric (6 games, 150 ms/move, seed 1, 9x9/2P, self-play) | v1.2.0 `e7572b94` | v2.0.0 `a54880fe` |
+|---|---|---|
+| avg game length | 92.7 moves (board 90.2; 66-112) | 72.0 moves (board 69.8; 37-86) |
+| illegal / crashes / input mutations | 0 / 0 / 0 | 0 / 0 / 0 |
+| self-adjacency overall | **73.0%** | **68.0%** |
+| self-adjacency opening / middle / endgame | 44.4% / **79.4%** / 71.1% | 29.2% / **75.8%** / 77.0% |
+| opening nearest-own distance (mean) | 1.8 (n=60) | **2.4** (n=60; hist 5+:7) |
+| opening centre distance (mean) | 1.8 | **2.3** |
+| first move: distance to centre | 2.2 | **3.0** |
+| own eye fills | **35 (6.5%)**: mid 23 / end 12 | **0 (0%)** |
+| own settled-territory fills | **52 (9.6%)**: mid 36 / end 16 | **0 (0%)** |
+| passes / first pass | 15 (2.5/g); move 89.8 at 14.5% empty | 13 (2.17/g); move 67.7 at 22.1% empty (max 45.9%) |
+| distinct first moves | 6 | 6 |
+| engine visits/move at 150 ms | 6 928 (~46 k/s) | 1 836 (~12 k/s) |
+| elapsed | 83.7 s | 63.9 s |
+
+Head-to-head on identical games (`--engine v1.2 --engine2 v2`, 6 games, 150 ms
+each): v1.2.0 won **5-1** (n=6, not a strength verdict); per-engine style in
+those games: v1.2.0 74.2% self-adjacency / 5.6% eye fills / 6.9% territory
+fills vs v2.0.0 66.8% / 0% / 0%. Both engines: 0 illegal / 0 crashes / 0 input
+mutations.
+
+Interpretation: v2.0.0 fixes the two clearest complaint metrics -- no own-eye or
+own-settled-territory fills at all, and fewer own-stone-adjacent moves,
+especially in the opening (29.2% vs 44.4%) -- and it opens with more spacing
+(nearest-own 2.4 vs 1.8, centre 2.3 vs 1.8) and games are shorter. It runs ~4x
+fewer visits per second at the same wall-clock budget, and at 150 ms it lost the
+6-game head-to-head 1-5 to v1.2.0, so the trade-off needs a longer style run
+(more games/seeds) and the strength match modes before declaring v2 better.
+An intermediate v2 build (`hexago-mcts-2.0.0-v2full.js`, sha `51fec203…`) was
+measured identically: 67.3% self-adjacency / 0 fills, but it opened near the
+centre (first move distance 0.8); the final build's opening spacing is much
+larger. Always quote the engine sha256 prefix with these numbers.
+
 ## Wiring the new engine / self-test without it
 
+Frozen engine builds used for reproducible A/B comparisons live in
+`bench/test/engines/` (e.g. `hexago-mcts-1.2.0.js`, sha256 `e7572b94…`).
 `dev/ai-engine.js` does not need to exist for `--old-vs-random`. To validate the
 new-engine paths before it lands, run the harness against the mock module:
 
@@ -280,3 +397,13 @@ Engine contract expected by this harness (see `dev/ENGINE_SPEC.md`):
   the same `--seed`, and expect some variance with time budgets.
 - The harness cannot enforce the engine's time budget; an engine that overruns
   slows the run down (visible in `ms/move`).
+- `--style` metrics are for self-play / A/B self-play only: no human or random
+  opponent is involved, and the sample is small by default (6 games, one seed).
+  Increase `--games` and vary `--seed` for stable comparisons; openings are
+  reported per run, so cross-seed diversity needs several runs.
+- `--style` phase labels: opening = first `--opening` moves; endgame = after the
+  opening and empty<=25% or a pass has occurred; everything else is middlegame.
+  The first one or two opening moves have no own stone yet, so their
+  nearest-own distance is counted as "no own stones" rather than a distance.
+- For deterministic `--style` comparisons pass `--playouts`/`--playouts2`
+  (engine `maxPlayouts` cap); wall-clock `--time` budgets vary between runs.

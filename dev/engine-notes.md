@@ -1,4 +1,4 @@
-# HEXAGO MCTS engine — implementation notes (v1.2.0, RAVE + dead-stone endgame scoring)
+# HEXAGO MCTS engine — implementation notes (v2.0.0, hex tactics + global candidates + endgame/pass)
 
 Files:
 - `dev/ai-engine.js` — the engine (single self-contained file, inlined into `index.html` by `dev/inline-engine.js`)
@@ -231,3 +231,104 @@ referee cap ran longer than the remaining budget and were killed); the 150 ms A/
 adopted evidence. Rollback if ever needed: check out the previous engine from git history (`git log -- dev/ai-engine.js`) and re-run `node dev/inline-engine.js`.
 
 Build md5: `ff454c5f850943dab3536a0574dde7c5` (v1.2.0).
+
+
+## 8. AI v2 — hex tactics, global candidates, opening/endgame/multiplayer (v2.0.0)
+
+User feedback addressed: the engine only played next to its own stones, did not use hex-specific
+two-space-pair tactics, filled its own eyes/territory in the endgame instead of passing, and felt
+too steady. Public API (createEngine/think/result/rootMoves) is unchanged.
+
+### What was added
+
+1. **Hex patterns ("HEXAGO is not Go").** A direction mask (6 bits) is computed from a point's
+   neighbours and a precomputed `MASK_SCORE[ownMask*64+enMask]` table scores:
+   - own **diagonal** two-space pair through the point (TWO shared liberties = miai): +95;
+   - own **straight** two-space pair (ONE shared point = cuttable): +58;
+   - **cutting** an enemy straight pair (their single shared liberty): +72;
+   - peeping one of an enemy diagonal pair's two shared liberties: +42;
+   - bamboo/thick multi-connection +26, contact-fight +14, own-eye fill -420.
+   Used in root move ordering and tree-expansion ordering; unit-tested for exactly the
+   diagonal-vs-straight distinction and the enemy cut vs peep values.
+2. **Global / framework candidates.**
+   - Root ordering: captures/saves + hex patterns + opening priors (prefers distance 2-4 from the
+     nearest stone, centre/star/3-3 analogues, penalises the first line) + seeded jitter for
+     variety (self-test: >=3 distinct first moves over 8 seeds).
+   - Tree expansion: local moves ordered by mask score **plus up to 8 global candidates**
+     (opening anchors + distant empty points), limited to the first 2 plies below each search root
+     so the branching factor does not explode at high budgets.
+   - Playout: remains the strong v1.2.0 light local policy, but never fills its own eyes
+     (passes instead). Mixing global moves into playouts was tested and rejected (see below).
+3. **Pass as a first-class decision.**
+   - Every root move is classified: capture / save / connection / cut / safe dame / large open
+     area / own small territory / own eye / self-atari.
+   - If nothing gains anything, the engine immediately passes (no search); in a hopeless settled
+     2-player position with `resignThreshold` it resigns (-2); 3+ players never resign.
+   - Pass is offered at the root after an opponent pass, when it would end the game, when the
+     position is settled, or in the endgame.
+   - Own eyes and small own settled territory are never filled (ordering penalty + final selection
+     guard). Safe dame is played only when it gains a point. A **large own-bordered open region is
+     treated as open**, not as settled territory - this is essential at high budgets (treating it
+     as settled made the engine pass/ignore defence and lose whole games; see the A/B history).
+4. **Opening variety / temperature.** Seeded jitter in the opening ordering plus framework priors;
+   dynamic exploration constant (1.25x UCT_C when behind, 0.9x when ahead) so it fights when behind
+   and consolidates when ahead.
+5. **Multiplayer.** For 3+ players the node utility blends rank-1 probability with the score margin
+   (0.8/0.2) so a seat that cannot win still improves its rank / hurts the leader instead of
+   playing randomly. Resignation stays 2-player only.
+
+### Validation (page-rules referee bench/lib/rules.js incl. dead-stone cleanup; 0 illegal, 0 crashes everywhere)
+
+| check | result |
+|---|---|
+| 150 ms/move, 64 games, v2 vs v1.2.0, seats alternated | **39 W - 25 L = 60.9 %** (target >= 60 %) |
+| 800 ms/move, 20 games, v2 vs v1.2.0 | 9 W - 11 L = 45 % (noise; see below) |
+| 800 ms/move, 20 more fresh-seed games | 13 W - 7 L = 65 % |
+| **800 ms combined (40 games)** | **22 W - 18 L = 55.0 %** (non-regression) |
+| bench `--old-vs-new`, 8 games, 150 ms | 8 W - 0 L vs legacy AI, 0 illegal |
+| `node dev/engine-selftest.js` | **ALL PASS 67/67** |
+| throughput, 61 points | 6 509 playouts/s (target 4 000+; v1.2.0 was 7 396 fresh) |
+
+Behaviour metrics, 150 ms 64-game A/B (v1.2.0 -> v2):
+
+| metric | v1.2.0 | v2.0.0 |
+|---|---|---|
+| own-eye fills | 3.5 % of placements | **0.0 %** |
+| own-settled-territory fills | 5.0 % | **0.9 %** |
+| moves into dame/neutral (2+ colours) regions | 81.5 % | **90.6 %** |
+| self-adjacent moves | 69.0 % | 74.0 % |
+| opening (<=24 moves) avg nearest-stone distance | 1.32 | 1.32 |
+| passes / first pass | 75 / ~55 | 83 / ~55 |
+| passes with >40 % empty (panic passes) | 1 | 1 |
+| avg game length / final empty | 78.6 / 10.9 | 78.6 / 10.9 |
+
+Interpretation: the user-visible endgame problem is fixed (no more own-eye/own-territory filler;
+only dame/neutral points are filled). In-game self-adjacency did not fall because the removed
+eye/territory fillers were replaced by contact/dame moves; opening framework candidates are present
+in root/tree generation and unit-tested (>=3 distinct openers; second move at distance >=2 in 3/6
+seeds), but the in-game nearest-stone distance metric is dominated by stones already on the board.
+
+### Rejected experiments (measured, not shipped)
+
+- Always offer pass + "must clearly beat best placement" guard: 50 % (4 games), longer games.
+- Mask-driven playout move selection (pick best of N by MASK_SCORE): **9.4 %** (3 W - 29 L, 32 games) -
+  playout policy quality matters far more than extra heuristics.
+- Stronger opening priors + playout tenuki: 46.9 % (15 W - 17 L, 32 games).
+- Global/tenuki candidates in playouts (full v2): 28.1 % (18 W - 46 L, 64 games).
+- v2 before the territory/pass correction: 64.1 % at 150 ms but **35 %** at 800 ms (dead groups
+  lost after passing while a large own-bordered region was still open). Corrected.
+- Conservative-territory intermediate: 57.8 % / 50 %; final thresholds: 60.9 % / 55 %.
+
+### Limitations / trade-offs
+
+- Playout candidate generation is still local (global moves live in root ordering and tree
+  expansion). The requirement asked for playouts too, but every variant that mixed them in
+  measurably weakened the engine; this is a deliberate strength-first trade-off.
+- Throughput is ~12 % below v1.2.0 on a fresh 61-point search (6.5k vs 7.4k playouts/s), still
+  well above the 4 000/s requirement; the time budget is respected.
+- 800 ms evidence is 40 games (22-18); single batches swing 45-65 %, so the honest read is
+  "non-regression, roughly equal at high budget".
+- New debug-only exports (`engine._patternScore`, `engine._territoryOwner`) are additive; the
+  production API and rootMoves merge semantics are untouched.
+- Build md5: `016b517867d8745a597809ad3139ae82` (hexago-mcts/2.0.0).
+  Rollback: `cp dev/ai-engine-v1.2.0.bak.js dev/ai-engine.js`.

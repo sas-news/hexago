@@ -1,4 +1,6 @@
 # development artifacts (not shipped)
+dev/*.bak.js
+dev/.*.json
 dev/*.log
 dev/*.png
 dev/.frozen-ai-backup.js
