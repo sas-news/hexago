@@ -2692,7 +2692,7 @@ function aiThinkOnSlot(slot, state, budgetMs) {
       resolve: r => { clearTimeout(timer); resolve(r); },
       reject: e => { clearTimeout(timer); reject(e); },
     });
-    slot.worker.postMessage({ id: id, state: state, options: { budgetMs: budgetMs, returnAllMoves: true } });
+    slot.worker.postMessage({ id: id, state: state, options: { budgetMs: budgetMs, returnAllMoves: true, resignThreshold: 0.02 } });
   });
 }
 // root parallel MCTS: 各 Worker のルート直下の訪問数を合算して着手を選ぶ。
@@ -2749,7 +2749,7 @@ function aiThink(state, budgetMs) {
   // フォールバック: Worker が使えない（file:// 等）ときはメインスレッドで。UI を守るため予算を短縮。
   return new Promise((resolve, reject) => {
     setTimeout(() => {
-      try { resolve(mainAIEngine(state).think(state, { budgetMs: Math.min(budgetMs, 1500), returnAllMoves: true })); }
+      try { resolve(mainAIEngine(state).think(state, { budgetMs: Math.min(budgetMs, 1500), returnAllMoves: true, resignThreshold: 0.02 })); }
       catch (err) { reject(err); }
     }, 30);
   });
