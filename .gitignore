@@ -8,6 +8,9 @@ dev/ai-engine-rave.js
 dev/rave-match.js
 dev/.profile-tmp.js
 
+# generated benchmark outputs
+bench/test/results/
+
 # node
 node_modules/
 npm-debug.log*

@@ -19,6 +19,7 @@ function optn(name, def) { return +opt(name, def); }
 const APATH = path.resolve(__dirname, '..', opt('a', 'dev/ai-engine.js'));
 const BPATH = path.resolve(__dirname, '..', opt('b', 'dev/ai-engine.js'));
 const A = require(APATH);
+const EOPTS = process.env.ENGINE_OPTS_B ? JSON.parse(process.env.ENGINE_OPTS_B) : {};
 const B = require(BPATH);
 const BUDGET = optn('budget', 150);
 const GAMES = optn('games', 60);
@@ -29,6 +30,7 @@ const PC = optn('players', 2);
 const TAG = opt('tag', 'ab');
 const MAXMOVES = optn('maxmoves', 400);
 const SEEDBASE = optn('seedbase', 9000001);
+const MAXPLAYOUTS = optn('maxplayouts', -1); // >0: equal-compute mode (playouts instead of wall clock)
 
 const R = rules.createRules(SIZE);
 const n = R.n;
@@ -66,9 +68,10 @@ function newSideStats() {
     placements: 0, passes: 0, adjacentOwn: 0, tenuki: 0,
     openingDistSum: 0, openingDistN: 0, openingFar: 0,
     openingSelfAdj: 0, openingIsolated: 0, openingOwnDistSum: 0, openingOwnDistN: 0,
+    midN: 0, midSelfAdj: 0,
     ownEyeFills: 0, ownTerrFills: 0, safeNeutral: 0,
     passBuckets: {}, firstPassMove: null, passBefore40: 0,
-    playouts: 0, thinkCalls: 0, ms: 0
+    playouts: 0, visits: 0, thinkCalls: 0, ms: 0
   };
 }
 
@@ -78,7 +81,7 @@ function playGame(gameNo) {
   const engines = {}, api = {};
   for (let p = 1; p <= PC; p++) {
     api[p] = (p === seatForB) ? B : A;
-    engines[p] = api[p].createEngine({ size: SIZE, playerCount: PC });
+    engines[p] = api[p].createEngine(Object.assign({ size: SIZE, playerCount: PC }, p === seatForB ? EOPTS : {}));
   }
   const stA = newSideStats(), stB = newSideStats();
   const side = p => (p === seatForB) ? stB : stA;
@@ -91,12 +94,13 @@ function playGame(gameNo) {
     const t0 = process.hrtime.bigint();
     let res;
     try {
-      res = engines[seat].think(state, { budgetMs: BUDGET, seed: (SEEDBASE + gameNo * 7919 + st.moves * 104729 + seat * 31337) | 0 });
+      res = engines[seat].think(state, MAXPLAYOUTS > 0 ? { maxPlayouts: MAXPLAYOUTS, seed: (SEEDBASE + gameNo * 7919 + st.moves * 104729 + seat * 31337) | 0 } : { budgetMs: BUDGET, seed: (SEEDBASE + gameNo * 7919 + st.moves * 104729 + seat * 31337) | 0 });
     } catch (err) { crash = String(err && err.stack || err); break; }
     const t1 = process.hrtime.bigint();
     const ss = side(seat);
     ss.thinkCalls++; ss.ms += Number(t1 - t0) / 1e6;
     if (res && res.playouts) ss.playouts += res.playouts;
+    if (res && res.visits) ss.visits += res.visits;
     if (!res || !Number.isInteger(res.move)) { illegal++; if (R.doPass(st)) break; continue; }
     if (res.move === -1) {
       ss.passes++;
@@ -119,14 +123,17 @@ function playGame(gameNo) {
     if (reg.colors.size === 1 && reg.colors.has(ownColor)) ss.ownTerrFills++;
     if (reg.colors.size >= 2) ss.safeNeutral++;
     if (st.moves < 20) { ss.openingDistSum += (dist < 0 ? 0 : dist); ss.openingDistN++; if (dist >= 3) ss.openingFar++; }
-    if (st.moves < 24) {
+    let ownDist = 99;
+    for (let q = 0; q < n; q++) if (st.board[q] === ownColor) { const d = geo.dist(res.move, q); if (d < ownDist) ownDist = d; }
+    if (st.moves < 12) {
       if (adj) ss.openingSelfAdj++;
       const anyAdj = geo.NB[res.move].some(x => st.board[x] !== 0);
       if (!anyAdj) ss.openingIsolated++;
-      let ownDist = 99;
-      for (let q = 0; q < n; q++) if (st.board[q] === ownColor) { const d = geo.dist(res.move, q); if (d < ownDist) ownDist = d; }
       ss.openingOwnDistSum += ownDist === 99 ? 3 : ownDist;
       ss.openingOwnDistN++;
+    } else if (st.moves < 50) {
+      ss.midN++;
+      if (adj) ss.midSelfAdj++;
     }
     if (!R.applyMove(st, res.move)) { illegal++; if (R.doPass(st)) break; continue; }
   }
@@ -146,7 +153,7 @@ function playGame(gameNo) {
 }
 
 function addStats(acc, s) {
-  for (const k of ['placements', 'passes', 'adjacentOwn', 'tenuki', 'openingDistSum', 'openingDistN', 'openingFar', 'openingSelfAdj', 'openingIsolated', 'openingOwnDistSum', 'openingOwnDistN', 'ownEyeFills', 'ownTerrFills', 'safeNeutral', 'passBefore40', 'playouts', 'thinkCalls', 'ms']) acc[k] += s[k];
+  for (const k of ['placements', 'passes', 'adjacentOwn', 'tenuki', 'openingDistSum', 'openingDistN', 'openingFar', 'openingSelfAdj', 'openingIsolated', 'openingOwnDistSum', 'openingOwnDistN', 'midN', 'midSelfAdj', 'ownEyeFills', 'ownTerrFills', 'safeNeutral', 'passBefore40', 'playouts', 'visits', 'thinkCalls', 'ms']) acc[k] += s[k];
   if (s.firstPassMove !== null) { if (acc.firstPassMove === null || s.firstPassMove < acc.firstPassMove) acc.firstPassMove = s.firstPassMove; }
   for (const b in s.passBuckets) acc.passBuckets[b] = (acc.passBuckets[b] || 0) + s.passBuckets[b];
 }

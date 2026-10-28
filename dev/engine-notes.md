@@ -233,7 +233,96 @@ adopted evidence. Rollback if ever needed: check out the previous engine from gi
 Build md5: `ff454c5f850943dab3536a0574dde7c5` (v1.2.0).
 
 
-## 8. AI v2 — hex tactics, global candidates, opening/endgame/multiplayer (v2.0.0)
+## 9. AI v3 (experimental, v3.0.0-exp) — explicit opening framework policy, contact penalty, throughput work
+
+Status: **NOT frozen** — the opening behaviour targets are met but the strength targets
+(>=55% vs v1.2 at 150/800/1500 ms) are NOT met, so v3 must not replace v2/v1.2 blindly.
+Public API unchanged; engine options added for A/B presets (see below).
+
+### Implemented
+1. **Explicit opening framework policy** (only with a wall-clock budget, never with
+   `maxPlayouts`; only when there is no capture/save/atari urgency). For the first few
+   stones (board has <= 9 stones on 9x9, <= 12 on larger boards) the move is chosen
+   directly from precomputed framework points with seeded softmax variety:
+   - per-size framework score (`geometry().fwScore`): centre / distance-2,3 star
+     analogues + 3-3/3-4 corner analogues - edge penalty;
+   - candidates must be at distance 2-4 from own stones, must not hug own stones,
+     no immediate contact for the first few stones, must be safe (>=2 liberties);
+   - top-6 by score, softmax (T=12) seeded pick -> variety (self-test: >=3 distinct
+     first moves over 8 seeds, 6-ply spread test).
+2. **Midgame contact penalty**: an own-adjacent move with no capture/save/connection/
+   cut purpose is penalised by ADJ_PENALTY=420 at the root when unclaimed framework
+   points exist. (Measured: it costs strength, see the trade-off table.)
+3. **Throughput work** (same behaviour, less cost): precomputed direction-mask pattern
+   tables (patternScore is now a table lookup), single-pass group scan for "save"
+   detection instead of per-candidate group scans, allocation-light `buildUntried`
+   (engine scratch buckets + one array per node, mask-table bucketing), progressive
+   global candidates (8/4/2 at 1-2/3-4/5-6 plies).
+4. PUCT with pattern/opening priors was implemented and measured: it was clearly
+   weaker (c=1.5: 0-32; c=0.15: 43.8%, n=32), so it is off by default (`puctC:0`);
+   ordering priors only.
+5. Endgame/pass/eye/territory fixes from v2 are retained (own-eye fills 0%).
+
+### Throughput (61-point midgame position, fresh engine, single thread, idle machine)
+| budget | v1.2 playouts | v3 playouts | ratio |
+|---|---|---|---|
+| 150 ms | 1 232 | 1 240 | 1.01x |
+| 800 ms | 6 688 | 6 408 | 0.96x |
+| 1500 ms | 12 376 | 12 752 | 1.03x |
+`node dev/engine-selftest.js` throughput gate: 6 448 playouts/s isolated (gate 4 000).
+A 3 751 pps reading was observed while the machine was also running 8 A/B workers; the
+fresh single-thread measurements above show v3 has no compute regression vs v1.2.
+In-game `playouts/call` is lower (150ms 0.75x, 800ms 0.62x) because the opening policy and
+the "nothing useful -> pass" path intentionally return early with 0 playouts; this is an
+accounting artefact of the visits metric, not extra CPU time.
+
+### A/B vs v1.2.0 (page-rules referee, seats alternated, distinct seeds, 0 illegal / 0 crashes)
+| config | 150 ms | 800 ms | 1500 ms |
+|---|---|---|---|
+| v3 default (opening policy + contact 420) | **42.2%** (27-37, n=64); with the pre-optimisation build 48.4% (33-31, n=64) -> 45.3% (n=128) | **45.0%** (18-22, n=40) | **40.0%** (8-12, n=20) |
+| v3 `{openingStones:3, adjPenalty:0}` (hybrid) | **53.1%** (17-15, n=32) | not measured | not measured |
+| v3 `{adjPenalty:0}` (opening only) | 37.5% (12-20, n=32) | - | - |
+| v3 `{style:'strength'}` (no opening/penalty) | **56.3%** (18-14, n=32) | - | - |
+| v2.0.0 (frozen) vs v1.2 | 60.9% (39-25, n=64) | 55.0% (22-18, n=40, our ref) / bench 41.7% (5-7, n=12) | - |
+| v3 default vs v2.0.0 | ~51% (49-47, n=96) | - | - |
+
+### Behaviour vs v1.2.0 (same A/B runs; opening = first 12 plies)
+| metric | v1.2 (150/800/1500ms) | v3 default | v3 hybrid (openingStones:3) |
+|---|---|---|---|
+| opening self-adjacency | 38% / 47% / 53% | **10% / 11% / 13%** | **26%** |
+| opening nearest-own distance | 2.12 / 1.94 / 1.79 | **2.45 / 2.43 / 2.42** | **2.20** |
+| opening isolated moves | 39% / 35% / 28% | **83% / 81% / 80%** | **53%** |
+| midgame self-adjacency | 81% / 82% / 86% | 83% / 85% / 81% | 82% |
+| own-eye fills | 4.3% / 3.8% / 3.5% | **0%** | **0%** |
+| own-territory fills | 4.9% / 4.7% / 4.7% | **0.5% / 0.3% / 0.7%** | **1.1%** |
+| passes / panic passes | 90 / 2 | 76-90 / 2 | 36 / 0 |
+
+Opening targets (nearest-own >= 2.3, opening self-adj <= 35%, first moves not adjacent)
+are MET by the default v3 configuration; the midgame self-adjacency target (<= 65%) is
+NOT met (both v1.2 and v3 stay around 80-85% in real fights).
+
+### Recommended configurations (createEngine options)
+- `{style:'behavior'}` = default: full framework opening + contact penalty. Best opening
+  behaviour, ~45% vs v1.2 at 150-1500 ms (strength regression).
+- `{openingStones:3, adjPenalty:0}`: hybrid — opening framework for the first ~2 moves
+  (opening self-adj 26%, nearest-own 2.20), strength ~53% vs v1.2 at 150 ms. Needs
+  800/1500 ms validation before shipping.
+- `{style:'strength'}`: no opening policy, no contact penalty — strength ~56% vs v1.2 at
+  150 ms, but opening behaviour equals v2 (no user-visible opening change).
+Other options: `openingPolicy:false`, `openingStones:N`, `adjPenalty:N`, `puctC:N`.
+
+### Limitations
+- Strength/behaviour conflict is real and measured: the explicit framework opening costs
+  ~10-15% winrate vs v1.2 at 150 ms; the contact penalty costs a few more. The strength
+  preset recovers v2-level strength but gives up the opening behaviour.
+- The 1500 ms sample is only 20 games; 800 ms 40 games; treat +/-10-15% as noise.
+- In-game "visits/move" is lower than v1.2 because of intentional early returns;
+  compute parity is shown by the fresh playout table.
+- Build md5: `93100a56d541eb4055c907f6b2302493` (hexago-mcts/3.0.0-exp).
+  Rollback: `cp dev/ai-engine-v2.0.0.bak.js dev/ai-engine.js` (v2.0.0 md5
+  `016b517867d8745a597809ad3139ae82`) or `dev/ai-engine-v1.2.0.bak.js`.
+
+## 8. AI v2 — hex tactics, global candidates, opening/endgame/multiplayer (v2.0.0)## 8. AI v2 — hex tactics, global candidates, opening/endgame/multiplayer (v2.0.0)
 
 User feedback addressed: the engine only played next to its own stones, did not use hex-specific
 two-space-pair tactics, filled its own eyes/territory in the endgame instead of passing, and felt
@@ -332,3 +421,40 @@ seeds), but the in-game nearest-stone distance metric is dominated by stones alr
   production API and rootMoves merge semantics are untouched.
 - Build md5: `016b517867d8745a597809ad3139ae82` (hexago-mcts/2.0.0).
   Rollback: `cp dev/ai-engine-v1.2.0.bak.js dev/ai-engine.js`.
+
+
+## 10. Round-2 variant evaluation (v3.1.0-exp) and ship decision
+
+v3-default was rejected (strength regression). The workspace was restored to the frozen
+v2.0.0 engine (`dev/ai-engine.js`, md5 `016b517867d8745a597809ad3139ae82`, selftest 67/67).
+The experimental build is kept as `dev/ai-engine-v3.1.0-exp.js` (md5
+`7b99fdb82074b37ed7171ea45d43af66`; its test suite is `dev/engine-selftest-v3.js`, 71 checks).
+
+Engine options for page-side A/B (all optional, default = v2-compatible behaviour):
+`style:'strength'`, `openingPolicy:false`, `openingStones:N`, `adjPenalty:N`,
+`softOpening:true`, `softOpeningPlies:N`, `puctC:N`.
+
+Page-rules A/B vs v1.2.0, seats alternated, distinct seeds, 0 illegal / 0 crashes:
+
+| variant (150 ms/move) | winrate | opening self-adj | opening nearest-own | mid self-adj | own-eye/terr fills |
+|---|---|---|---|---|---|
+| v2.0.0 (frozen, reference) | 60.9% (39-25, n=64) | 38-40% | 2.11-2.14 | 80% | 3-4% / 4-5% |
+| v3 default hard opening + ADJ 420 | 45.3% (n=128) | 10-13% | 2.42-2.45 | 81-85% | 0 / 0.3-0.7% |
+| A `{openingStones:3, adjPenalty:0}` | 53.1% (17-15, n=32) | 26.0% | 2.20 | 82.4% | 0 / 1.1% |
+| B `{openingStones:2, adjPenalty:0}` | not run (timebox) | - | - | - | - |
+| C `{softOpening:true, openingPolicy:false, adjPenalty:0}` | **57.8%** (37-27, n=64) | 41.7% | 2.02 | 76.9% | 0 / 1.0% |
+| D `{openingPolicy:false, adjPenalty:120}` | **56.3%** (36-28, n=64) | 37.2% | 2.10 | 78.8% | 0 / 0.6% |
+
+800 ms: the A and C runs were started (40 games each) but did not finish inside the
+Round-2 timebox, so no 800/1500 ms numbers exist for A-D. 1500 ms not run.
+
+Interpretation: C (soft opening prior) and D (light midgame penalty) recover v2-level
+strength and D slightly reduces midgame self-adjacency (80.0% -> 78.8%), but **neither
+changes the actual opening spacing** (opening self-adj ~37-42%, nearest-own ~2.0) - the
+search overrides the soft prior. Only the hard-opening variants (v3 default, A) improve
+opening spacing, and they cost strength.
+
+Recommendation: **keep frozen v2.0.0 as the ship build** (best measured strength at
+150 ms; page compute increase compensates elsewhere). If the page wants visible opening
+improvement, variant A is the candidate page toggle, but it needs 800 ms validation
+(and its 150 ms sample is only n=32, 53.1%).

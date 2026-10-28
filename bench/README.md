@@ -307,49 +307,77 @@ node bench/bench.js --style --games 6 --size 9 --players 2 --time 150 --seed 1 \
 | elapsed | 83.7 s (13.9 s/game) |
 
 Run the same command with `--engine dev/ai-engine.js` after engine changes to get
-the v2 row; add `--engine2` to measure both builds' style metrics on identical
-games (per-engine table in the report, `style.perEngine` in `--json`).
+a self-play row for the new build. The final v1.2.0-vs-v2.0.0 comparison with
+larger samples (A/B head-to-head) is in the next section.
 
-### v1.2.0 vs v2.0.0 comparison
+### v1.2.0 vs final v2.0.0 (A/B, larger samples)
 
-Same command, only the engine snapshot changes (`--engine`), on frozen snapshots
-in `bench/test/engines/` (`hexago-mcts-1.2.0.js` sha `e7572b94…`,
-`hexago-mcts-2.0.0.js` sha `a54880fe…`, 62 KB; the live `dev/ai-engine.js` was
-being edited while v2 was written, so snapshots are used for reproducibility):
+Frozen snapshots: v1.2.0 `hexago-mcts-1.2.0.js` (sha256 `e7572b94…`,
+md5 `ff454c5f…`) and final v2.0.0 `hexago-mcts-2.0.0.js` (sha256 `212db530…`,
+md5 `016b5178…`). Both engines play each other on identical games
+(`--engine` / `--engine2`, seats alternated per game), so per-engine style
+numbers are measured on the same games and include opponent effects.
 
-| metric (6 games, 150 ms/move, seed 1, 9x9/2P, self-play) | v1.2.0 `e7572b94` | v2.0.0 `a54880fe` |
+Commands (raw JSON in `bench/test/results/`, aggregated summary in
+`style_summary.json`):
+
+```bash
+# 150 ms: 20 games x 2 seeds (seed 1, 7) = 40 games
+node bench/bench.js --style --games 20 --size 9 --players 2 --time 150 --time2 150 --seed 1 \
+  --engine bench/test/engines/hexago-mcts-1.2.0.js --engine2 bench/test/engines/hexago-mcts-2.0.0.js --json
+# same with --seed 7
+
+# 800 ms: 12 games, seed 1
+node bench/bench.js --style --games 12 --size 9 --players 2 --time 800 --time2 800 --seed 1 \
+  --engine bench/test/engines/hexago-mcts-1.2.0.js --engine2 bench/test/engines/hexago-mcts-2.0.0.js --json
+```
+
+**150 ms, 40 games (20 + seed 7)** -- 0 illegal / 0 crashes / 0 input mutations:
+
+| metric (per engine) | v1.2.0 | v2.0.0 |
 |---|---|---|
-| avg game length | 92.7 moves (board 90.2; 66-112) | 72.0 moves (board 69.8; 37-86) |
-| illegal / crashes / input mutations | 0 / 0 / 0 | 0 / 0 / 0 |
-| self-adjacency overall | **73.0%** | **68.0%** |
-| self-adjacency opening / middle / endgame | 44.4% / **79.4%** / 71.1% | 29.2% / **75.8%** / 77.0% |
-| opening nearest-own distance (mean) | 1.8 (n=60) | **2.4** (n=60; hist 5+:7) |
-| opening centre distance (mean) | 1.8 | **2.3** |
-| first move: distance to centre | 2.2 | **3.0** |
-| own eye fills | **35 (6.5%)**: mid 23 / end 12 | **0 (0%)** |
-| own settled-territory fills | **52 (9.6%)**: mid 36 / end 16 | **0 (0%)** |
-| passes / first pass | 15 (2.5/g); move 89.8 at 14.5% empty | 13 (2.17/g); move 67.7 at 22.1% empty (max 45.9%) |
-| distinct first moves | 6 | 6 |
-| engine visits/move at 150 ms | 6 928 (~46 k/s) | 1 836 (~12 k/s) |
-| elapsed | 83.7 s | 63.9 s |
+| W-L-D (winrate) | 15-25-0 (37.5%) | **25-15-0 (62.5%)** |
+| self-adjacency overall | 69.4% | 75.8% |
+| self-adjacency opening / middle / endgame | 45.8% / 73.8% / 71.6% | 42.5% / 80.3% / 84.0% |
+| opening nearest-own distance (mean) | 1.8 | 1.7 |
+| opening centre distance (mean) | 1.8 | 1.9 |
+| own eye fills | **59 (3.5%)** | **0 (0%)** |
+| own settled-territory fills | **74 (4.4%)** | **11 (0.6%)** |
+| passes | 50 | 47 |
+| engine visits/move (range over the two seeds) | 4 942-6 988 | 3 561-5 329 |
 
-Head-to-head on identical games (`--engine v1.2 --engine2 v2`, 6 games, 150 ms
-each): v1.2.0 won **5-1** (n=6, not a strength verdict); per-engine style in
-those games: v1.2.0 74.2% self-adjacency / 5.6% eye fills / 6.9% territory
-fills vs v2.0.0 66.8% / 0% / 0%. Both engines: 0 illegal / 0 crashes / 0 input
-mutations.
+Game-level, 40 games: avg length 87.8 moves (57-135); first pass at move 83.0 on
+average at **17.0% empty** (9.8-26.2%); **19 distinct first moves** across 40
+games and 20/20 distinct first-12 sequences in each 20-game seed; 0 illegal /
+0 crashes.
 
-Interpretation: v2.0.0 fixes the two clearest complaint metrics -- no own-eye or
-own-settled-territory fills at all, and fewer own-stone-adjacent moves,
-especially in the opening (29.2% vs 44.4%) -- and it opens with more spacing
-(nearest-own 2.4 vs 1.8, centre 2.3 vs 1.8) and games are shorter. It runs ~4x
-fewer visits per second at the same wall-clock budget, and at 150 ms it lost the
-6-game head-to-head 1-5 to v1.2.0, so the trade-off needs a longer style run
-(more games/seeds) and the strength match modes before declaring v2 better.
-An intermediate v2 build (`hexago-mcts-2.0.0-v2full.js`, sha `51fec203…`) was
-measured identically: 67.3% self-adjacency / 0 fills, but it opened near the
-centre (first move distance 0.8); the final build's opening spacing is much
-larger. Always quote the engine sha256 prefix with these numbers.
+**800 ms, 12 games (seed 1)** -- 0 illegal / 0 crashes / 0 input mutations:
+
+| metric (per engine) | v1.2.0 | v2.0.0 |
+|---|---|---|
+| W-L-D (winrate) | **7-5-0 (58.3%)** | 5-7-0 (41.7%) |
+| self-adjacency overall | 75.6% | 72.7% |
+| self-adjacency opening / middle / endgame | 52.8% / 79.1% / 83.5% | 41.7% / 79.2% / 77.4% |
+| opening nearest-own / centre distance (mean) | 1.6 / 1.8 | 1.7 / 1.8 |
+| own eye fills | **20 (4.6%)** | **0 (0%)** |
+| own settled-territory fills | **30 (6.8%)** | **3 (0.7%)** |
+| passes | 20 | 16 |
+| engine visits/move | 26 769 | 13 515 |
+
+Game-level, 12 games: avg length 76.2 moves (57-117); first pass at move 68.4 at
+16.9% empty (8.2-32.8); 11 distinct first moves in 12 games, 12/12 distinct
+first-12 sequences; 0 illegal / 0 crashes.
+
+Interpretation: final v2.0.0 cleanly fixes the endgame complaints -- **zero**
+own-eye fills at both budgets and territory fills down 74 -> 11 (150 ms) and
+30 -> 3 (800 ms). Opening distances are nearly unchanged (nearest-own 1.7-1.8,
+centre 1.8-1.9 at both budgets), and A/B self-adjacency is not lower than
+v1.2.0's (75.8% vs 69.4% at 150 ms; head-to-head games put both engines in more
+contact fighting than self-play). Strength is budget-dependent in this sample:
+v2 wins 62.5% over 40 games at 150 ms but only 41.7% over 12 games at 800 ms, so
+more 800 ms games are needed before calling the strength delta. v2 also reports
+~1.4x (150 ms) to ~2x (800 ms) fewer visits/move at the same wall-clock budget
+(fewer, possibly deeper, playouts). Always quote the engine sha256 prefix.
 
 ## Wiring the new engine / self-test without it
 
