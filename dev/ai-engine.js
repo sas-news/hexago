@@ -384,7 +384,12 @@
 
     /* ---------------- group helpers ---------------- */
 
-    function scanGroup(board, start, color) {
+    // maxLibs: exact liberty count is only needed when it is 0 or 1 (atari /
+    // suicide / self-atari tests); when the group provably has >= maxLibs
+    // liberties the flood fill may stop early.  Because the early exit only
+    // fires after finding maxLibs distinct liberties, callers that read grpN
+    // (group stones) must only do so when lastLibs < maxLibs.
+    function scanGroup(board, start, color, maxLibs) {
       var sid = ++scanId;
       var lid = ++libId;
       grpN = 0;
@@ -399,10 +404,12 @@
             if (scanStamp[t] !== sid) { scanStamp[t] = sid; grpBuf[grpN++] = t; }
           } else if (v === 0 && libStamp[t] !== lid) {
             libStamp[t] = lid; libs++; libPt = t;
+            if (maxLibs !== undefined && libs >= maxLibs) { lastLibs = libs; lastLibPt = libPt; return libs; }
           }
         }
       }
       lastLibs = libs; lastLibPt = libPt;
+      return libs;
     }
 
     // Apply (assumed-empty) move for the tree / root simulation.
@@ -416,12 +423,10 @@
       for (j = nbOff[move], je = nbOff[move + 1]; j < je; j++) {
         t = nbFlat[j]; c = board[t];
         if (c === 0 || c === p || applyStamp[t] === aid) continue;
-        scanGroup(board, t, c);
+        if (scanGroup(board, t, c, 1) !== 0) continue; // has a liberty -> no capture
         gi = grpN;
         for (k = 0; k < gi; k++) applyStamp[grpBuf[k]] = aid;
-        if (lastLibs === 0) {
-          for (k = 0; k < gi; k++) { capPos[capCount] = grpBuf[k]; capColor[capCount] = c; capCount++; captured++; }
-        }
+        for (k = 0; k < gi; k++) { capPos[capCount] = grpBuf[k]; capColor[capCount] = c; capCount++; captured++; }
       }
       if (captured > 0) {
         for (k = capStart; k < capCount; k++) board[capPos[k]] = 0;
@@ -430,7 +435,7 @@
         lastOwnLibs = 2;
         return 1;
       }
-      scanGroup(board, move, p);
+      scanGroup(board, move, p, 2);
       if (lastLibs === 0) {
         board[move] = 0;
         lastCapStart = capStart; lastCapEnd = capCount; lastKo = -1; lastOwnLibs = 0;
@@ -601,7 +606,7 @@
       for (var j = nbOff[move], je = nbOff[move + 1]; j < je; j++) {
         var s = nbFlat[j];
         if (board[s] !== p || saveStamp[s] === sid) continue;
-        scanGroup(board, s, p);
+        scanGroup(board, s, p, 2);
         var gi = grpN;
         for (var k = 0; k < gi; k++) saveStamp[grpBuf[k]] = sid;
         if (lastLibs === 1 && lastLibPt === move) cnt++;
@@ -687,12 +692,10 @@
       for (j = nbOff[move], je = nbOff[move + 1]; j < je; j++) {
         t = nbFlat[j]; c = pboard[t];
         if (c === 0 || c === p || applyStamp[t] === aid) continue;
-        scanGroup(pboard, t, c);
+        if (scanGroup(pboard, t, c, 1) !== 0) continue; // has a liberty -> no capture
         gi = grpN;
         for (k = 0; k < gi; k++) applyStamp[grpBuf[k]] = aid;
-        if (lastLibs === 0) {
-          for (k = 0; k < gi; k++) { pcapPos[pcapCount] = grpBuf[k]; pcapColor[pcapCount] = c; pcapCount++; captured++; }
-        }
+        for (k = 0; k < gi; k++) { pcapPos[pcapCount] = grpBuf[k]; pcapColor[pcapCount] = c; pcapCount++; captured++; }
       }
       if (captured > 0) {
         for (k = cs; k < pcapCount; k++) pboard[pcapPos[k]] = 0;
@@ -701,7 +704,7 @@
         pLastOwnLibs = 2;
         return 1;
       }
-      scanGroup(pboard, move, p);
+      scanGroup(pboard, move, p, 2);
       if (lastLibs === 0) {
         pboard[move] = 0; pcapCount = cs;
         pLastCap = 0; pLastKo = -1; pLastOwnLibs = 0;
@@ -738,7 +741,7 @@
         s = nbFlat[j]; c = pboard[s];
         if (c === 0) continue;
         if (gStamp[s] !== tid) {
-          scanGroup(pboard, s, c);
+          scanGroup(pboard, s, c, 2);
           gi = grpN; libs = lastLibs; lp = lastLibPt;
           for (k = 0; k < gi; k++) { x = grpBuf[k]; gStamp[x] = tid; gLibs[x] = libs; gLibPt[x] = lp; gSize[x] = gi; }
         } else { gi = gSize[s]; libs = gLibs[s]; lp = gLibPt[s]; }

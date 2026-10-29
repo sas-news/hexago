@@ -1,0 +1,46 @@
+{
+  "size": 19,
+  "n": 271,
+  "wasmBytes": 9177,
+  "node": "v26.12.1",
+  "policies": {
+    "0": {
+      "policy": 0,
+      "wasmPlayouts": 12866,
+      "jsPlayouts": 8300,
+      "wasmBestMs": 889.028548,
+      "jsBestMs": 844.5910249999997,
+      "wasmPlayoutsPerSec": 14471.976213749213,
+      "jsPlayoutsPerSec": 9827.241533853621,
+      "wasmPlayoutsPerSecMedian": 14465.956486321933,
+      "jsPlayoutsPerSecMedian": 9782.27731524329,
+      "speedupBest": 1.472638701704345,
+      "speedupMedian": 1.4787923118658959,
+      "trials": 3
+    },
+    "1": {
+      "policy": 1,
+      "wasmPlayouts": 3488,
+      "jsPlayouts": 2142,
+      "wasmBestMs": 899.7346989999996,
+      "jsBestMs": 828.9748259999997,
+      "wasmPlayoutsPerSec": 3876.6983243801756,
+      "jsPlayoutsPerSec": 2583.914411895544,
+      "wasmPlayoutsPerSecMedian": 3875.9593702292323,
+      "jsPlayoutsPerSecMedian": 2582.6404367466334,
+      "speedupBest": 1.5003199434675751,
+      "speedupMedian": 1.500773903746276,
+      "trials": 3
+    }
+  },
+  "engineAnchor": {
+    "total": {
+      "playoutsPerSec": 602.8352084354202,
+      "ms": 1990.5937529999992,
+      "playouts": 1200,
+      "visits": 1200,
+      "maxPlayouts": 1200
+    }
+  },
+  "timestamp": "2026-10-28T23:47:43.861Z"
+}
