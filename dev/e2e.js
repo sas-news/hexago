@@ -154,6 +154,22 @@ function check(name, ok, detail) {
   });
   check('3-player legal move', three.legal && three.pc === 3, JSON.stringify(three));
 
+  /* 5b. 4/5/6-player page + engine legality */
+  const multi = await page.evaluate(async () => {
+    const d = window.__hexagoDebug;
+    const out = [];
+    for (const pc of [4, 5, 6]) {
+      d.setAllHuman();
+      document.querySelector('#playerCountBtns [data-count="' + pc + '"]')?.click();
+      d.newGame(9);
+      const res = await d.think(150);
+      const st = d.state();
+      out.push({ pc, move: res.move, legal: res.move === -1 ? true : !!d.sim(res.move), pcState: st.playerCount, visits: res.visits });
+    }
+    return out;
+  });
+  check('4-6 player page/engine legal moves', multi.every(r => r.legal && r.pcState === r.pc && r.visits > 0), JSON.stringify(multi));
+
   /* 6. AI vs AI progress + event-loop responsiveness */
   await page.evaluate(() => {
     const d = window.__hexagoDebug;
