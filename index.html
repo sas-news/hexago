@@ -367,6 +367,7 @@ canvas{display:block;touch-action:manipulation}
     if (engPC > 6) engPC = 6;
 
     var UCT_C = opts.uctC != null ? +opts.uctC : 1.1;
+    var RANK_BLEND = opts.rankBlend != null ? Math.max(0, Math.min(1, +opts.rankBlend)) : 0.7;
     var RAVE_K = opts.raveK != null ? +opts.raveK : 1000;
     var MAX_DEPTH = Math.max(40, 2 * n + 40);
     var MAX_PLAYOUT_STEPS = 2 * n + 30;
@@ -1082,7 +1083,7 @@ canvas{display:block;touch-action:manipulation}
       if (pcCur >= 3) {
         for (p = 1; p <= pcCur; p++) {
           if (outFlags[p]) continue;
-          winArr[p] = winArr[p] * 0.8 + (valArr[p] * 0.5 + 0.5) * 0.2;
+          winArr[p] = winArr[p] * RANK_BLEND + (valArr[p] * 0.5 + 0.5) * (1 - RANK_BLEND);
         }
       }
     }
