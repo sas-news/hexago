@@ -15,6 +15,7 @@ Usage:
 """
 import argparse
 import json
+import os
 import sys
 
 import numpy as np
@@ -26,7 +27,9 @@ import mlp
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('patches')
-    ap.add_argument('--model', default='../../../js/photo/model.json')
+    default_model = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                 '../../../js/photo/model.json'))
+    ap.add_argument('--model', default=default_model)
     ap.add_argument('--out', default=None)
     args = ap.parse_args()
 
@@ -74,7 +77,7 @@ def main():
 
     if y is not None:
         print('\naccuracy: %.4f  (%d/%d)' % (result['accuracy'],
-                                             int(pred == y), len(y)), file=sys.stderr)
+                                             int((pred == y).sum()), len(y)), file=sys.stderr)
         for name, acc in result['per_class'].items():
             tot = int((y == mlp.CLASSES.index(name)).sum())
             if tot:

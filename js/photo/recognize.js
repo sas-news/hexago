@@ -82,15 +82,64 @@
     return false;
   }
 
+  // モデルとヒューリスティックのアンサンブル。
+  // - 学習済みモデルは合成データ（未知シナリオでも99%）に強い
+  // - ヒューリスティックは実写真の色かぶり・木目盤に対する絶対色の判断に強い
+  // 両方の確率を平均して、片方が外したときにもう片方が救う。
+  var MODEL_WEIGHT = 0.5;
+  var STRATEGY = 'cascade'; // 'cascade' | 'ensemble' | 'model' | 'heuristic'
+  function strategy() {
+    if (typeof global !== 'undefined' && typeof global.__hexagoPhotoStrategy === 'string') return global.__hexagoPhotoStrategy;
+    return STRATEGY;
+  }
+  function modelWeight() {
+    if (typeof global !== 'undefined' && typeof global.__hexagoPhotoModelWeight === 'number') {
+      return Math.max(0, Math.min(1, global.__hexagoPhotoModelWeight));
+    }
+    return MODEL_WEIGHT;
+  }
+  function mixProbs(m, heur, w) {
+    var out = new Float32Array(8);
+    var sum = 0;
+    for (var i = 0; i < 8; i++) {
+      out[i] = w * m[i] + (1 - w) * heur[i];
+      sum += out[i];
+    }
+    if (sum > 0) for (i = 0; i < 8; i++) out[i] /= sum;
+    return out;
+  }
+  function ensembleProbs(f, baseline) {
+    var heur = heuristicProbs(f, baseline);
+    if (!modelReady()) return heur;
+    var strat = strategy();
+    if (strat === 'heuristic') return heur;
+    var m = global.HexagoPhotoModel.predict(f);
+    if (strat === 'model') return m;
+    if (strat === 'ensemble') return mixProbs(m, heur, modelWeight());
+    // cascade: ヒューリスティックが自信を持てた点はヒューリスティック、
+    // 迷った点だけモデルとのアンサンブルに回す（実写真の安定性と合成域の汎化の両立）
+    var h1 = 0, h2 = 0, hi = -1;
+    for (var k = 0; k < 8; k++) {
+      if (heur[k] > h1) { h2 = h1; h1 = heur[k]; hi = k; }
+      else if (heur[k] > h2) h2 = heur[k];
+    }
+    var cfg = (typeof global !== 'undefined' && global.__hexagoPhotoCascade) || {};
+    var minConf = typeof cfg.minConf === 'number' ? cfg.minConf : 0.50;
+    var minMargin = typeof cfg.minMargin === 'number' ? cfg.minMargin : 0.14;
+    var mixW = typeof cfg.w === 'number' ? cfg.w : 0.125;
+    if (h1 >= minConf && (h1 - h2) >= minMargin) return heur;
+    return mixProbs(m, heur, mixW);
+  }
+
   function classifyFeatures(featuresList, baseline) {
     var useModel = modelReady();
     var out = featuresList.map(function (f) {
-      var probs = useModel ? global.HexagoPhotoModel.predict(f) : heuristicProbs(f, baseline);
+      var probs = ensembleProbs(f, baseline);
       var best = 0, conf = -1;
       for (var i = 0; i < probs.length; i++) { if (probs[i] > conf) { conf = probs[i]; best = i; } }
       var second = 0;
       for (i = 0; i < probs.length; i++) { if (i !== best && probs[i] > second) second = probs[i]; }
-      return { cls: best, conf: conf, margin: conf - second, probs: probs, source: useModel ? 'model' : 'heuristic' };
+      return { cls: best, conf: conf, margin: conf - second, probs: probs, source: useModel ? 'ensemble' : 'heuristic' };
     });
     return out;
   }

@@ -45,10 +45,20 @@ MCTS（モンテカルロ木探索）。AIは常に最強設定で動きます�
 
 | 条件 | 交点正解率 | 処理時間 |
 |---|---|---|
-| 正解の外枠を与えた場合 | 127/127 (100%) | 約0.4秒 |
-| 自動検出した外枠の場合 | 125/127 (98.4%) | 約0.2秒 |
+| 6隅を手動で合わせた場合 | 127/127 (100%) | 約0.1秒 |
+| 外枠を自動検出した場合 | 126/127 (99.2%) | 約0.2秒 |
+
+認識モデル:
+
+- 学習データ: 合成盤 2,700枚 / 405,096交点（木目・紙・ダーク・サイバー、三角形格子/六角セル、光沢/艶なし/セミグロス、照明・映り込み・影・ボケ・ノイズ・JPEG劣化をランダム化）
+- モデル: 28次元特徴量 → MLP 28-64-32-8（約4,200パラメータ / 83KB / 推論は127点で約7ms）
+- 未知シナリオ（学習に無い素材×照明の組み合わせ）での精度: **99.05%**
+- 実写真ではヒューリスティック分類器が強い（色かぶり・木目の暖色に頑健）ため、
+  「ヒューリスティックが自信を持てた点はそれを使い、迷った点だけモデルと併用する」
+  カスケード方式で両方の強みを取っています
 
 対応: 盤面サイズ 9/13/19/25路。盤の種類は「実物の六角盤（六角形のマス＝ハニカム）」と「アプリから印刷した盤（三角形の格子）」の両方に対応。
+自動検出は背景とのコントラストが高い写真で安定します。うまく合わない場合は6隅をドラッグすれば必ず合わせられます。
 保存した局面は JSON で書き出し・読み込みできます（`localStorage` の `hexago-photo-lib-v1`）。
 
 ## 構成
@@ -60,7 +70,7 @@ js/main.js            起動
 js/core/              theme / sound / geometry / state / rules
 js/ai/                engine.js(MCTS) / worker.js / pool.js / heuristic.js
 js/ui/                input / render / ui / modals / settings / online / debug
-js/photo/             写真復元（geom / features / model / rectify / detect / recognize / store / ui）
+js/photo/             写真復元（geom / features / model(.json) / rectify / detect / recognize / store / ui）
 dev/                  開発ツール（自己テスト・ブラウザE2E・写真学習パイプライン）
 bench/                AI強さベンチマーク
 ```
@@ -91,7 +101,17 @@ node dev/photo/test/run.js --case detect,align,store,synthetic
 node dev/photo/test/ui-e2e.js
 ```
 
-写真の学習パイプライン（Python / numpy + OpenCV）は `dev/photo/train/` にあります。合成データの生成、特徴量、学習、書き出し、評価までスクリプト化されています。仕様は [`dev/photo/CONTRACT.md`](dev/photo/CONTRACT.md) を参照してください。
+写真の学習パイプライン（Python / numpy + OpenCV）は `dev/photo/train/` にあります。合成データの生成、特徴量、学習、書き出し、評価、実写真パッチの評価までスクリプト化されています（決定的シードで再現可能）。
+
+```bash
+python dev/photo/train/gen_dataset.py      # 合成盤の生成（例）
+python dev/photo/train/build_cache.py      # 特徴量キャッシュの作成
+python dev/photo/train/train.py            # MLP 学習
+python dev/photo/train/export.py           # js/photo/model.json へ書き出し
+node dev/photo/train/parity_check.js       # Python/JS の特徴量一致検証
+```
+
+仕様と精度レポート: [`dev/photo/CONTRACT.md`](dev/photo/CONTRACT.md) / [`dev/photo/train/REPORT.md`](dev/photo/train/REPORT.md)
 
 ## 注意
 

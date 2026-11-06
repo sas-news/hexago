@@ -126,9 +126,16 @@
     var el = $('photoDetectInfo');
     if (!el) return;
     var pct = Math.round((st.autoConf || 0) * 100);
-    el.textContent = st.autoMethod === 'auto'
-      ? '自動検出: 信頼度 ' + pct + '%（違う場合は6つの丸をドラッグして合わせてください）'
-      : '自動検出できませんでした。6つの丸をドラッグして盤の6隅に合わせてください。';
+    if (st.autoMethod === 'auto' && st.autoConf >= 0.5) {
+      el.textContent = '自動検出: 信頼度 ' + pct + '%（違う場合は6つの丸をドラッグして合わせてください）';
+      el.className = 'text-[11px] text-neutral-500';
+    } else if (st.autoMethod === 'auto') {
+      el.textContent = '自動検出が不確かです。6つの丸を盤の6隅にドラッグして合わせてください。';
+      el.className = 'text-[11px] text-amber-600 font-bold';
+    } else {
+      el.textContent = '自動検出できませんでした。6つの丸をドラッグして盤の6隅に合わせてください。';
+      el.className = 'text-[11px] text-amber-600 font-bold';
+    }
   }
 
   // ---------------- 6隅調整キャンバス ----------------

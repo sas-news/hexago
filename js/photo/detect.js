@@ -71,39 +71,59 @@
     return best;
   }
 
+  // 正方形カーネルの膨張・収縮は分離可能（横→縦）なので O(w*h*r) で済む
   function dilate(mask, w, h, r) {
-    var out = new Uint8Array(w * h);
+    var tmp = new Uint8Array(w * h);
     for (var y = 0; y < h; y++) {
+      var row = y * w;
       for (var x = 0; x < w; x++) {
         var on = 0;
-        for (var dy = -r; dy <= r && !on; dy++) {
-          var yy = y + dy;
-          if (yy < 0 || yy >= h) continue;
-          for (var dx = -r; dx <= r; dx++) {
-            var xx = x + dx;
-            if (xx < 0 || xx >= w) continue;
-            if (mask[yy * w + xx]) { on = 1; break; }
-          }
+        for (var dx = -r; dx <= r; dx++) {
+          var xx = x + dx;
+          if (xx < 0 || xx >= w) continue;
+          if (mask[row + xx]) { on = 1; break; }
         }
-        out[y * w + x] = on;
+        tmp[row + x] = on;
+      }
+    }
+    var out = new Uint8Array(w * h);
+    for (var x2 = 0; x2 < w; x2++) {
+      for (var y2 = 0; y2 < h; y2++) {
+        var on2 = 0;
+        for (var dy = -r; dy <= r; dy++) {
+          var yy = y2 + dy;
+          if (yy < 0 || yy >= h) continue;
+          if (tmp[yy * w + x2]) { on2 = 1; break; }
+        }
+        out[y2 * w + x2] = on2;
       }
     }
     return out;
   }
   function erode(mask, w, h, r) {
-    var out = new Uint8Array(w * h);
+    var tmp = new Uint8Array(w * h);
     for (var y = 0; y < h; y++) {
+      var row = y * w;
       for (var x = 0; x < w; x++) {
         var off = 0;
-        for (var dy = -r; dy <= r && !off; dy++) {
-          var yy = y + dy;
-          for (var dx = -r; dx <= r; dx++) {
-            var xx = x + dx;
-            if (yy < 0 || yy >= h || xx < 0 || xx >= w) continue;
-            if (!mask[yy * w + xx]) { off = 1; break; }
-          }
+        for (var dx = -r; dx <= r; dx++) {
+          var xx = x + dx;
+          if (xx < 0 || xx >= w) continue;
+          if (!mask[row + xx]) { off = 1; break; }
         }
-        out[y * w + x] = off ? 0 : 1;
+        tmp[row + x] = off ? 0 : 1;
+      }
+    }
+    var out = new Uint8Array(w * h);
+    for (var x2 = 0; x2 < w; x2++) {
+      for (var y2 = 0; y2 < h; y2++) {
+        var off2 = 0;
+        for (var dy = -r; dy <= r; dy++) {
+          var yy = y2 + dy;
+          if (yy < 0 || yy >= h) continue;
+          if (!tmp[yy * w + x2]) { off2 = 1; break; }
+        }
+        out[y2 * w + x2] = off2 ? 0 : 1;
       }
     }
     return out;
@@ -276,6 +296,18 @@
     var ratio = hullArea > 0 ? best.area / hullArea : 99;
     // 凸包が六角形に近いほど ratio は 1 に近い
     var confidence = Math.max(0, Math.min(1, (1.45 - ratio) / 0.32));
+    // 面積の妥当性チェック（画像のほぼ全体/極端に小さい場合は検出を疑う）
+    var imgArea = w * h;
+    var areaFrac = best.area / imgArea;
+    if (areaFrac > 0.85) confidence *= 0.45;
+    else if (areaFrac < 0.08) confidence *= 0.4;
+    // 凸包が画像の端に接している（盤が切れている）場合も信頼度を下げる
+    var touches = 0;
+    for (var k2 = 0; k2 < 6; k2++) {
+      var p2 = best.hex[k2];
+      if (p2[0] < 3 || p2[1] < 3 || p2[0] > w - 3 || p2[1] > h - 3) touches++;
+    }
+    if (touches) confidence *= Math.max(0.35, 1 - touches * 0.1);
     var scale = 1 / ds.scale;
     var corners = best.hex.map(function (p) { return [p[0] * scale, p[1] * scale]; });
     // 妥当性チェック: 画像外に大きくはみ出していない
