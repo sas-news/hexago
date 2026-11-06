@@ -546,6 +546,8 @@
       G.seen = [hash(G.board)];
       setSeen();
       closeModal($('photoModal'));
+      $('setModal').classList.add('hidden');
+      $('resModal').classList.add('hidden');
       syncSettings();
       resizeCanvas();
       updateUI();
