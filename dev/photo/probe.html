@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>hexago photo probe</title>
+<style>body{font-family:monospace;background:#111;color:#ddd}canvas{display:block;max-width:100%}</style>
+</head>
+<body>
+<pre id="out">running…</pre>
+<div id="viz"></div>
+<script src="../../js/photo/geom.js"></script>
+<script src="../../js/photo/features.js"></script>
+<script src="../../js/photo/rectify.js"></script>
+<script src="../../js/photo/recognize.js"></script>
+<script src="../../js/photo/detect.js"></script>
+<script>
+(function () {
+  'use strict';
+  var CLS = { '.': 0, 'K': 1, 'W': 2, 'B': 4 };
+
+  function loadImage(url) {
+    return new Promise(function (resolve, reject) {
+      var im = new Image();
+      im.onload = function () { resolve(im); };
+      im.onerror = function () { reject(new Error('image load failed: ' + url)); };
+      im.src = url;
+    });
+  }
+
+  function cornerError(a, b) {
+    // 巡回シフトを全パターン試して最小の平均距離
+    var best = null;
+    for (var sh = 0; sh < 6; sh++) {
+      var s = 0;
+      for (var i = 0; i < 6; i++) {
+        var p = a[(i + sh) % 6], q = b[i];
+        s += Math.hypot(p[0] - q[0], p[1] - q[1]);
+      }
+      s /= 6;
+      if (!best || s < best.err) best = { err: s, shift: sh };
+    }
+    return best;
+  }
+
+  function evalResult(res, labels) {
+    var hit = 0, total = labels.length, confusion = {}, misses = [];
+    for (var i = 0; i < total; i++) {
+      var want = CLS[labels[i]];
+      var got = res.points[i].cls;
+      if (want === got) hit++;
+      else misses.push({ i: i, want: labels[i], got: res.points[i].cls, conf: +res.points[i].conf.toFixed(3) });
+    }
+    return { acc: hit / total, hit: hit, total: total, misses: misses.slice(0, 20), missCount: misses.length };
+  }
+
+  async function main() {
+    var out = { steps: [] };
+    var img = await loadImage('testdata/IMG_0252.jpg');
+    var cv = document.createElement('canvas');
+    cv.width = img.width; cv.height = img.height;
+    var ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    var imageData = ctx.getImageData(0, 0, img.width, img.height);
+    var gt = await (await fetch('testdata/IMG_0252.gt.json')).json();
+    out.image = { w: img.width, h: img.height };
+    out.gt = { size: gt.size, labels: gt.labels.length, paperCorners: gt.paper_corners_px };
+
+    // 1) 自動検出
+    var det = HexagoPhotoDetect.detect(imageData);
+    out.detect = { conf: det.confidence, ratio: det.hexAreaRatio, corners: det.corners };
+    var detErr = det.corners ? cornerError(det.corners, gt.paper_corners_px) : null;
+    out.detect.error = detErr;
+
+    // 2) 正解の外枠（paper corners）から各慣習で解析
+    var results = {};
+    ['honeycomb', 'triangular'].forEach(function (conv) {
+      var r = HexagoPhotoRecognize.analyze({
+        imageData: imageData, borderCorners: gt.paper_corners_px, size: 13, convention: conv
+      });
+      results[conv] = { score: +r.score.toFixed(4), baseline: r.baseline, eval: evalResult(r, gt.labels) };
+
+      results[conv].result = r;
+    });
+    out.gtCorners = {};
+    Object.keys(results).forEach(function (k) {
+      out.gtCorners[k] = { score: results[k].score, acc: results[k].eval.acc, misses: results[k].eval.misses };
+    });
+
+    // 3) 自動検出の外枠から解析
+    if (det.corners) {
+      var best = null;
+      ['honeycomb', 'triangular'].forEach(function (conv) {
+        var r = HexagoPhotoRecognize.analyze({
+          imageData: imageData, borderCorners: det.corners, size: 13, convention: conv
+        });
+        var ev = evalResult(r, gt.labels);
+        var item = { convention: conv, score: +r.score.toFixed(4), acc: ev.acc, misses: ev.misses };
+        if (!best || ev.acc > best.acc) best = item;
+        out['detected_' + conv] = item;
+      });
+      out.detectedBest = best;
+    }
+
+    // 4) キャンバス描画（canonical + 認識結果）
+    var which = results.honeycomb.result;
+    var viz = document.getElementById('viz');
+    var c2 = document.createElement('canvas');
+    c2.width = 512; c2.height = 512;
+    viz.appendChild(c2);
+    var ctx2 = c2.getContext('2d');
+    var id = ctx2.createImageData(1024, 1024);
+    for (var i = 0; i < 1024 * 1024; i++) {
+      id.data[i * 4] = which.canon[i * 3];
+      id.data[i * 4 + 1] = which.canon[i * 3 + 1];
+      id.data[i * 4 + 2] = which.canon[i * 3 + 2];
+      id.data[i * 4 + 3] = 255;
+    }
+    var tmp = document.createElement('canvas'); tmp.width = 1024; tmp.height = 1024;
+    tmp.getContext('2d').putImageData(id, 0, 0);
+    ctx2.drawImage(tmp, 0, 0, 512, 512);
+    var COL = { 0: '#ffffff', 1: '#ff3030', 2: '#30ff30', 3: '#ff9900', 4: '#30a0ff', 5: '#00ffcc', 6: '#ffff00', 7: '#ff00ff' };
+    which.points.forEach(function (p) {
+      ctx2.fillStyle = COL[p.cls] || '#fff';
+      ctx2.fillRect(p.x / 2 - 2, p.y / 2 - 2, 4, 4);
+    });
+
+    // 目視検証用: 元写真に認識点を描く
+    var Hi = HexagoPhotoGeom.inv3(which.H);
+    var viz2 = document.createElement('canvas');
+    viz2.width = img.width; viz2.height = img.height;
+    viz2.id = 'overlay';
+    var ctx3 = viz2.getContext('2d');
+    ctx3.drawImage(img, 0, 0);
+    viz.insertBefore(viz2, viz.firstChild);
+    var CN = HexagoPhotoRecognize.CLASS_COLORS;
+    which.points.forEach(function (p) {
+      var ip = HexagoPhotoGeom.apply(Hi, p.x, p.y);
+      ctx3.beginPath(); ctx3.arc(ip[0], ip[1], 7, 0, 7);
+      ctx3.strokeStyle = '#00ff00'; ctx3.lineWidth = 2; ctx3.stroke();
+      ctx3.fillStyle = CN[p.cls]; ctx3.fillRect(ip[0] - 3, ip[1] - 3, 6, 6);
+    });
+    out.labels = gt.labels.join('');
+    out.predicted = which.points.map(function (p) { return p.cls; });
+    // 診断: 点ごとのパッチ平均色と GT / 予測
+    var CLASSNAME = ['empty', 'black', 'white', 'red', 'blue', 'green', 'yellow', 'purple'];
+    out.baseline = which.baseline;
+    out.perPoint = which.points.map(function (p, i) {
+      var f = which.features ? which.features[i] : null;
+      return {
+        i: i, q: p.q, r: p.r,
+        gt: gt.labels[i], pred: CLASSNAME[p.cls], conf: +p.conf.toFixed(3),
+        mean: f ? [Math.round(f[0] * 255), Math.round(f[5] * 255), Math.round(f[10] * 255)] : null,
+        ratio: f ? [ +(1 + f[24]).toFixed(2), +(1 + f[25]).toFixed(2), +(1 + f[26]).toFixed(2)] : null
+      };
+    });
+    var conf = {}; var acc = 0;
+    which.points.forEach(function (p, i) {
+      var key = gt.labels[i] + '>' + CLASSNAME[p.cls];
+      conf[key] = (conf[key] || 0) + 1;
+    });
+    out.confusion = conf;
+
+    // 学習側に渡すパッチ書き出し（実写真127点）
+    var dump = {
+      source: 'IMG_0252.jpg', size: 13,
+      baseline: which.baseline,
+      patches: which.patches.map(function (p) { return Array.prototype.slice.call(p); }),
+      labels: which.points.map(function (p) {
+        return ['empty', 'black', 'white', 'red', 'blue', 'green', 'yellow', 'purple'][p.cls];
+      }),
+      gt: gt.labels.slice()
+    };
+    var el = document.createElement('script');
+    el.type = 'application/json';
+    el.id = 'patchdump';
+    el.textContent = JSON.stringify(dump);
+    document.body.appendChild(el);
+
+    document.getElementById('out').textContent = JSON.stringify(out, null, 1);
+    window.__probe = out;
+    document.title = 'PROBE_DONE';
+  }
+
+  main().catch(function (e) {
+    document.getElementById('out').textContent = 'ERROR: ' + (e && e.stack || e);
+    document.title = 'PROBE_ERROR';
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>hexago photo pipeline test</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #111; color: #ddd; margin: 0; padding: 16px; }
+  pre { white-space: pre-wrap; font-size: 12px; }
+  canvas { max-width: 100%; }
+</style>
+</head>
+<body>
+<pre id="log">photo pipeline test page</pre>
+<div id="viz"></div>
+
+<script src="/js/photo/geom.js"></script>
+<script src="/js/photo/features.js"></script>
+<script src="/js/photo/model.js"></script>
+<script src="/js/photo/rectify.js"></script>
+<script src="/js/photo/detect.js"></script>
+<script src="/js/photo/recognize.js"></script>
+<script src="/js/photo/store.js"></script>
+<script>
+/*
+ * window.__photoTest.run(name) -> JSON
+ * ケース:
+ *   real       実写真の読み取り精度（自動検出 / 正解外枠・両慣習）
+ *   detect     外枠自動検出の誤差
+ *   synthetic  合成canonical画像（dev/photo/testdata/synth/manifest.json があれば）
+ *   store      局面ライブラリのCRUD
+ *   all        上記をまとめて
+ */
+(function () {
+  'use strict';
+  var BASE = '/';
+  var R = window.HexagoPhotoRecognize;
+  var Geom = window.HexagoPhotoGeom;
+  var Det = window.HexagoPhotoDetect;
+  var Store = window.HexagoPhotoStore;
+  var CLASS_NAME = ['empty', 'black', 'white', 'red', 'blue', 'green', 'yellow', 'purple'];
+  var GT_CLS = { '.': 0, 'K': 1, 'W': 2, 'B': 4 };
+
+  function log(msg) {
+    var el = document.getElementById('log');
+    el.textContent += '\n' + msg;
+  }
+
+  function loadImageData(url) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var cv = document.createElement('canvas');
+        cv.width = img.width; cv.height = img.height;
+        var ctx = cv.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0);
+        resolve({ imageData: ctx.getImageData(0, 0, img.width, img.height), img: img });
+      };
+      img.onerror = function () { reject(new Error('image load failed: ' + url)); };
+      img.src = url;
+    });
+  }
+
+  function accuracy(result, gtLabels) {
+    var hit = 0, miss = [];
+    for (var i = 0; i < gtLabels.length; i++) {
+      var want = GT_CLS[gtLabels[i]];
+      var got = result.points[i].cls;
+      if (want === got) hit++;
+      else miss.push({ i: i, want: CLASS_NAME[want], got: CLASS_NAME[got], conf: +result.points[i].conf.toFixed(3) });
+    }
+    return { acc: hit / gtLabels.length, hit: hit, total: gtLabels.length, misses: miss.slice(0, 12), missCount: miss.length };
+  }
+
+  function longEdgeScale(w, h, max) {
+    var s = Math.min(1, max / Math.max(w, h));
+    return [Math.round(w * s), Math.round(h * s)];
+  }
+
+  function loadAsPhoto(url, maxSide) {
+    return loadImageData(url).then(function (r) {
+      var dim = longEdgeScale(r.imageData.width, r.imageData.height, maxSide || 1600);
+      if (dim[0] === r.imageData.width && dim[1] === r.imageData.height) return r;
+      var cv = document.createElement('canvas');
+      cv.width = dim[0]; cv.height = dim[1];
+      var ctx = cv.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(r.img, 0, 0, dim[0], dim[1]);
+      return { imageData: ctx.getImageData(0, 0, dim[0], dim[1]), img: r.img };
+    });
+  }
+
+  async function caseReal() {
+    var t0 = performance.now();
+    var photo = await loadAsPhoto(BASE + 'dev/photo/testdata/IMG_0252.jpg', 1600);
+    var imageData = photo.imageData;
+    var gt = await (await fetch(BASE + 'dev/photo/testdata/IMG_0252.gt.json')).json();
+    var det = Det.detect(imageData);
+    var tDet = performance.now();
+    var out = {
+      image: { w: imageData.width, h: imageData.height },
+      detect: { conf: det.confidence, corners: det.corners, ms: +(tDet - t0).toFixed(1) },
+      cases: {}
+    };
+    var t1 = performance.now();
+    var byGt = R.analyze({
+      imageData: imageData, borderCorners: gt.paper_corners_px, size: gt.size, convention: 'honeycomb'
+    });
+    out.cases.gtCornersHoneycomb = Object.assign(accuracy(byGt, gt.labels), {
+      ms: +(performance.now() - t1).toFixed(1),
+      score: +byGt.score.toFixed(4),
+      classSource: byGt.classSource,
+      refine: byGt.refine
+    });
+    var t2 = performance.now();
+    var byDet = R.analyze({
+      imageData: imageData, borderCorners: det.corners, size: gt.size, convention: 'honeycomb'
+    });
+    out.cases.autoHoneycomb = Object.assign(accuracy(byDet, gt.labels), {
+      ms: +(performance.now() - t2).toFixed(1),
+      score: +byDet.score.toFixed(4),
+      refine: byDet.refine
+    });
+    var t3 = performance.now();
+    var byTri = R.analyze({
+      imageData: imageData, borderCorners: det.corners, size: gt.size, convention: 'triangular'
+    });
+    out.cases.autoTriangular = Object.assign(accuracy(byTri, gt.labels), {
+      ms: +(performance.now() - t3).toFixed(1),
+      score: +byTri.score.toFixed(4)
+    });
+    // 代表的な可視化（認識結果をcanonical上に描く）
+    var viz = document.getElementById('viz');
+    viz.innerHTML = '';
+    var cv = document.createElement('canvas');
+    cv.width = 420; cv.height = 420;
+    var ctx = cv.getContext('2d');
+    var L = byDet.layout;
+    var id = ctx.createImageData(L.W, L.W);
+    for (var i = 0, j = 0; i < L.W * L.W; i++, j += 4) {
+      id.data[j] = byDet.canon[i * 3];
+      id.data[j + 1] = byDet.canon[i * 3 + 1];
+      id.data[j + 2] = byDet.canon[i * 3 + 2];
+      id.data[j + 3] = 255;
+    }
+    var tmp = document.createElement('canvas');
+    tmp.width = L.W; tmp.height = L.W;
+    tmp.getContext('2d').putImageData(id, 0, 0);
+    ctx.drawImage(tmp, 0, 0, 420, 420);
+    var sc = 420 / L.W;
+    byDet.points.forEach(function (p) {
+      ctx.beginPath();
+      ctx.arc(p.x * sc, p.y * sc, L.cell * 0.42 * sc, 0, 7);
+      ctx.strokeStyle = p.cls ? R.CLASS_COLORS[p.cls] : 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+    viz.appendChild(cv);
+    out.totalMs = +(performance.now() - t0).toFixed(1);
+    return out;
+  }
+
+  async function caseDetect() {
+    var photo = await loadAsPhoto(BASE + 'dev/photo/testdata/IMG_0252.jpg', 1600);
+    var gt = await (await fetch(BASE + 'dev/photo/testdata/IMG_0252.gt.json')).json();
+    var t0 = performance.now();
+    var det = Det.detect(photo.imageData);
+    var ms = performance.now() - t0;
+    function cornerError(a, b) {
+      var best = null;
+      for (var sh = 0; sh < 6; sh++) {
+        var sum = 0;
+        for (var i = 0; i < 6; i++) {
+          var p = a[(i + sh) % 6], q = b[i];
+          sum += Math.hypot(p[0] - q[0], p[1] - q[1]);
+        }
+        sum /= 6;
+        if (!best || sum < best.mean) best = { mean: sum, shift: sh };
+      }
+      return best;
+    }
+    return {
+      conf: det.confidence,
+      hexAreaRatio: det.hexAreaRatio,
+      ms: +ms.toFixed(1),
+      corners: det.corners,
+      errorVsGt: det.corners ? cornerError(det.corners, gt.paper_corners_px) : null
+    };
+  }
+
+  async function caseAlign() {
+    // 認識した石の位置が、canonical 画像の実際の石の重心からどれだけずれているかを測る
+    var photo = await loadAsPhoto(BASE + 'dev/photo/testdata/IMG_0252.jpg', 1600);
+    var det = Det.detect(photo.imageData);
+    var r = R.analyze({ imageData: photo.imageData, borderCorners: det.corners, size: 13, convention: 'honeycomb' });
+    var W = r.layout.W, cell = r.layout.cell;
+    var canon = r.canon;
+    var baseL = 0.299 * r.baseline[0] + 0.587 * r.baseline[1] + 0.114 * r.baseline[2];
+    var offsets = [];
+    for (var k = 0; k < r.points.length; k++) {
+      var p = r.points[k];
+      if (!p.cls) continue;
+      var rad = Math.round(cell * 0.45);
+      var sumx = 0, sumy = 0, sumw = 0;
+      for (var y = -rad; y <= rad; y++) {
+        for (var x = -rad; x <= rad; x++) {
+          var px = Math.round(p.x + x), py = Math.round(p.y + y);
+          if (px < 0 || py < 0 || px >= W || py >= W) continue;
+          var o = (py * W + px) * 3;
+          var lum = 0.299 * canon[o] + 0.587 * canon[o + 1] + 0.114 * canon[o + 2];
+          var wgt = Math.abs(lum - baseL) / 255;
+          sumx += x * wgt; sumy += y * wgt; sumw += wgt;
+        }
+      }
+      if (sumw > 0.01) offsets.push({ i: k, dx: sumx / sumw, dy: sumy / sumw });
+    }
+    var meanDx = 0, meanDy = 0, meanAbs = 0;
+    offsets.forEach(function (o) { meanDx += o.dx; meanDy += o.dy; meanAbs += Math.hypot(o.dx, o.dy); });
+    var n = offsets.length || 1;
+    return {
+      n: offsets.length,
+      cell: +cell.toFixed(2),
+      meanDxPx: +(meanDx / n).toFixed(2),
+      meanDyPx: +(meanDy / n).toFixed(2),
+      meanAbsPx: +(meanAbs / n).toFixed(2),
+      meanAbsFracCell: +(meanAbs / n / cell).toFixed(3),
+      refine: r.refine,
+      worst: offsets.slice().sort(function (a, b) { return Math.hypot(b.dx, b.dy) - Math.hypot(a.dx, a.dy); }).slice(0, 5)
+    };
+  }
+
+  async function caseStore() {
+    var before = Store.list().length;
+    var e = {
+      name: 'unit-test',
+      size: 9,
+      playerCount: 2,
+      board: new Array(61).fill(0),
+      labels: new Array(61).fill(0),
+      colors: { 1: { fill: '#111111', stroke: '#333333' }, 2: { fill: '#ffffff', stroke: '#333333' } },
+      names: { 1: '黒', 2: '白' },
+      turn: 1,
+      meta: { convention: 'honeycomb', confidence: 1 },
+      thumb: null
+    };
+    e.board[0] = 1;
+    var saved = Store.save(e);
+    var list = Store.list();
+    var got = Store.get(saved.id);
+    var json = Store.exportAll();
+    var n = Store.importJSON(json);
+    Store.remove(saved.id);
+    return {
+      ok: !!got && list.length === before + 1 && n >= 0,
+      before: before,
+      after: Store.list().length,
+      savedId: saved.id,
+      exportedBytes: json.length,
+      imported: n
+    };
+  }
+
+  async function caseSynthetic() {
+    var manifest;
+    try {
+      var res = await fetch(BASE + 'dev/photo/testdata/synth/manifest.json', { cache: 'no-store' });
+      if (!res.ok) return { skipped: true, reason: 'manifest not found' };
+      manifest = await res.json();
+    } catch (e) { return { skipped: true, reason: 'manifest fetch failed: ' + e.message }; }
+    var names = manifest.images || [];
+    if (!Array.isArray(names) || !names.length) return { skipped: true, reason: 'manifest empty' };
+    var NAME2CLS = { empty: 0, black: 1, white: 2, red: 3, blue: 4, green: 5, yellow: 6, purple: 7 };
+    var out = { count: 0, hit: 0, total: 0, perImage: [], misses: [], byConvention: {} };
+    for (var k = 0; k < Math.min(names.length, 40); k++) {
+      var base = names[k];
+      var meta;
+      try {
+        var mr = await fetch(BASE + 'dev/photo/testdata/synth/' + base + '.json', { cache: 'no-store' });
+        if (!mr.ok) continue;
+        meta = await mr.json();
+      } catch (e) { continue; }
+      var url = null;
+      var photo = null;
+      var exts = ['.png', '.jpg', '.jpeg'];
+      for (var e2 = 0; e2 < exts.length && !photo; e2++) {
+        try { photo = await loadImageData(BASE + 'dev/photo/testdata/synth/' + base + exts[e2]); url = base + exts[e2]; }
+        catch (err) { photo = null; }
+      }
+      if (!photo) continue;
+      var imageData = photo.imageData;
+      var sc = imageData.width / 1024;
+      var size = meta.size;
+      // 正解の格子6隅が分かっている画像なので、外枠推定は使わず格子座標を直接与える
+      var corners;
+      if (meta.corners_px) {
+        corners = meta.corners_px.map(function (p) { return [p[0], p[1]]; });
+      } else {
+        var L0 = Geom.layout(size);
+        corners = L0.corners.map(function (p) { return [p[0] * sc, p[1] * sc]; });
+      }
+      var r;
+      try {
+        r = R.analyze({ imageData: imageData, borderCorners: corners, size: size, convention: 'triangular' });
+      } catch (err) { continue; }
+      var hit = 0, miss = [];
+      for (var i = 0; i < meta.labels.length; i++) {
+        var want = NAME2CLS[meta.labels[i]];
+        if (r.points[i].cls === want) hit++;
+        else miss.push({ i: i, want: meta.labels[i], got: CLASS_NAME[r.points[i].cls], conf: +r.points[i].conf.toFixed(2) });
+      }
+      var best = { convention: 'given', acc: hit / meta.labels.length, hit: hit, miss: miss, score: r.score };
+      out.count++;
+      out.hit += best.hit;
+      out.total += meta.labels.length;
+      out.perImage.push({ file: base, size: size, acc: +best.acc.toFixed(4), miss: best.miss.length });
+      out.byConvention[best.convention] = (out.byConvention[best.convention] || 0) + 1;
+      if (best.miss.length) out.misses.push({ file: base, style: (meta.scenario || {}).style, miss: best.miss.slice(0, 8) });
+    }
+    out.acc = out.total ? out.hit / out.total : 0;
+    return out;
+  }
+
+  window.__photoTest = {
+    run: async function (name) {
+      var cases = String(name || 'all').split(',');
+      var out = {};
+      try {
+        for (var i = 0; i < cases.length; i++) {
+          var c = cases[i].trim();
+          if (c === 'real' || c === 'all') out.real = await caseReal();
+          else if (c === 'detect' || c === 'all') out.detect = await caseDetect();
+          else if (c === 'store' || c === 'all') out.store = await caseStore();
+          else if (c === 'align') out.align = await caseAlign();
+          else if (c === 'synthetic' || c === 'all') out.synthetic = await caseSynthetic();
+          else out.unknown = c;
+        }
+        out.ok = true;
+      } catch (e) {
+        out.ok = false;
+        out.error = String((e && e.stack) || e);
+      }
+      log(JSON.stringify({ ok: out.ok, keys: Object.keys(out) }));
+      return out;
+    }
+  };
+  log('ready');
+})();
+</script>
+</body>
+</html>

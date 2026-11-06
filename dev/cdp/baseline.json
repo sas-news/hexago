@@ -1,0 +1,523 @@
+{
+  "tool": "hexago-cdp-regress",
+  "schema": 1,
+  "generatedAt": "2026-11-05T23:40:13.833Z",
+  "page": "http://<server>/index.html",
+  "durationMs": 5571,
+  "ok": true,
+  "summary": {
+    "pass": 34,
+    "fail": 0,
+    "total": 34
+  },
+  "checks": [
+    {
+      "name": "ページが起動し window.__hexagoDebug が存在する",
+      "ok": true,
+      "detail": "HEXAGO / keys=22"
+    },
+    {
+      "name": "state() が盤面・手番を返す",
+      "ok": true,
+      "detail": "{\"size\":9,\"turn\":1,\"board\":61}"
+    },
+    {
+      "name": "初期状態が盤サイズ 9・空盤",
+      "ok": true,
+      "detail": "{\"size\":9,\"phase\":\"setup\",\"turn\":1,\"playerCount\":3,\"over\":false,\"boardLength\":61,\"boardHash\":\"017c253b\",\"stones\":[0,0,0],\"totalStones\":0}"
+    },
+    {
+      "name": "AI エンジンがエラー無くロードされる",
+      "ok": true,
+      "detail": "{\"worker\":false,\"loaded\":true,\"error\":\"\"}"
+    },
+    {
+      "name": "canvas が初期描画されている",
+      "ok": true,
+      "detail": "{\"cssW\":520,\"cssH\":520,\"pxW\":520,\"pxH\":520}"
+    },
+    {
+      "name": "初回起動で設定モーダルが開く",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "設定モーダルの✕で閉じる",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "AI が think() で合法手を返す",
+      "ok": true,
+      "detail": "8,51,48"
+    },
+    {
+      "name": "think() が盤面を書き換えない",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "AI の着手で対局が進む（3手）",
+      "ok": true,
+      "detail": "{\"size\":9,\"phase\":\"playing\",\"turn\":1,\"playerCount\":3,\"over\":false,\"boardLength\":61,\"totalStones\":3}"
+    },
+    {
+      "name": "AI の Worker 経路が有効",
+      "ok": true,
+      "detail": "{\"worker\":true,\"workers\":8,\"error\":\"\"}"
+    },
+    {
+      "name": "AI 実行後もエンジンエラーが無い",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "手動の着手が通る（undo 前準備）",
+      "ok": true,
+      "detail": "{\"m1\":0,\"m2\":1,\"beforeUndo\":{\"size\":9,\"phase\":\"playing\",\"turn\":3,\"playerCount\":3,\"over\":false,\"boardLength\":61,\"boardHash\":\"c24c4000\",\"stones\":[1,1,0],\"totalStones\":2}}"
+    },
+    {
+      "name": "1手戻るで確認モーダルが開く",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "undo で石数と盤面が 1 手前に戻る",
+      "ok": true,
+      "detail": "{\"before\":2,\"after\":1}"
+    },
+    {
+      "name": "パスで手番が進み保存される",
+      "ok": true,
+      "detail": "{\"before\":{\"turn\":1,\"totalStones\":0},\"after\":{\"turn\":2,\"totalStones\":0,\"phase\":\"playing\"},\"passes\":1}"
+    },
+    {
+      "name": "投了は2回タップで確定する",
+      "ok": true,
+      "detail": "本当に投了？"
+    },
+    {
+      "name": "投了で OUT が記録され手番が進む",
+      "ok": true,
+      "detail": "{\"armed\":\"本当に投了？\",\"overAfterFirst\":false,\"before\":{\"turn\":1,\"over\":false},\"after\":{\"turn\":2,\"over\":false},\"out\":[false,true,false,false]}"
+    },
+    {
+      "name": "盤サイズ 9 で開始でき AI が合法手を返す",
+      "ok": true,
+      "detail": "{\"move\":9,\"visits\":7888,\"boardLength\":61}"
+    },
+    {
+      "name": "盤サイズ 13 で開始でき AI が合法手を返す",
+      "ok": true,
+      "detail": "{\"move\":104,\"visits\":3024,\"boardLength\":127}"
+    },
+    {
+      "name": "盤サイズ 19 で開始でき AI が合法手を返す",
+      "ok": true,
+      "detail": "{\"move\":127,\"visits\":824,\"boardLength\":271}"
+    },
+    {
+      "name": "sessionStorage に hexago-save-v1 が保存される",
+      "ok": true,
+      "detail": "08cfd9e224ef7989"
+    },
+    {
+      "name": "リロードで盤面・手番・サイズが復元される",
+      "ok": true,
+      "detail": "{\"before\":{\"size\":9,\"phase\":\"playing\",\"turn\":1,\"playerCount\":3,\"over\":false,\"boardLength\":61,\"boardHash\":\"27d48277\",\"stones\":[1,1,1],\"totalStones\":3},\"after\":{\"size\":9,\"phase\":\"playing\",\"turn\":1,\"playerCount\":3,\"over\":false,\"boardLength\":61,\"boardHash\":\"27d48277\",\"stones\":[1,1,1],\"totalStones\":3}}"
+    },
+    {
+      "name": "復元時は設定モーダルが自動で開かない",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "設定モーダルが開閉する（✕ / 背景クリック）",
+      "ok": true,
+      "detail": "{\"open\":true,\"close\":true,\"backdrop\":true}"
+    },
+    {
+      "name": "ルールモーダルが開閉する（Esc）",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "結果モーダルが開閉する",
+      "ok": true,
+      "detail": "{\"title\":\"引き分け (黒・白・赤 0点)\",\"over\":true}"
+    },
+    {
+      "name": "テーマ切替が反映され保存される",
+      "ok": true,
+      "detail": "{\"count\":5,\"before\":{\"bg\":\"#ffffff\",\"saveTheme\":\"default\"},\"dark\":{\"bg\":\"#171717\",\"saveTheme\":\"dark\"}}"
+    },
+    {
+      "name": "mobile 390x844 でレイアウトが破綻しない",
+      "ok": true,
+      "detail": "{\"canvas\":{\"cssW\":366,\"cssH\":366,\"pxW\":732,\"pxH\":732,\"left\":12,\"top\":213},\"scrollWidth\":390,\"overflow\":false,\"modals\":[]}"
+    },
+    {
+      "name": "mobile のスクリーンショットを保存",
+      "ok": true,
+      "detail": "mobile-390x844.png (138011 bytes)"
+    },
+    {
+      "name": "desktop 1280x800 でレイアウトが破綻しない",
+      "ok": true,
+      "detail": "{\"canvas\":{\"cssW\":520,\"cssH\":520,\"pxW\":520,\"pxH\":520,\"left\":380,\"top\":241},\"scrollWidth\":1280,\"overflow\":false,\"modals\":[]}"
+    },
+    {
+      "name": "desktop のスクリーンショットを保存",
+      "ok": true,
+      "detail": "desktop-1280x800.png (70346 bytes)"
+    },
+    {
+      "name": "JS 例外が発生していない",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "console.error が発生していない",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "snapshot": {
+    "initial": {
+      "size": 9,
+      "phase": "setup",
+      "turn": 1,
+      "playerCount": 3,
+      "over": false,
+      "boardLength": 61,
+      "boardHash": "017c253b",
+      "stones": [
+        0,
+        0,
+        0
+      ],
+      "totalStones": 0
+    },
+    "undo": {
+      "afterFirstMove": {
+        "size": 9,
+        "phase": "playing",
+        "turn": 2,
+        "playerCount": 3,
+        "over": false,
+        "boardLength": 61,
+        "boardHash": "610ab6a6",
+        "stones": [
+          1,
+          0,
+          0
+        ],
+        "totalStones": 1
+      },
+      "beforeUndo": {
+        "size": 9,
+        "phase": "playing",
+        "turn": 3,
+        "playerCount": 3,
+        "over": false,
+        "boardLength": 61,
+        "boardHash": "c24c4000",
+        "stones": [
+          1,
+          1,
+          0
+        ],
+        "totalStones": 2
+      },
+      "afterUndo": {
+        "size": 9,
+        "phase": "playing",
+        "turn": 2,
+        "playerCount": 3,
+        "over": false,
+        "boardLength": 61,
+        "boardHash": "610ab6a6",
+        "stones": [
+          1,
+          0,
+          0
+        ],
+        "totalStones": 1
+      },
+      "modalOpened": true
+    },
+    "pass": {
+      "before": {
+        "turn": 1,
+        "totalStones": 0
+      },
+      "after": {
+        "turn": 2,
+        "totalStones": 0,
+        "phase": "playing"
+      },
+      "passes": 1
+    },
+    "resign": {
+      "armed": "本当に投了？",
+      "overAfterFirst": false,
+      "before": {
+        "turn": 1,
+        "over": false
+      },
+      "after": {
+        "turn": 2,
+        "over": false
+      },
+      "out": [
+        false,
+        true,
+        false,
+        false
+      ],
+      "outCount": 1
+    },
+    "sizes": [
+      {
+        "size": 9,
+        "boardLength": 61,
+        "legal": true
+      },
+      {
+        "size": 13,
+        "boardLength": 127,
+        "legal": true
+      },
+      {
+        "size": 19,
+        "boardLength": 271,
+        "legal": true
+      }
+    ],
+    "save": {
+      "present": true,
+      "key": "hexago-save-v1",
+      "rawHash": "08cfd9e224ef7989",
+      "fields": {
+        "size": 9,
+        "turn": 1,
+        "phase": "playing",
+        "passes": 0,
+        "playerCount": 3,
+        "theme": "default",
+        "sound": true,
+        "seats": [
+          0,
+          "human",
+          "human",
+          "human",
+          "human",
+          "human",
+          "human"
+        ],
+        "gKeys": [
+          "aiSeat",
+          "aiSeats",
+          "board",
+          "damage",
+          "dead",
+          "hist",
+          "last",
+          "out",
+          "over",
+          "passes",
+          "phase",
+          "playerCount",
+          "result",
+          "seen",
+          "size",
+          "turn"
+        ],
+        "topKeys": [
+          "G",
+          "mode",
+          "onlineAI",
+          "pendingSize",
+          "seats",
+          "sound",
+          "theme"
+        ]
+      },
+      "boardHash": "27d48277",
+      "summary": {
+        "size": 9,
+        "phase": "playing",
+        "turn": 1,
+        "playerCount": 3,
+        "over": false,
+        "boardLength": 61,
+        "boardHash": "27d48277",
+        "stones": [
+          1,
+          1,
+          1
+        ],
+        "totalStones": 3
+      }
+    },
+    "restore": {
+      "summary": {
+        "size": 9,
+        "phase": "playing",
+        "turn": 1,
+        "playerCount": 3,
+        "over": false,
+        "boardLength": 61,
+        "boardHash": "27d48277",
+        "stones": [
+          1,
+          1,
+          1
+        ],
+        "totalStones": 3
+      },
+      "matches": true,
+      "rawHashAfterReload": "08cfd9e224ef7989",
+      "setModalOpen": false
+    },
+    "modals": {
+      "settingsOpen": true,
+      "settingsClosed": true,
+      "rulesOpen": true,
+      "rulesClosedByEsc": true,
+      "settingsClosedByBackdrop": true,
+      "resultOpened": true,
+      "resultTitle": "引き分け (黒・白・赤 0点)",
+      "resultClosed": true,
+      "over": true
+    },
+    "theme": {
+      "count": 5,
+      "before": {
+        "bg": "#ffffff",
+        "saveTheme": "default"
+      },
+      "dark": {
+        "bg": "#171717",
+        "saveTheme": "dark"
+      },
+      "restored": {
+        "bg": "#ffffff",
+        "saveTheme": "default"
+      }
+    },
+    "layout": {
+      "mobile": {
+        "viewport": {
+          "width": 390,
+          "height": 844,
+          "dpr": 2,
+          "mobile": true
+        },
+        "innerWidth": 390,
+        "innerHeight": 844,
+        "dpr": 2,
+        "canvas": {
+          "cssW": 366,
+          "cssH": 366,
+          "pxW": 732,
+          "pxH": 732,
+          "left": 12,
+          "top": 213
+        },
+        "scrollWidth": 390,
+        "horizontalOverflow": false,
+        "shot": "mobile-390x844.png"
+      },
+      "desktop": {
+        "viewport": {
+          "width": 1280,
+          "height": 800,
+          "dpr": 1,
+          "mobile": false
+        },
+        "innerWidth": 1280,
+        "innerHeight": 800,
+        "dpr": 1,
+        "canvas": {
+          "cssW": 520,
+          "cssH": 520,
+          "pxW": 520,
+          "pxH": 520,
+          "left": 380,
+          "top": 241
+        },
+        "scrollWidth": 1280,
+        "horizontalOverflow": false,
+        "shot": "desktop-1280x800.png"
+      }
+    },
+    "errors": {
+      "consoleErrors": [],
+      "exceptions": [],
+      "resourceWarnings": []
+    }
+  },
+  "observations": {
+    "engine": {
+      "worker": false,
+      "workers": 0,
+      "wantWorkers": 8,
+      "error": "",
+      "loaded": true,
+      "workerUrl": "http://127.0.0.1:44283/js/ai/worker.js"
+    },
+    "ai": {
+      "moves": [
+        {
+          "move": 8,
+          "legal": true,
+          "mutated": false,
+          "played": true,
+          "visits": 10680
+        },
+        {
+          "move": 51,
+          "legal": true,
+          "mutated": false,
+          "played": true,
+          "visits": 11632
+        },
+        {
+          "move": 48,
+          "legal": true,
+          "mutated": false,
+          "played": true,
+          "visits": 15272
+        }
+      ],
+      "engineAfter": {
+        "worker": true,
+        "workers": 8,
+        "wantWorkers": 8,
+        "error": "",
+        "loaded": true,
+        "workerUrl": "http://127.0.0.1:44283/js/ai/worker.js"
+      }
+    },
+    "screenshots": [
+      "mobile-390x844.png",
+      "desktop-1280x800.png"
+    ]
+  },
+  "logs": {
+    "consoleErrors": [],
+    "consoleWarnings": [
+      "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation",
+      "cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation"
+    ],
+    "exceptions": [],
+    "resourceErrors": []
+  },
+  "meta": {
+    "node": "v26.12.1",
+    "chrome": "Google Chrome for Testing 156.0.8078.4",
+    "chromePath": "/home/sasnews/.cache/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell",
+    "url": "http://<server>/index.html"
+  }
+}

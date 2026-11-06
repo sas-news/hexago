@@ -1,0 +1,228 @@
+// ===== 写真復元: 6点→canonical→パッチ→分類 のオーケストレーション =====
+// 依存: geom.js, features.js, rectify.js（model.js があれば優先して使う）
+//   HexagoPhotoRecognize.analyze({imageData, borderCorners, size, convention}) -> result
+//   HexagoPhotoRecognize.autoPick({imageData, borderCorners, sizes}) -> {best, results}
+(function (global) {
+  'use strict';
+
+  var Geom = global.HexagoPhotoGeom;
+  var Rect = global.HexagoPhotoRectify;
+  if (!Geom && typeof require === 'function') Geom = require('./geom.js');
+  if (!Rect && typeof require === 'function') Rect = require('./rectify.js');
+
+  var CLASSES = ['empty', 'black', 'white', 'red', 'blue', 'green', 'yellow', 'purple'];
+  var CLASS_COLORS = ['#d9b382', '#1a1a1a', '#f6f3ea', '#e53935', '#1e88e5', '#43a047', '#f0a000', '#9b2fcb'];
+
+  // ---------- ヒューリスティック分類（モデル未ロード時のフォールバック） ----------
+  // 特徴量の平均色 + ベースライン比 + リング/中心コントラストから素直に判定する。
+  // 実写真で「石の存在は確実に分かるが色の境界が曖昧」なケースを想定した安全側の実装。
+  function hueOf(f) {
+    var h = Math.atan2(f[16], f[15]) / (2 * Math.PI);
+    if (h < 0) h += 1;
+    return h;
+  }
+  function gauss(x, mu, sigma) {
+    var z = (x - mu) / sigma;
+    return Math.exp(-0.5 * z * z);
+  }
+  // 円環上の角度差（0..0.5）
+  function hueDist(a, b) {
+    var d = Math.abs(a - b) % 1;
+    return d > 0.5 ? 1 - d : d;
+  }
+
+  function heuristicProbs(f, baseline) {
+    var p = new Float32Array(8);
+    var base = baseline || [128, 128, 128];
+    var r = f[0], g = f[5], b = f[10];
+    var bl = 0.299 * base[0] / 255 + 0.587 * base[1] / 255 + 0.114 * base[2] / 255;
+    var lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    var lr = Math.log((lum + 1e-3) / (bl + 1e-3)); // 明るさの対数比
+    var hue = hueOf(f);
+    var sat = f[17], val = f[18];
+    var baseSat = 0;
+    var bmax = Math.max(base[0], base[1], base[2]), bmin = Math.min(base[0], base[1], base[2]);
+    if (bmax > 1) baseSat = (bmax - bmin) / bmax;
+    var ring = 0.299 * f[19] + 0.587 * f[20] + 0.114 * f[21]; // 外周-中央
+    var grad = f[27];
+    var highlight = f[23];
+    var radial = f[22];
+
+    // 盤と同色に近いほど empty らしい（照明ムラを許容して幅を広めに取る）
+    var sEmpty = 2.6 * gauss(lr, 0, 0.16) * gauss(sat, baseSat, 0.16) * gauss(ring, 0, 0.055);
+    sEmpty += 0.5 * gauss(lr, 0, 0.28) * gauss(ring, 0, 0.10);
+
+    // 石の存在感: 中心と外周の差 / 勾配 / 鏡面ハイライト
+    var presence = Math.min(1, Math.abs(ring) / 0.10 * 0.6 + Math.min(1, grad / 0.16) * 0.25 + Math.min(1, highlight / 0.05) * 0.25);
+
+    var sBlack = 2.9 * gauss(lr, -0.85, 0.35) * (val < 0.35 ? 1 : 0.25);
+    var sWhite = 2.7 * gauss(lr, 0.55, 0.30) * gauss(sat, 0.06, 0.14) * (val > 0.55 ? 1 : 0.3);
+    // 有彩色は色相で判定（盤の茶色=色相0.05-0.10/sat~0.2 と区別するため sat を強く見る）
+    var coloredWeight = Math.max(0, Math.min(1, (sat - 0.28) / 0.22));
+    var sRed = 2.6 * gauss(hueDist(hue, 0.00), 0, 0.055) * coloredWeight;
+    var sBlue = 2.6 * gauss(hueDist(hue, 0.575), 0, 0.070) * coloredWeight;
+    var sGreen = 2.6 * gauss(hueDist(hue, 0.345), 0, 0.080) * coloredWeight;
+    var sYellow = 2.4 * gauss(hueDist(hue, 0.145), 0, 0.055) * Math.max(0, Math.min(1, (sat - 0.42) / 0.2));
+    var sPurple = 2.6 * gauss(hueDist(hue, 0.780), 0, 0.080) * coloredWeight;
+
+    var scores = [sEmpty, sBlack * presence, sWhite * presence, sRed * presence, sBlue * presence, sGreen * presence, sYellow * presence, sPurple * presence];
+    var mx = -Infinity;
+    for (var i = 0; i < 8; i++) if (scores[i] > mx) mx = scores[i];
+    var sum = 0;
+    for (i = 0; i < 8; i++) { p[i] = Math.exp((scores[i] - mx) * 2.2); sum += p[i]; }
+    for (i = 0; i < 8; i++) p[i] /= sum;
+    return p;
+  }
+
+  function modelReady() {
+    var M = global.HexagoPhotoModel;
+    if (!M || typeof M.predict !== 'function') return false;
+    if (typeof M.isLoaded === 'function') return !!M.isLoaded();
+    if (typeof M.ready === 'function') return !!M.ready();
+    return false;
+  }
+
+  function classifyFeatures(featuresList, baseline) {
+    var useModel = modelReady();
+    var out = featuresList.map(function (f) {
+      var probs = useModel ? global.HexagoPhotoModel.predict(f) : heuristicProbs(f, baseline);
+      var best = 0, conf = -1;
+      for (var i = 0; i < probs.length; i++) { if (probs[i] > conf) { conf = probs[i]; best = i; } }
+      var second = 0;
+      for (i = 0; i < probs.length; i++) { if (i !== best && probs[i] > second) second = probs[i]; }
+      return { cls: best, conf: conf, margin: conf - second, probs: probs, source: useModel ? 'model' : 'heuristic' };
+    });
+    return out;
+  }
+
+  // 六角格子は60度回転対称なので、外枠6点の開始位置に6通りの解釈がある。
+  // 写真の「上」が盤の「上」に来るよう、canonical の +x が画像の +x に写る並びを選ぶ。
+  function uprightOrder(borderCorners, size, convention) {
+    var L = Geom.layout(size);
+    var best = null;
+    for (var sh = 0; sh < 6; sh++) {
+      var rot = borderCorners.slice(sh).concat(borderCorners.slice(0, sh));
+      var lat = Geom.latticeCornersFromBorder(rot, size, convention);
+      var H = Geom.homography(lat, L.corners);
+      if (!H) continue;
+      var Hi = Geom.inv3(H);
+      if (!Hi) continue;
+      var c = L.center;
+      var p0 = Geom.apply(Hi, c[0], c[1]);
+      var p1 = Geom.apply(Hi, c[0] + 50, c[1]);
+      var ang = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]);
+      var score = Math.abs(ang);
+      if (!best || score < best.angleAbs) best = { shift: sh, corners: rot, H: H, angleAbs: score, angle: ang };
+    }
+    return best;
+  }
+
+  // ---------- 1条件での解析 ----------
+  function analyze(opts) {
+    var imageData = opts.imageData;
+    var size = opts.size | 0;
+    var convention = opts.convention || 'honeycomb';
+    var borderCorners = opts.borderCorners;
+    var L = Geom.layout(size);
+    var up = uprightOrder(borderCorners, size, convention);
+    if (!up) throw new Error('homography estimation failed');
+    var H = up.H;
+    var prep = Rect.prepare(imageData, H, size);
+    // 格子は外枠（6隅）から決めたものを使う。微調整はUIのハンドル操作で行う。
+    var ref = { dx: 0, dy: 0, ds: 1, dth: 0 };
+    var side = 0.9 * L.cell;
+    var feats = [];
+    var patches = [];
+    var ca = Math.cos(ref.dth || 0), sa = Math.sin(ref.dth || 0);
+    var points = L.pts.map(function (p, i) {
+      var ox = (p[0] - L.center[0]) * ref.ds, oy = (p[1] - L.center[1]) * ref.ds;
+      var x = L.center[0] + ox * ca - oy * sa + ref.dx;
+      var y = L.center[1] + ox * sa + oy * ca + ref.dy;
+      var patch = Rect.patchAt(prep.canon, prep.W, x, y, side);
+      patches.push(patch);
+      feats.push(global.HexagoPhotoFeatures.extract(patch, prep.baseline));
+      return { q: L.qr[i][0], r: L.qr[i][1], x: x, y: y };
+    });
+    var cls = classifyFeatures(feats, prep.baseline);
+    points.forEach(function (pt, i) {
+      pt.cls = cls[i].cls; pt.conf = cls[i].conf; pt.margin = cls[i].margin; pt.probs = cls[i].probs;
+    });
+    var score = 0;
+    for (var i = 0; i < points.length; i++) score += points[i].conf;
+    score /= points.length;
+    return {
+      size: size,
+      convention: convention,
+      H: H,
+      cornerShift: up.shift,
+      rotationDeg: up.angle * 180 / Math.PI,
+      layout: L,
+      baseline: prep.baseline,
+      canon: prep.canon,
+      features: feats,
+      patches: patches,
+      refine: ref,
+      points: points,
+      score: score,
+      classSource: cls.length ? cls[0].source : 'heuristic'
+    };
+  }
+
+  // ---------- 慣習・サイズの自動選択 ----------
+  function autoPick(opts) {
+    var sizes = opts.sizes || [9, 13, 19, 25];
+    var conventions = opts.conventions || ['honeycomb', 'triangular'];
+    var results = [];
+    var best = null;
+    for (var ci = 0; ci < conventions.length; ci++) {
+      for (var si = 0; si < sizes.length; si++) {
+        try {
+          var r = analyze({
+            imageData: opts.imageData,
+            borderCorners: opts.borderCorners,
+            size: sizes[si],
+            convention: conventions[ci]
+          });
+          results.push({ size: r.size, convention: r.convention, score: r.score, result: r });
+          if (!best || r.score > best.score) best = r;
+        } catch (e) { /* skip */ }
+      }
+    }
+    return { best: best, results: results };
+  }
+
+  // ---------- 結果をゲームの盤面配列へ ----------
+  // labels: クラス番号 0..7 -> board[p]（1..6）+ 使用色パレット
+  function toGameBoard(result) {
+    var used = {};
+    var labels = result.points.map(function (p) { return p.cls; });
+    var count = 0;
+    for (var i = 0; i < labels.length; i++) if (labels[i] > 0) used[labels[i]] = true;
+    var classIds = Object.keys(used).map(Number).sort(function (a, b) { return a - b; });
+    var map = {}; // classId -> player index
+    for (var k = 0; k < classIds.length; k++) map[classIds[k]] = k + 1;
+    // 2色（黒/白）だけなら必ず 黒=1, 白=2
+    var board = labels.map(function (c) { return map[c] || 0; });
+    var colors = {};
+    var names = {};
+    for (var j = 0; j < classIds.length; j++) {
+      var cid = classIds[j], pi = map[cid];
+      colors[pi] = { fill: CLASS_COLORS[cid], stroke: '#333333' };
+      names[pi] = ({ 1: '黒', 2: '白', 3: '赤', 4: '青', 5: '緑', 6: '黄', 7: '紫' })[cid] || ('色' + cid);
+    }
+    return { board: board, labels: labels, playerCount: Math.max(2, classIds.length), colors: colors, names: names };
+  }
+
+  var api = {
+    CLASSES: CLASSES,
+    CLASS_COLORS: CLASS_COLORS,
+    analyze: analyze,
+    autoPick: autoPick,
+    classifyFeatures: classifyFeatures,
+    heuristicProbs: heuristicProbs,
+    modelReady: modelReady,
+    toGameBoard: toGameBoard
+  };
+  global.HexagoPhotoRecognize = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof self !== 'undefined' ? self : this);

@@ -20,3 +20,22 @@ npm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# photo-AI lab (training artifacts, not shipped)
+.photo-lab/
+
+# chrome profile for local probe runner
+dev/photo/.probe-chrome/
+
+# 実写真パッチの書き出し（大容量・再生成可能）
+dev/photo/testdata/*.patches.json
+
+# photo pipeline local artifacts
+dev/photo/test/shots/
+
+# 合成テスト画像の原本（リポジトリには小さいJPEGのみ置く）
+dev/photo/testdata/synth/*.png
+
+# 学習用の中間生成物（再生成可能）
+dev/photo/train/cache/
+dev/photo/train/*.npz

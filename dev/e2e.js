@@ -6,7 +6,7 @@
  *   node dev/e2e.js [--headed] [--url http://...]
  *
  * Checks:
- *  1. page loads with no JS errors; engine source is embedded
+ *  1. page loads with no JS errors; AI engine file is loaded
  *  2. the AI worker path is actually used (not the legacy fallback)
  *  3. AI moves returned through the page are legal for the current position
  *  4. a self-play game makes progress (AI vs AI, several moves)
@@ -37,7 +37,7 @@ const urlArg = args.indexOf('--url');
 const EXTERNAL_URL = urlArg >= 0 ? args[urlArg + 1] : null;
 const PORT = 8972;
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.png': 'image/png' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.bin': 'application/octet-stream' };
 
 function serve() {
   return new Promise(resolve => {
@@ -78,7 +78,7 @@ function check(name, ok, detail) {
 
   /* 1. engine source + worker */
   const eng = await page.evaluate(() => window.__hexagoDebug.engine());
-  check('engine source embedded', eng.sourceLength > 20000, eng.sourceLength + ' bytes');
+  check('engine file loaded', eng.loaded === true, 'workerUrl=' + eng.workerUrl);
   check('initial engine error empty', !eng.error, JSON.stringify(eng.error));
 
   /* 2. page API sanity */

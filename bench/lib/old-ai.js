@@ -26,6 +26,8 @@ const path = require('path');
 const vm = require('vm');
 const rules = require('./rules');
 
+const { readPageSource } = require('../../dev/page-source');
+// リファクタ後は実装が複数ファイルに分かれているため、既定では連結ソースを読む。
 const DEFAULT_PAGE = path.join(__dirname, '..', '..', 'index.html');
 
 /** Symbols the page AI needs to run. `hash` lives outside the marker blocks. */
@@ -222,7 +224,7 @@ function extractOldAISource(html) {
 
   if (!attempts.length) {
     const missing = REQUIRED_SYMBOLS.filter(function (n) { return !named[n]; });
-    throw new Error('could not extract old AI from index.html: markers=' + JSON.stringify(markers) +
+    throw new Error('could not extract old AI from page source: markers=' + JSON.stringify(markers) +
       ', missing symbols=' + JSON.stringify(missing));
   }
   return { attempts: attempts, markers: markers };
@@ -276,8 +278,8 @@ function evaluateCandidate(candidate, geo, rng) {
  */
 function createOldAI(opts) {
   const o = opts || {};
-  const pagePath = o.pagePath || DEFAULT_PAGE;
-  const html = o.html || fs.readFileSync(pagePath, 'utf8');
+  const pagePath = o.pagePath || null;
+  const html = o.html || (pagePath ? fs.readFileSync(pagePath, 'utf8') : readPageSource(path.resolve(__dirname, '..', '..')));
   const geo = rules.geometry(o.size || 9);
   const rng = rules.makeRng(o.seed || 1);
   const extraction = extractOldAISource(html);

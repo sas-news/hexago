@@ -7,7 +7,7 @@
  *   node dev/engine-selftest.js --strength --games 4
  *
  * The rules/hash/geometry checks compare against functions EXTRACTED FROM
- * index.html at runtime, so this test fails if the engine drifts from the page.
+ * the page sources (index.html + js/*.js) at runtime, so this test fails if the engine drifts from the page.
  */
 'use strict';
 
@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 
 const repo = path.resolve(__dirname, '..');
-const indexPath = path.join(repo, 'index.html');
+const { readPageSource } = require('./page-source');
 const enginePath = path.join(__dirname, 'ai-engine.js');
 
 const E = require(enginePath);
@@ -39,7 +39,7 @@ function section(title) {
 }
 
 /* ------------------------------------------------------------------ *
- *  Extract the reference implementation from index.html
+ *  Extract the reference implementation from the page sources
  * ------------------------------------------------------------------ */
 
 function sliceFunction(src, header) {
@@ -60,7 +60,7 @@ function sliceFunction(src, header) {
 }
 
 function makePageApi() {
-  const src = fs.readFileSync(indexPath, 'utf8');
+  const src = readPageSource(repo);
   const dirs = /const DIRS = \[[\s\S]*?\];/.exec(src);
   if (!dirs) throw new Error('selftest: cannot find DIRS in index.html');
   const parts = [
@@ -787,7 +787,7 @@ section('8. packaging');
   check('module exports geometry/createEngine/hashBoard/version',
     typeof E.geometry === 'function' && typeof E.createEngine === 'function' &&
     typeof E.hashBoard === 'function' && typeof E.version === 'string');
-  check('source contains no "</script>" (safe to inline in index.html)', src.indexOf('</script>') < 0);
+  check('source contains no "</script>" (safe for inline embedding)', src.indexOf('</script>') < 0);
   check('source contains no require()/document/window access', !/\brequire\s*\(/.test(src) && !/\bdocument\./.test(src) && !/\bwindow\./.test(src));
   let workerApi = null;
   try {
@@ -903,7 +903,7 @@ function runStrength(games) {
 
 console.log('HEXAGO engine self-test — engine: ' + E.version + ', node ' + process.version);
 console.log('engine file: ' + enginePath);
-console.log('reference:   ' + indexPath);
+console.log('reference:   ' + repo + '/{index.html,js/**/*.js}');
 
 const args = process.argv.slice(2);
 const doStrength = args.indexOf('--strength') >= 0;
