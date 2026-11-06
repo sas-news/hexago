@@ -126,13 +126,67 @@ function check(name, ok, detail) {
       JSON.stringify(step3.counts));
     await page.screenshot(path.join(shotsDir, 'photo-step3-desktop.png'));
 
+    // 3b. 人数の推定と色の制限
+    const paletteInfo = await page.evaluate(() => {
+      const s = window.__hexagoPhoto.state();
+      return { palette: s.palette, playerCount: s.playerCount, allowed: s.allowed, allColors: s.allColors };
+    });
+    check('検出した色数から人数を推定する（黒・白・青の3人）',
+      Array.isArray(paletteInfo.palette) && paletteInfo.palette.length === 3 && paletteInfo.playerCount === 3,
+      JSON.stringify(paletteInfo));
+
+    // 存在し得ない色は巡回に出ない（全色モードOFF）
+    const cycleLimited = await page.evaluate(() => {
+      const before = window.__hexagoPhoto.state();
+      const idx = before.labels.findIndex(c => c === 0);
+      const seen = [];
+      for (let k = 0; k < 6; k++) {
+        const st = window.__hexagoPhoto.cycle(idx);
+        seen.push(st.labels[idx]);
+      }
+      return { seen, allowed: before.allowed };
+    });
+    const allowedSet = new Set([0, ...paletteInfo.allowed]);
+    check('タップ巡回は参加中の色だけ（存在し得ない色が出ない）',
+      cycleLimited.seen.every(c => allowedSet.has(c)),
+      JSON.stringify(cycleLimited));
+
+    // 全色モードONで未使用色も巡回に現れる
+    const cycleAll = await page.evaluate(() => {
+      window.__hexagoPhoto.setAllColors(true);
+      const before = window.__hexagoPhoto.state();
+      const idx = before.labels.findIndex(c => c === 0);
+      const seen = [];
+      for (let k = 0; k < 10; k++) {
+        const st = window.__hexagoPhoto.cycle(idx);
+        seen.push(st.labels[idx]);
+      }
+      const after = window.__hexagoPhoto.state();
+      window.__hexagoPhoto.setAllColors(false);
+      return { seen, allowed: before.allowed, paletteAfter: after.palette };
+    });
+    check('全色モードでは未使用色も選べる（選ぶとプレイヤーに追加）',
+      cycleAll.seen.some(c => c >= 3) && cycleAll.paletteAfter.length >= 3,
+      JSON.stringify(cycleAll));
+
+    // 人数を4人に変更すると色が補充される
+    const fourPlayers = await page.evaluate(() => {
+      const st = window.__hexagoPhoto.setPlayerCount(4);
+      const back = window.__hexagoPhoto.setPlayerCount(3);
+      return { four: { palette: st.palette, count: st.playerCount, allowed: st.allowed }, back: { palette: back.palette, count: back.playerCount } };
+    });
+    check('人数を増やすと色が補充され、減らすと戻る',
+      fourPlayers.four.count === 4 && fourPlayers.four.palette.length === 4 &&
+      fourPlayers.back.count === 3,
+      JSON.stringify(fourPlayers));
+
     // 4. 保存
     const saved = await page.evaluate(() => {
       window.__hexagoPhoto.save();
       const list = window.__hexagoPhoto.list();
-      return { n: list.length, size: list[0] && list[0].size, pc: list[0] && list[0].playerCount, board: list[0] && list[0].board.length };
+      return { n: list.length, size: list[0] && list[0].size, pc: list[0] && list[0].playerCount, board: list[0] && list[0].board.length, palette: list[0] && list[0].meta && list[0].meta.palette };
     });
-    check('局面を保存できる', saved.n === 1 && saved.size === 13 && saved.board === 127, JSON.stringify(saved));
+    check('局面を保存できる', saved.n === 1 && saved.size === 13 && saved.board === 127 && saved.pc === 3, JSON.stringify(saved));
 
     // 5. この局面から対局
     const applied = await page.evaluate(async () => {

@@ -19,7 +19,8 @@
     corners: null, autoConf: 0, autoMethod: '',
     size: 13, convention: 'honeycomb',
     result: null, labels: null, activeSize: 13,
-    drag: -1, hover: -1, turn: 1, modelTried: false
+    drag: -1, hover: -1, turn: 1, modelTried: false,
+    palette: null, playerCount: 2, allColors: false
   };
 
   // ---------------- 画面切り替え ----------------
@@ -284,6 +285,11 @@
         st.labels = res.points.map(function (p) { return p.cls; });
         st.activeSize = st.size;
         st.turn = 1;
+        st.allColors = false;
+        var allToggle = $('photoAllColors');
+        if (allToggle) allToggle.checked = false;
+        st.palette = suggestPalette(st.labels);
+        st.playerCount = st.palette.length;
         view('step3');
         renderResult(true);
       } catch (e) {
@@ -301,6 +307,76 @@
     var s = {};
     for (var i = 0; i < labels.length; i++) if (labels[i] > 0) s[labels[i]] = true;
     return Object.keys(s).map(Number).sort(function (a, b) { return a - b; });
+  }
+
+  // アプリの色順（黒,白,赤,青,緑,黄,紫）。人数の決定とパレット補充に使う。
+  var STANDARD_ORDER = [1, 2, 3, 4, 5, 6, 7];
+
+  function classCounts(labels) {
+    var counts = [0, 0, 0, 0, 0, 0, 0, 0];
+    for (var i = 0; i < labels.length; i++) counts[labels[i]]++;
+    return counts;
+  }
+
+  // 検出した色からパレット（= 対局に参加する色）を推定する。
+  // 1点だけ出た色は誤検出の可能性が高いので、2点以上ある色を優先する。
+  function suggestPalette(labels) {
+    var counts = classCounts(labels);
+    var present = [];
+    for (var c = 1; c < 8; c++) if (counts[c] >= 2) present.push(c);
+    if (!present.length) {
+      for (c = 1; c < 8; c++) if (counts[c] >= 1) present.push(c);
+    }
+    if (!present.length) return [1, 2];
+    var n = Math.max(2, Math.min(6, present.length));
+    var palette = present.slice(0, n);
+    for (var k = 0; k < STANDARD_ORDER.length && palette.length < n; k++) {
+      if (palette.indexOf(STANDARD_ORDER[k]) < 0) palette.push(STANDARD_ORDER[k]);
+    }
+    return palette.sort(function (a, b) { return a - b; });
+  }
+
+  // 人数の変更（増やすと色を補充、減らすと出現数の少ない色から外す）
+  function setPlayerCount(n) {
+    n = Math.max(2, Math.min(6, n | 0));
+    var palette = (st.palette || [1, 2]).slice();
+    if (n > palette.length) {
+      for (var k = 0; k < STANDARD_ORDER.length && palette.length < n; k++) {
+        if (palette.indexOf(STANDARD_ORDER[k]) < 0) palette.push(STANDARD_ORDER[k]);
+      }
+    } else if (n < palette.length) {
+      var counts = st.labels ? classCounts(st.labels) : [0, 0, 0, 0, 0, 0, 0, 0];
+      while (palette.length > n) {
+        var worst = 0;
+        for (var i = 1; i < palette.length; i++) {
+          var ci = palette[i], cw = palette[worst];
+          if (counts[ci] < counts[cw] || (counts[ci] === counts[cw] && ci > cw)) worst = i;
+        }
+        palette.splice(worst, 1);
+      }
+    }
+    st.palette = palette;
+    st.playerCount = palette.length;
+  }
+
+  // タップ時に選べる色。通常はパレットのみ、「全色から選ぶ」ONなら残りの色も
+  // （最大6人なので、6色を超えない範囲で）選べる。
+  function allowedColors() {
+    var out = (st.palette || [1, 2]).slice();
+    if (!st.allColors) return out;
+    for (var k = 0; k < STANDARD_ORDER.length && out.length < 6; k++) {
+      if (out.indexOf(STANDARD_ORDER[k]) < 0) out.push(STANDARD_ORDER[k]);
+    }
+    return out;
+  }
+
+  function outOfPaletteCount() {
+    if (!st.palette || !st.labels) return 0;
+    var n = 0;
+    for (var i = 0; i < st.labels.length; i++) {
+      if (st.labels[i] > 0 && st.palette.indexOf(st.labels[i]) < 0) n++;
+    }
+    return n;
   }
 
   function resultGeometry() {
@@ -375,42 +451,78 @@
   function renderCounts() {
     var el = $('photoCounts');
     if (!el) return;
-    var counts = [0, 0, 0, 0, 0, 0, 0, 0];
-    for (var i = 0; i < st.labels.length; i++) counts[st.labels[i]]++;
+    var counts = classCounts(st.labels);
     var low = 0;
-    for (i = 0; i < st.result.points.length; i++) {
+    for (var i = 0; i < st.result.points.length; i++) {
       var pt = st.result.points[i];
       if ((pt.margin != null ? pt.margin : pt.conf) < 0.10 || pt.conf < 0.42) low++;
     }
     var html = ['<span class="opacity-60">空 <strong>' + counts[0] + '</strong></span>'];
+    // 参加プレイヤーの色（パレット）を先に、1P..NP の順で表示
+    (st.palette || []).forEach(function (c, idx) {
+      html.push('<span class="inline-flex items-center gap-1"><span class="dot" style="background:' + CLASS_COLORS[c] + ';border-color:#333"></span>' + CLASS_JA[c] + ' <strong>' + counts[c] + '</strong><span class="opacity-50">' + (idx + 1) + 'P</span></span>');
+    });
+    // パレット外の色（人数に入っていない色）は注意表示
+    var stray = [];
     for (var c = 1; c < 8; c++) {
       if (!counts[c]) continue;
-      html.push('<span class="inline-flex items-center gap-1"><span class="dot" style="background:' + CLASS_COLORS[c] + ';border-color:#333"></span>' + CLASS_JA[c] + ' <strong>' + counts[c] + '</strong></span>');
+      if ((st.palette || []).indexOf(c) >= 0) continue;
+      stray.push(CLASS_JA[c] + ' ' + counts[c] + '点');
+    }
+    if (stray.length) {
+      html.push('<span class="text-amber-700 font-bold">未使用色: ' + stray.join(' / ') + '（空点扱い・タップで修正）</span>');
     }
     el.innerHTML = html.join('');
     if (low) el.innerHTML += '<span class="text-amber-600 font-bold">要確認 ' + low + '点</span>';
-    $('photoSaveHint'); // noop
+    var hint = $('photoColorHint');
+    if (hint) {
+      hint.textContent = st.allColors
+        ? '全色モード: 未使用の色を選ぶとプレイヤーとして追加されます（最大6人）'
+        : 'タップで切り替わるのは「空」と参加中の色だけです（全色ボタンで拡張可）';
+    }
   }
 
   function renderTurnSelect() {
     var sel = $('photoTurn');
     if (!sel) return;
-    var used = st.labels ? usedClasses(st.labels).length : 0;
-    var pc = Math.max(2, used);
+    var pc = Math.max(2, Math.min(6, st.playerCount || 2));
     var opts = '';
     for (var p = 1; p <= pc; p++) {
       opts += '<option value="' + p + '"' + (p === st.turn ? ' selected' : '') + '>' + p + 'P</option>';
     }
     sel.innerHTML = opts;
+    var pcSel = $('photoPlayerCount');
+    if (pcSel) {
+      if (!pcSel.childElementCount) {
+        for (var n = 2; n <= 6; n++) {
+          var o = document.createElement('option');
+          o.value = n;
+          o.textContent = n + '人';
+          pcSel.appendChild(o);
+        }
+      }
+      pcSel.value = String(pc);
+    }
     var lib = $('photoLibCount');
     if (lib) lib.textContent = S.list().length;
   }
 
-  // タップでクラスを巡回
+  // タップでクラスを巡回（空 → 参加中の色 → …）。全色モードでは残りの色も選べる。
   function cycleAt(idx) {
-    var order = [0, 1, 2, 3, 4, 5, 6, 7];
+    var colors = allowedColors();
+    var order = [0].concat(colors);
     var cur = order.indexOf(st.labels[idx]);
-    st.labels[idx] = order[(cur + 1) % order.length];
+    // 現在の色が候補に無い場合は空から始める
+    var next = order[(cur + 1) % order.length];
+    if (next > 0 && st.palette.indexOf(next) < 0) {
+      // 全色モードで未使用の色を選んだ → プレイヤーとして追加
+      if (st.palette.length < 6) {
+        st.palette.push(next);
+        st.playerCount = st.palette.length;
+        toast(CLASS_JA[next] + 'をプレイヤーに追加しました（' + st.palette.length + '人）');
+      }
+    }
+    st.labels[idx] = next;
     renderResult();
   }
 
@@ -436,11 +548,19 @@
   function buildEntry() {
     var res = st.result;
     var labels = st.labels.slice();
-    var tmp = { points: labels.map(function (c) { return { cls: c }; }) };
-    var mapped = R.toGameBoard(tmp);
-    var used = {};
-    for (var i = 0; i < labels.length; i++) if (labels[i] > 0) used[labels[i]] = true;
-    var pc = Math.max(2, Object.keys(used).length);
+    var palette = (st.palette && st.palette.length) ? st.palette.slice() : suggestPalette(labels);
+    var pc = Math.max(2, Math.min(6, palette.length));
+    // パレットの色 → プレイヤー番号（パレットの並び順がそのまま 1P,2P,...）
+    var slot = {};
+    palette.forEach(function (c, i) { slot[c] = i + 1; });
+    var board = labels.map(function (c) { return (c > 0 && slot[c]) ? slot[c] : 0; });
+    var colors = {}, names = {};
+    palette.forEach(function (c, i) {
+      colors[i + 1] = { fill: CLASS_COLORS[c], stroke: '#333333' };
+      names[i + 1] = CLASS_JA[c];
+    });
+    var dropped = 0;
+    for (var i = 0; i < labels.length; i++) if (labels[i] > 0 && !slot[labels[i]]) dropped++;
     // 手番を有効なプレイヤーに丸める
     var turn = Math.min(pc, Math.max(1, st.turn || 1));
     var name = (st.fileName || '写真').replace(/\.[^.]+$/, '');
@@ -448,9 +568,9 @@
       name: name + '（' + res.size + '路）',
       size: res.size,
       playerCount: pc,
-      board: mapped.board,
-      colors: mapped.colors,
-      names: mapped.names,
+      board: board,
+      colors: colors,
+      names: names,
       labels: labels,
       turn: turn,
       meta: {
@@ -459,7 +579,9 @@
         lowConf: res.points.filter(function (p) { return p.conf < 0.55; }).length,
         source: st.fileName,
         cellPx: res.layout.cell,
-        rotationDeg: res.rotationDeg || 0
+        rotationDeg: res.rotationDeg || 0,
+        palette: palette.slice(),
+        droppedPoints: dropped
       },
       thumb: makeThumb(res, labels)
     };
@@ -628,6 +750,7 @@
   function reset() {
     st.result = null; st.labels = null; st.drag = -1; st.hover = -1;
     st.corners = null; st.imageData = null; st.img = null; st.fileName = '';
+    st.palette = null; st.playerCount = 2; st.allColors = false;
     st.autoConf = 0; st.autoMethod = '';
     err('');
     var f = $('photoFile'); if (f) f.value = '';
@@ -693,6 +816,17 @@
       });
       cvR.addEventListener('pointerleave', function () { st.hover = -1; renderResult(); });
     }
+    var pcSel = $('photoPlayerCount');
+    if (pcSel) pcSel.onchange = function () {
+      setPlayerCount(Number(pcSel.value));
+      if (st.turn > st.playerCount) st.turn = st.playerCount;
+      renderResult();
+    };
+    var allToggle = $('photoAllColors');
+    if (allToggle) allToggle.onchange = function () {
+      st.allColors = !!allToggle.checked;
+      renderResult();
+    };
     var back = $('btnPhotoBack');
     if (back) back.onclick = function () { view('step2'); renderAdjust(); };
     var saveBtn = $('btnPhotoSave');
@@ -745,9 +879,15 @@
       return {
         size: st.size, convention: st.convention, hasImage: !!st.imageData,
         result: !!st.result, labels: st.labels ? st.labels.slice() : null,
-        corners: st.corners, turn: st.turn
+        corners: st.corners, turn: st.turn,
+        palette: st.palette ? st.palette.slice() : null,
+        playerCount: st.playerCount, allColors: st.allColors,
+        allowed: allowedColors()
       };
     },
+    cycle: function (i) { cycleAt(i); return this.state(); },
+    setPlayerCount: function (n) { setPlayerCount(n); renderResult(); return this.state(); },
+    setAllColors: function (on) { st.allColors = !!on; var cb = $('photoAllColors'); if (cb) cb.checked = !!on; renderResult(); return this.state(); },
     loadImageData: function (imageData) { setupImageFromData(imageData); },
     read: function () { read(); },
     save: doSave,

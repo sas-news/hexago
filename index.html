@@ -239,12 +239,20 @@
       <div class="flex justify-center bg-neutral-900 rounded-xl overflow-hidden">
         <canvas id="photoResult" class="touch-none"></canvas>
       </div>
-      <p class="text-[11px] text-neutral-500 leading-relaxed">点をタップすると 空→黒→白→赤→青→緑→黄→紫 と切り替わります。琥珀色の枠は自信が低い点です。</p>
+      <p class="text-[11px] text-neutral-500 leading-relaxed">点をタップすると「空 → 参加中の色（人数ぶん）」を巡回します。琥珀色の枠は自信が低い点です。未使用の色も使いたいときは「全色から選ぶ」をONにしてください。</p>
       <div id="photoCounts" class="text-xs flex flex-wrap gap-x-3 gap-y-1 items-center"></div>
-      <div class="flex items-center justify-between gap-2 text-sm">
-        <label for="photoTurn" class="font-bold text-neutral-700">次の手番</label>
-        <select id="photoTurn" class="px-2 py-1 border border-neutral-300 rounded-lg text-sm bg-white"></select>
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+        <label for="photoPlayerCount" class="flex items-center gap-2 font-bold text-neutral-700">人数
+          <select id="photoPlayerCount" class="px-2 py-1 border border-neutral-300 rounded-lg text-sm bg-white"></select>
+        </label>
+        <label for="photoTurn" class="flex items-center gap-2 font-bold text-neutral-700">次の手番
+          <select id="photoTurn" class="px-2 py-1 border border-neutral-300 rounded-lg text-sm bg-white"></select>
+        </label>
+        <label class="flex items-center gap-2 text-xs font-bold text-neutral-600 ml-auto cursor-pointer">
+          <input id="photoAllColors" type="checkbox" class="w-4 h-4 accent-neutral-900"> 全色から選ぶ
+        </label>
       </div>
+      <p id="photoColorHint" class="text-[11px] text-neutral-500 leading-relaxed"></p>
       <div class="flex gap-2">
         <button id="btnPhotoBack" class="flex-1 py-2 border border-neutral-300 rounded-xl text-sm font-bold">やり直す</button>
         <button id="btnPhotoSave" class="flex-1 py-2 border border-neutral-300 rounded-xl text-sm font-bold">保存</button>
