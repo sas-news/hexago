@@ -170,10 +170,10 @@
   function analyze(opts) {
     var imageData = opts.imageData;
     var size = opts.size | 0;
-    var convention = opts.convention || 'honeycomb';
+    var marginOpt = (typeof opts.margin === 'number') ? opts.margin : (opts.convention || 'honeycomb');
     var borderCorners = opts.borderCorners;
     var L = Geom.layout(size);
-    var up = uprightOrder(borderCorners, size, convention);
+    var up = uprightOrder(borderCorners, size, marginOpt);
     if (!up) throw new Error('homography estimation failed');
     var H = up.H;
     var prep = Rect.prepare(imageData, H, size);
@@ -201,7 +201,8 @@
     score /= points.length;
     return {
       size: size,
-      convention: convention,
+      convention: (typeof opts.margin === 'number') ? 'custom' : (opts.convention || 'honeycomb'),
+      margin: (typeof opts.margin === 'number') ? opts.margin : null,
       H: H,
       cornerShift: up.shift,
       rotationDeg: up.angle * 180 / Math.PI,

@@ -190,6 +190,28 @@
     return out;
   }
 
+  async function caseFit() {
+    // サイズ・余白の候補ごとに「幾何の一致度」を測る（分類の平均信頼度をスコアにする）
+    await ensureModel();
+    var photo = await loadAsPhoto(BASE + 'dev/photo/testdata/IMG_0252.jpg', 1600);
+    var gt = await (await fetch(BASE + 'dev/photo/testdata/IMG_0252.gt.json')).json();
+    var det = Det.detect(photo.imageData);
+    var out = { sizeScores: {}, marginScores: {}, best: null };
+    [9, 13, 19, 25].forEach(function (sz) {
+      try {
+        var r = R.analyze({ imageData: photo.imageData, borderCorners: det.corners, size: sz, convention: 'honeycomb' });
+        out.sizeScores[sz] = +r.score.toFixed(4);
+      } catch (e) { out.sizeScores[sz] = null; }
+    });
+    [0, 0.2, 0.4, 0.577, 0.8, 1.0].forEach(function (m) {
+      try {
+        var r2 = R.analyze({ imageData: photo.imageData, borderCorners: det.corners, size: 13, margin: m });
+        out.marginScores[m] = +r2.score.toFixed(4);
+      } catch (e) { out.marginScores[m] = null; }
+    });
+    return out;
+  }
+
   async function caseReal() {
     var modelLoaded = await ensureModel();
     var t0 = performance.now();
@@ -470,6 +492,7 @@
           else if (c === 'align') out.align = await caseAlign();
           else if (c === 'weights') out.weights = await caseWeights();
           else if (c === 'strategies') out.strategies = await caseStrategies();
+          else if (c === 'fit') out.fit = await caseFit();
           else if (c === 'synthetic' || c === 'all') out.synthetic = await caseSynthetic();
           else out.unknown = c;
         }

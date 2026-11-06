@@ -94,6 +94,41 @@ function check(name, ok, detail) {
     check('6隅ハンドルが検出されている', Array.isArray(step2.corners) && step2.corners.length === 6,
       JSON.stringify(step2.corners && step2.corners.map(p => [Math.round(p[0]), Math.round(p[1])])));
 
+    // 余白スライダーとサイズ自動判定
+    const adjustState = await page.evaluate(async () => {
+      await new Promise(r => setTimeout(r, 700));
+      const s = window.__hexagoPhoto.state();
+      const slider = document.getElementById('photoMargin');
+      const label = document.getElementById('photoMarginLabel');
+      const fit = document.getElementById('photoFitInfo');
+      return {
+        margin: s.margin, size: s.size,
+        hasSlider: !!slider, sliderValue: slider && slider.value,
+        label: label && label.textContent,
+        fit: fit && fit.textContent,
+        detectInfo: document.getElementById('photoDetectInfo').textContent,
+      };
+    });
+    check('余白スライダーがある（実物=0.58が初期値）',
+      adjustState.hasSlider && Math.abs(adjustState.margin - 0.577) < 0.02,
+      JSON.stringify(adjustState));
+    check('撮影画像から盤面サイズを自動判定する（13路）', adjustState.size === 13, 'size=' + adjustState.size + ' ' + adjustState.detectInfo);
+    // スライダーを動かすと余白が変わる
+    const sliderMove = await page.evaluate(() => {
+      const slider = document.getElementById('photoMargin');
+      slider.value = '0.2';
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      const s = window.__hexagoPhoto.state();
+      return { margin: s.margin, label: document.getElementById('photoMarginLabel').textContent };
+    });
+    check('スライダーで余白を変更できる', Math.abs(sliderMove.margin - 0.2) < 1e-6, JSON.stringify(sliderMove));
+    // 元に戻す
+    await page.evaluate(() => {
+      const slider = document.getElementById('photoMargin');
+      slider.value = '0.58';
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
     // 3. 読み取り
     const readMs = await page.evaluate(async () => {
       const t0 = performance.now();

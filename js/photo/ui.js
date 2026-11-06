@@ -17,7 +17,7 @@
   var st = {
     img: null, width: 0, height: 0, imageData: null, fileName: '',
     corners: null, autoConf: 0, autoMethod: '',
-    size: 13, convention: 'honeycomb',
+    size: 13, margin: 0.577,
     result: null, labels: null, activeSize: 13,
     drag: -1, hover: -1, turn: 1, modelTried: false,
     palette: null, playerCount: 2, allColors: false
@@ -107,6 +107,8 @@
     view('step2');
     renderAdjust();
     updateDetectInfo();
+    updateFitInfo();
+    setTimeout(autoDetectSize, 60);
   }
 
   function autoDetect() {
@@ -127,14 +129,15 @@
     var el = $('photoDetectInfo');
     if (!el) return;
     var pct = Math.round((st.autoConf || 0) * 100);
+    var sizeHint = st.autoBest ? ' ／ サイズ自動判定: ' + st.autoBest.size + '路（一致度 ' + Math.round(st.autoBest.score * 100) + '%）' : '';
     if (st.autoMethod === 'auto' && st.autoConf >= 0.5) {
-      el.textContent = '自動検出: 信頼度 ' + pct + '%（違う場合は6つの丸をドラッグして合わせてください）';
+      el.textContent = '自動検出: 信頼度 ' + pct + '%（違う場合は6つの丸をドラッグして合わせてください）' + sizeHint;
       el.className = 'text-[11px] text-neutral-500';
     } else if (st.autoMethod === 'auto') {
-      el.textContent = '自動検出が不確かです。6つの丸を盤の6隅にドラッグして合わせてください。';
+      el.textContent = '自動検出が不確かです。6つの丸を盤の6隅にドラッグして合わせてください。' + sizeHint;
       el.className = 'text-[11px] text-amber-600 font-bold';
     } else {
-      el.textContent = '自動検出できませんでした。6つの丸をドラッグして盤の6隅に合わせてください。';
+      el.textContent = '自動検出できませんでした。6つの丸をドラッグして盤の6隅に合わせてください。' + sizeHint;
       el.className = 'text-[11px] text-amber-600 font-bold';
     }
   }
@@ -151,9 +154,9 @@
     return { cssW: cssW, cssH: cssH, dpr: dpr, scale: cssW / w };
   }
 
-  function latticeImagePositions(corners, size, convention) {
+  function latticeImagePositions(corners, size, margin) {
     var L = Gg.layout(size);
-    var latCorners = Gg.latticeCornersFromBorder(corners, size, convention);
+    var latCorners = Gg.latticeCornersFromBorder(corners, size, margin);
     var H = Gg.homography(latCorners, L.corners); // image -> canonical
     if (!H) return null;
     var Hi = Gg.inv3(H); // canonical -> image
@@ -177,13 +180,14 @@
     ctx.save();
     ctx.scale(fit.scale, fit.scale);
     // 格子プレビュー
-    var pts = latticeImagePositions(st.corners, st.size, st.convention);
+    var pts = latticeImagePositions(st.corners, st.size, st.margin);
     if (pts) {
-      var step = Math.max(1, Math.round(pts.length / 130));
+      // 全点を描く（間引くと格子ではなく斜め縞に見えてしまう）。点が多い盤は小さく描く。
+      var dotR = Math.max(1.6 / fit.scale, pts.length > 200 ? 2.2 : 3.2);
       ctx.fillStyle = 'rgba(50, 220, 120, 0.95)';
-      for (var i = 0; i < pts.length; i += step) {
+      for (var i = 0; i < pts.length; i++) {
         ctx.beginPath();
-        ctx.arc(pts[i][0], pts[i][1], Math.max(2 / fit.scale, 3.5), 0, 7);
+        ctx.arc(pts[i][0], pts[i][1], dotR, 0, 7);
         ctx.fill();
       }
     }
@@ -252,6 +256,7 @@
         st.size = size;
         syncButtons();
         renderAdjust();
+        scheduleFitInfo();
       };
       wrap.appendChild(b);
     });
@@ -261,8 +266,8 @@
     [].forEach.call(document.querySelectorAll('#photoSizeBtns [data-size]'), function (b) {
       b.classList.toggle('on', Number(b.dataset.size) === st.size);
     });
-    [].forEach.call(document.querySelectorAll('[data-photo-conv]'), function (b) {
-      b.classList.toggle('on', b.dataset.photoConv === st.convention);
+    [].forEach.call(document.querySelectorAll('[data-photo-margin]'), function (b) {
+      b.classList.toggle('on', Math.abs(Number(b.dataset.photoMargin) - st.margin) < 0.011);
     });
   }
 
@@ -279,7 +284,7 @@
           imageData: st.imageData,
           borderCorners: st.corners,
           size: st.size,
-          convention: st.convention
+          margin: st.margin
         });
         st.result = res;
         st.labels = res.points.map(function (p) { return p.cls; });
@@ -575,6 +580,7 @@
       turn: turn,
       meta: {
         convention: res.convention,
+        margin: res.margin,
         confidence: +res.score.toFixed(4),
         lowConf: res.points.filter(function (p) { return p.conf < 0.55; }).length,
         source: st.fileName,
@@ -746,11 +752,62 @@
     } catch (e) { toast('書き出しに失敗しました'); }
   }
 
+  // ---------------- 一致度の表示とサイズ自動判定 ----------------
+  var fitTimer = null;
+  function scheduleFitInfo() {
+    if (fitTimer) clearTimeout(fitTimer);
+    fitTimer = setTimeout(updateFitInfo, 220);
+  }
+
+  function fitScoreFor(size, margin) {
+    if (!st.imageData) return null;
+    try {
+      var r = R.analyze({ imageData: st.imageData, borderCorners: st.corners, size: size, margin: margin });
+      return r.score;
+    } catch (e) { return null; }
+  }
+
+  // 選択中のサイズ・余白が盤にどれだけ合っているかを出す（低ければ調整を促す）
+  function updateFitInfo() {
+    if (!st.imageData || !st.corners) return;
+    var sc = fitScoreFor(st.size, st.margin);
+    var el = $('photoFitInfo');
+    if (!el) return;
+    if (sc == null) { el.textContent = ''; return; }
+    var pct = Math.round(sc * 100);
+    var ok = sc >= 0.68;
+    el.textContent = 'この設定の一致度: ' + pct + '%' + (ok ? '' : '（低いときはサイズや余白を調整してください）');
+    el.className = 'text-[11px] ' + (ok ? 'text-neutral-500' : 'text-amber-600 font-bold');
+  }
+
+  // 盤面サイズをスコアで自動判定（9/13/19/25 を比較して最も合うものを選ぶ）
+  function autoDetectSize() {
+    if (!st.imageData || !st.corners) return;
+    var sizes = [9, 13, 19, 25];
+    var best = null;
+    for (var i = 0; i < sizes.length; i++) {
+      var sc = fitScoreFor(sizes[i], st.margin);
+      if (sc == null) continue;
+      if (!best || sc > best.score) best = { size: sizes[i], score: sc };
+    }
+    if (best) {
+      st.size = best.size;
+      st.autoBest = best;
+      syncButtons();
+      renderAdjust();
+      updateFitInfo();
+      updateDetectInfo();
+    }
+  }
+
   // ---------------- 起動・配線 ----------------
   function reset() {
     st.result = null; st.labels = null; st.drag = -1; st.hover = -1;
     st.corners = null; st.imageData = null; st.img = null; st.fileName = '';
     st.palette = null; st.playerCount = 2; st.allColors = false;
+    st.margin = 0.577;
+    var ms = $('photoMargin'); if (ms) ms.value = '0.58';
+    var ml = $('photoMarginLabel'); if (ml) ml.textContent = '0.58 cell';
     st.autoConf = 0; st.autoMethod = '';
     err('');
     var f = $('photoFile'); if (f) f.value = '';
@@ -780,11 +837,24 @@
         loadImageFile(f);
       }).catch(function () { err('サンプル画像を読み込めませんでした。'); });
     };
-    [].forEach.call(document.querySelectorAll('[data-photo-conv]'), function (b) {
+    var marginInput = $('photoMargin');
+    if (marginInput) marginInput.oninput = function () {
+      st.margin = Number(marginInput.value);
+      var ml = $('photoMarginLabel');
+      if (ml) ml.textContent = st.margin.toFixed(2) + ' cell';
+      syncButtons();
+      renderAdjust();
+      scheduleFitInfo();
+    };
+    [].forEach.call(document.querySelectorAll('[data-photo-margin]'), function (b) {
       b.onclick = function () {
-        st.convention = b.dataset.photoConv;
+        st.margin = Number(b.dataset.photoMargin);
+        if (marginInput) marginInput.value = String(st.margin);
+        var ml = $('photoMarginLabel');
+        if (ml) ml.textContent = st.margin.toFixed(2) + ' cell';
         syncButtons();
         renderAdjust();
+        scheduleFitInfo();
       };
     });
     var redetect = $('btnPhotoRedetect');
@@ -866,7 +936,7 @@
     close: function () { closeModal($('photoModal')); },
     state: function () {
       return {
-        size: st.size, convention: st.convention, hasImage: !!st.imageData,
+        size: st.size, margin: st.margin, hasImage: !!st.imageData,
         result: !!st.result, labels: st.labels ? st.labels.slice() : null,
         corners: st.corners, turn: st.turn
       };
@@ -877,7 +947,7 @@
     open: open,
     state: function () {
       return {
-        size: st.size, convention: st.convention, hasImage: !!st.imageData,
+        size: st.size, margin: st.margin, hasImage: !!st.imageData,
         result: !!st.result, labels: st.labels ? st.labels.slice() : null,
         corners: st.corners, turn: st.turn,
         palette: st.palette ? st.palette.slice() : null,
@@ -905,5 +975,7 @@
     view('step2');
     renderAdjust();
     updateDetectInfo();
+    updateFitInfo();
+    setTimeout(autoDetectSize, 60);
   }
 })(typeof self !== 'undefined' ? self : this);

@@ -141,10 +141,17 @@
     honeycomb: { k: function (s) { return s / (s + 1 / SQ3); } }
   };
 
-  function latticeCornersFromBorder(borderCorners, size, convention) {
+  // margin: 数値なら「盤の外枠が格子六角形より何セル外側か」（実物=1/√3≈0.577, 印刷=0）。
+  // 文字列なら従来の慣習名（honeycomb / triangular）。
+  function latticeCornersFromBorder(borderCorners, size, margin) {
     var L = layout(size);
-    var conv = CONVENTIONS[convention] || CONVENTIONS.honeycomb;
-    var k = conv.k(L.s);
+    var k;
+    if (typeof margin === 'number' && isFinite(margin)) {
+      k = L.s / (L.s + Math.max(0, margin));
+    } else {
+      var conv = CONVENTIONS[margin] || CONVENTIONS.honeycomb;
+      k = conv.k(L.s);
+    }
     var cx = 0, cy = 0, i;
     for (i = 0; i < 6; i++) { cx += borderCorners[i][0]; cy += borderCorners[i][1]; }
     cx /= 6; cy /= 6;

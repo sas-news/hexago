@@ -222,17 +222,23 @@
         <div class="grid grid-cols-4 gap-2" id="photoSizeBtns"></div>
       </div>
       <div class="flex flex-col gap-1.5">
-        <span class="text-xs font-bold text-neutral-500">盤の種類</span>
-        <div class="grid grid-cols-2 gap-2">
-          <button type="button" data-photo-conv="honeycomb" class="opt on">実物の六角盤</button>
-          <button type="button" data-photo-conv="triangular" class="opt">印刷した盤</button>
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-neutral-500">盤の余白（外枠と格子のすき間）</span>
+          <span id="photoMarginLabel" class="text-xs font-mono text-neutral-600">0.58 cell</span>
         </div>
+        <input id="photoMargin" type="range" min="0" max="1.2" step="0.02" value="0.58" class="w-full accent-neutral-900">
+        <div class="flex gap-2">
+          <button type="button" data-photo-margin="0.58" class="opt flex-1">実物の六角盤（0.58）</button>
+          <button type="button" data-photo-margin="0" class="opt flex-1">印刷した盤（0）</button>
+        </div>
+        <p class="text-[11px] text-neutral-500 leading-relaxed">印刷や自作の盤は外枠のすき間が一定でないので、緑の点を石に合わせながらスライダーで調整してください。</p>
       </div>
       <div class="flex gap-2">
         <button id="btnPhotoRedetect" class="flex-1 py-2 border border-neutral-300 rounded-xl text-sm font-bold hover:bg-neutral-50">自動検出をやり直す</button>
         <button id="btnPhotoRead" class="flex-1 py-2 bg-neutral-900 text-white rounded-xl text-sm font-bold hover:bg-neutral-800">この状態で読み取る</button>
       </div>
       <p id="photoDetectInfo" class="text-[11px] text-neutral-500"></p>
+      <p id="photoFitInfo" class="text-[11px] text-neutral-500"></p>
     </div>
 
     <div id="photoStep3" class="p-4 flex flex-col gap-3 hidden">
