@@ -107,8 +107,7 @@
     view('step2');
     renderAdjust();
     updateDetectInfo();
-    updateFitInfo();
-    setTimeout(autoDetectSize, 60);
+    setTimeout(autoFitBoard, 60);
   }
 
   function autoDetect() {
@@ -129,23 +128,24 @@
     var el = $('photoDetectInfo');
     if (!el) return;
     var pct = Math.round((st.autoConf || 0) * 100);
-    var sizeHint = st.autoBest ? ' ／ サイズ自動判定: ' + st.autoBest.size + '路（一致度 ' + Math.round(st.autoBest.score * 100) + '%）' : '';
     if (st.autoMethod === 'auto' && st.autoConf >= 0.5) {
-      el.textContent = '自動検出: 信頼度 ' + pct + '%（違う場合は6つの丸をドラッグして合わせてください）' + sizeHint;
+      el.textContent = '自動検出: 信頼度 ' + pct + '%（違う場合は6つの丸をドラッグして合わせてください）';
       el.className = 'text-[11px] text-neutral-500';
     } else if (st.autoMethod === 'auto') {
-      el.textContent = '自動検出が不確かです。6つの丸を盤の6隅にドラッグして合わせてください。' + sizeHint;
+      el.textContent = '自動検出が不確かです。6つの丸を盤の6隅にドラッグして合わせてください。';
       el.className = 'text-[11px] text-amber-600 font-bold';
     } else {
-      el.textContent = '自動検出できませんでした。6つの丸をドラッグして盤の6隅に合わせてください。' + sizeHint;
+      el.textContent = '自動検出できませんでした。6つの丸をドラッグして盤の6隅に合わせてください。';
       el.className = 'text-[11px] text-amber-600 font-bold';
     }
   }
 
   // ---------------- 6隅調整キャンバス ----------------
-  function fitCanvas(cv, w, h, maxCss) {
+  function fitCanvas(cv, w, h, maxCss, heightFrac) {
     var dpr = global.devicePixelRatio || 1;
-    var cssW = Math.min(maxCss, cv.parentElement.clientWidth || maxCss);
+    var parentW = (cv.parentElement && cv.parentElement.clientWidth) || maxCss;
+    var vhLimit = (global.innerHeight || 900) * (heightFrac || 0.42) * (w / h);
+    var cssW = Math.min(maxCss, parentW, vhLimit);
     var cssH = cssW * h / w;
     cv.style.width = cssW + 'px';
     cv.style.height = cssH + 'px';
@@ -168,7 +168,7 @@
   function renderAdjust() {
     if (!st.imageData) return;
     var cv = $('photoAdjust');
-    var fit = fitCanvas(cv, st.width, st.height, 640);
+    var fit = fitCanvas(cv, st.width, st.height, 640, 0.44);
     var ctx = cv.getContext('2d');
     ctx.setTransform(fit.dpr, 0, 0, fit.dpr, 0, 0);
     ctx.clearRect(0, 0, fit.cssW, fit.cssH);
@@ -240,7 +240,10 @@
     st.corners[st.drag] = [Math.max(-50, Math.min(st.width + 50, p[0])), Math.max(-50, Math.min(st.height + 50, p[1]))];
     renderAdjust();
   }
-  function onAdjustUp() { st.drag = -1; }
+  function onAdjustUp() {
+    if (st.drag >= 0) scheduleFitScore();
+    st.drag = -1;
+  }
 
   // ---------------- サイズ・慣習の選択 ----------------
   function buildSizeButtons() {
@@ -256,7 +259,7 @@
         st.size = size;
         syncButtons();
         renderAdjust();
-        scheduleFitInfo();
+        scheduleFitScore();
       };
       wrap.appendChild(b);
     });
@@ -266,9 +269,7 @@
     [].forEach.call(document.querySelectorAll('#photoSizeBtns [data-size]'), function (b) {
       b.classList.toggle('on', Number(b.dataset.size) === st.size);
     });
-    [].forEach.call(document.querySelectorAll('[data-photo-margin]'), function (b) {
-      b.classList.toggle('on', Math.abs(Number(b.dataset.photoMargin) - st.margin) < 0.011);
-    });
+
   }
 
   // ---------------- 読み取り ----------------
@@ -395,7 +396,7 @@
     if (!res) return;
     var cv = $('photoResult');
     var W = res.layout.W;
-    var fit = fitCanvas(cv, W, W, 560);
+    var fit = fitCanvas(cv, W, W, 560, 0.40);
     var ctx = cv.getContext('2d');
     ctx.setTransform(fit.dpr, 0, 0, fit.dpr, 0, 0);
     // canonical 画像
@@ -752,52 +753,51 @@
     } catch (e) { toast('書き出しに失敗しました'); }
   }
 
-  // ---------------- 一致度の表示とサイズ自動判定 ----------------
-  var fitTimer = null;
-  function scheduleFitInfo() {
-    if (fitTimer) clearTimeout(fitTimer);
-    fitTimer = setTimeout(updateFitInfo, 220);
-  }
-
-  function fitScoreFor(size, margin) {
-    if (!st.imageData) return null;
+  // ---------------- サイズ・余白の自動調整 ----------------
+  // 撮影画像から、盤面サイズと「外枠と格子のすき間（余白）」を自動で合わせる。
+  function autoFitBoard() {
+    if (!st.imageData || !st.corners) return;
+    var fit = null;
     try {
-      var r = R.analyze({ imageData: st.imageData, borderCorners: st.corners, size: size, margin: margin });
-      return r.score;
-    } catch (e) { return null; }
-  }
-
-  // 選択中のサイズ・余白が盤にどれだけ合っているかを出す（低ければ調整を促す）
-  function updateFitInfo() {
-    if (!st.imageData || !st.corners) return;
-    var sc = fitScoreFor(st.size, st.margin);
+      fit = R.autoFit(st.imageData, st.corners, { margin: 0.577 });
+    } catch (e) { fit = null; }
     var el = $('photoFitInfo');
-    if (!el) return;
-    if (sc == null) { el.textContent = ''; return; }
-    var pct = Math.round(sc * 100);
-    var ok = sc >= 0.68;
-    el.textContent = 'この設定の一致度: ' + pct + '%' + (ok ? '' : '（低いときはサイズや余白を調整してください）');
-    el.className = 'text-[11px] ' + (ok ? 'text-neutral-500' : 'text-amber-600 font-bold');
+    if (!fit) {
+      if (el) { el.textContent = ''; }
+      return;
+    }
+    st.size = fit.size;
+    st.margin = fit.margin;
+    var slider = $('photoMargin');
+    if (slider) slider.value = String(fit.margin);
+    var label = $('photoMarginLabel');
+    if (label) label.textContent = fit.margin.toFixed(2) + ' cell';
+    syncButtons();
+    renderAdjust();
+    if (el) {
+      el.textContent = '石の位置に合わせて自動調整しました: ' + fit.size + '路 / 余白 ' + fit.margin.toFixed(2) + ' cell';
+      el.className = 'text-[11px] text-neutral-500';
+    }
+    updateFitScore(fit.score);
+    updateDetectInfo();
   }
 
-  // 盤面サイズをスコアで自動判定（9/13/19/25 を比較して最も合うものを選ぶ）
-  function autoDetectSize() {
-    if (!st.imageData || !st.corners) return;
-    var sizes = [9, 13, 19, 25];
-    var best = null;
-    for (var i = 0; i < sizes.length; i++) {
-      var sc = fitScoreFor(sizes[i], st.margin);
-      if (sc == null) continue;
-      if (!best || sc > best.score) best = { size: sizes[i], score: sc };
-    }
-    if (best) {
-      st.size = best.size;
-      st.autoBest = best;
-      syncButtons();
-      renderAdjust();
-      updateFitInfo();
-      updateDetectInfo();
-    }
+  // 一致度（0〜100%）。サイズ・余白が盤にどれだけ合っているかの目安。
+  var scoreTimer = null;
+  function updateFitScore(knownScore) {
+    var el = $('photoFitScore');
+    if (!el) return;
+    if (!st.imageData || !st.corners) { el.textContent = ''; return; }
+    var sc = (typeof knownScore === 'number' && knownScore > 0) ? knownScore
+      : R.quickScore(st.imageData, st.corners, st.size, st.margin);
+    if (!(sc > 0)) { el.textContent = ''; return; }
+    var pct = Math.round(sc * 100);
+    el.textContent = '一致度 ' + pct + '%';
+    el.className = 'text-xs font-mono ' + (sc >= 0.72 ? 'text-neutral-500' : 'text-amber-600 font-bold');
+  }
+  function scheduleFitScore() {
+    if (scoreTimer) clearTimeout(scoreTimer);
+    scoreTimer = setTimeout(function () { updateFitScore(); }, 90);
   }
 
   // ---------------- 起動・配線 ----------------
@@ -808,6 +808,7 @@
     st.margin = 0.577;
     var ms = $('photoMargin'); if (ms) ms.value = '0.58';
     var ml = $('photoMarginLabel'); if (ml) ml.textContent = '0.58 cell';
+    var fs = $('photoFitScore'); if (fs) fs.textContent = '';
     st.autoConf = 0; st.autoMethod = '';
     err('');
     var f = $('photoFile'); if (f) f.value = '';
@@ -844,21 +845,11 @@
       if (ml) ml.textContent = st.margin.toFixed(2) + ' cell';
       syncButtons();
       renderAdjust();
-      scheduleFitInfo();
+      scheduleFitScore();
     };
-    [].forEach.call(document.querySelectorAll('[data-photo-margin]'), function (b) {
-      b.onclick = function () {
-        st.margin = Number(b.dataset.photoMargin);
-        if (marginInput) marginInput.value = String(st.margin);
-        var ml = $('photoMarginLabel');
-        if (ml) ml.textContent = st.margin.toFixed(2) + ' cell';
-        syncButtons();
-        renderAdjust();
-        scheduleFitInfo();
-      };
-    });
+
     var redetect = $('btnPhotoRedetect');
-    if (redetect) redetect.onclick = function () { autoDetect(); renderAdjust(); updateDetectInfo(); };
+    if (redetect) redetect.onclick = function () { autoDetect(); renderAdjust(); updateDetectInfo(); autoFitBoard(); };
     var readBtn = $('btnPhotoRead');
     if (readBtn) readBtn.onclick = read;
     var cvA = $('photoAdjust');
@@ -928,6 +919,18 @@
     if (libBack) libBack.onclick = function () { view(st.result ? 'step3' : 'step1'); if (st.result) renderResult(); };
   }
 
+  // 画面サイズが変わったらキャンバスを合わせ直す（iPad/スマホの回転など）
+  var resizeTimer = null;
+  global.addEventListener('resize', function () {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      var modal = $('photoModal');
+      if (!modal || modal.classList.contains('hidden')) return;
+      if (st.imageData) renderAdjust();
+      if (st.result) renderResult();
+    }, 120);
+  });
+
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
@@ -975,7 +978,6 @@
     view('step2');
     renderAdjust();
     updateDetectInfo();
-    updateFitInfo();
-    setTimeout(autoDetectSize, 60);
+    setTimeout(autoFitBoard, 60);
   }
 })(typeof self !== 'undefined' ? self : this);

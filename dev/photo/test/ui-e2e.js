@@ -109,25 +109,43 @@ function check(name, ok, detail) {
         detectInfo: document.getElementById('photoDetectInfo').textContent,
       };
     });
-    check('余白スライダーがある（実物=0.58が初期値）',
-      adjustState.hasSlider && Math.abs(adjustState.margin - 0.577) < 0.02,
+    check('余白スライダーがあり、石に合わせて自動調整される',
+      adjustState.hasSlider && adjustState.margin > 0.35 && adjustState.margin <= 1.2 &&
+      /自動調整/.test(adjustState.fit || ''),
       JSON.stringify(adjustState));
     check('撮影画像から盤面サイズを自動判定する（13路）', adjustState.size === 13, 'size=' + adjustState.size + ' ' + adjustState.detectInfo);
     // スライダーを動かすと余白が変わる
-    const sliderMove = await page.evaluate(() => {
+    const scoreInfo = await page.evaluate(() => {
+      const el = document.getElementById('photoFitScore');
+      return { text: el && el.textContent, value: el ? parseInt((el.textContent.match(/(\d+)/) || [])[1], 10) : null };
+    });
+    check('一致度が表示される（自動調整後の値）',
+      scoreInfo.value >= 60 && scoreInfo.value <= 100,
+      JSON.stringify(scoreInfo));
+
+    const sliderMove = await page.evaluate(async () => {
+      const before = document.getElementById('photoFitScore').textContent;
       const slider = document.getElementById('photoMargin');
       slider.value = '0.2';
       slider.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 400));
       const s = window.__hexagoPhoto.state();
-      return { margin: s.margin, label: document.getElementById('photoMarginLabel').textContent };
+      return {
+        margin: s.margin,
+        label: document.getElementById('photoMarginLabel').textContent,
+        before,
+        after: document.getElementById('photoFitScore').textContent,
+      };
     });
-    check('スライダーで余白を変更できる', Math.abs(sliderMove.margin - 0.2) < 1e-6, JSON.stringify(sliderMove));
-    // 元に戻す
-    await page.evaluate(() => {
+    check('スライダーで余白を変更でき、一致度も更新される', Math.abs(sliderMove.margin - 0.2) < 1e-6 &&
+      sliderMove.after && sliderMove.after !== sliderMove.before,
+      JSON.stringify(sliderMove));
+    // 自動調整値に戻す（スライダー操作の影響を消す）
+    await page.evaluate((m) => {
       const slider = document.getElementById('photoMargin');
-      slider.value = '0.58';
+      slider.value = String(m);
       slider.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    }, adjustState.margin);
 
     // 3. 読み取り
     const readMs = await page.evaluate(async () => {
@@ -282,6 +300,71 @@ function check(name, ok, detail) {
       mobileState.open && mobileState.scrollWidth <= mobileState.innerWidth + 1 && mobileState.modalWidth <= 390,
       JSON.stringify(mobileState));
     await mobile.screenshot(path.join(shotsDir, 'photo-step1-mobile.png'));
+
+    // 7. iPad サイズ（縦・横）でモーダル全体が見える
+    for (const vp of [
+      { name: 'iPad縦 768x1024', width: 768, height: 1024 },
+      { name: 'iPad横 1024x768', width: 1024, height: 768 },
+    ]) {
+      const ipad = await browser.newPage({
+        viewport: { width: vp.width, height: vp.height, deviceScaleFactor: 2, mobile: true },
+        timeoutMs: 30000,
+      });
+      await ipad.goto(server.urlFor('/index.html'), { timeoutMs: 30000 });
+      await ipad.waitForFunction('window.__hexagoPhoto && typeof window.__hexagoPhoto.open === "function"', { timeoutMs: 20000 });
+      await sleep(250);
+      const res = await ipad.evaluate(async (size) => {
+        document.getElementById('btnOpenPhoto').click();
+        const resp = await fetch('/dev/photo/testdata/IMG_0252.jpg');
+        const bmp = await createImageBitmap(await resp.blob());
+        const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height;
+        const ctx = cv.getContext('2d', { willReadFrequently: true }); ctx.drawImage(bmp, 0, 0);
+        window.__hexagoPhoto.loadImageData(ctx.getImageData(0, 0, cv.width, cv.height));
+        await new Promise(r => setTimeout(r, 900));
+        // step2 のレイアウト検査
+        const card = document.getElementById('photoCard');
+        const btn = document.getElementById('btnPhotoRead');
+        const r = btn.getBoundingClientRect();
+        const canvas = document.getElementById('photoAdjust');
+        const cr = canvas.getBoundingClientRect();
+        return {
+          step2: !document.getElementById('photoStep2').classList.contains('hidden'),
+          cardFits: card.scrollHeight <= card.clientHeight + 2,
+          buttonVisible: r.bottom <= window.innerHeight + 1 && r.top >= -1,
+          canvasHeight: +cr.height.toFixed(0),
+          viewport: { w: window.innerWidth, h: window.innerHeight },
+          size: window.__hexagoPhoto.state().size,
+          margin: window.__hexagoPhoto.state().margin,
+        };
+      }, vp);
+      check(vp.name + ' で調整画面が画面内に収まる',
+        res.step2 && res.buttonVisible && res.canvasHeight <= res.viewport.h * 0.55,
+        JSON.stringify(res));
+      await ipad.screenshot(path.join(shotsDir, 'photo-step2-' + vp.width + 'x' + vp.height + '.png'));
+      // 読み取り → step3 も確認
+      const res3 = await ipad.evaluate(async () => {
+        window.__hexagoPhoto.read();
+        for (let i = 0; i < 100; i++) {
+          await new Promise(r => setTimeout(r, 50));
+          if (window.__hexagoPhoto.state().result) break;
+        }
+        await new Promise(r => setTimeout(r, 200));
+        const card = document.getElementById('photoCard');
+        const btn = document.getElementById('btnPhotoPlay');
+        const r = btn.getBoundingClientRect();
+        return {
+          result: window.__hexagoPhoto.state().result,
+          cardFits: card.scrollHeight <= card.clientHeight + 2,
+          buttonVisible: r.bottom <= window.innerHeight + 1,
+          labels: (window.__hexagoPhoto.state().labels || []).length,
+        };
+      });
+      check(vp.name + ' で読み取り結果と操作ボタンが画面内に収まる',
+        res3.result && res3.buttonVisible,
+        JSON.stringify(res3));
+      await ipad.screenshot(path.join(shotsDir, 'photo-step3-' + vp.width + 'x' + vp.height + '.png'));
+      await ipad.close();
+    }
 
     // JS 例外
     check('JS 例外が発生していない', errors.length === 0, errors.slice(0, 3).join(' | '));

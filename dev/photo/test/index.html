@@ -190,6 +190,40 @@
     return out;
   }
 
+  async function caseAutoFit() {
+    await ensureModel();
+    var photo = await loadAsPhoto(BASE + 'dev/photo/testdata/IMG_0252.jpg', 1600);
+    var gt = await (await fetch(BASE + 'dev/photo/testdata/IMG_0252.gt.json')).json();
+    var det = Det.detect(photo.imageData);
+    var t0 = performance.now();
+    var fit = R.autoFit(photo.imageData, det.corners, {});
+    var ms = performance.now() - t0;
+    var r = R.analyze({ imageData: photo.imageData, borderCorners: det.corners, size: fit.size, margin: fit.margin });
+    var hit = 0, miss = [];
+    for (var i = 0; i < gt.labels.length; i++) {
+      if (r.points[i].cls === GT_CLS[gt.labels[i]]) hit++;
+      else miss.push({ i: i, want: gt.labels[i], got: CLASS_NAME[r.points[i].cls] });
+    }
+    return { fit: fit, ms: +ms.toFixed(1), acc: hit / gt.labels.length, miss: miss };
+  }
+
+  async function caseMarginAcc() {
+    await ensureModel();
+    var photo = await loadAsPhoto(BASE + 'dev/photo/testdata/IMG_0252.jpg', 1600);
+    var gt = await (await fetch(BASE + 'dev/photo/testdata/IMG_0252.gt.json')).json();
+    var det = Det.detect(photo.imageData);
+    var out = {};
+    [0, 0.15, 0.3, 0.45, 0.577, 0.7, 0.85, 1.0].forEach(function (m) {
+      try {
+        var r = R.analyze({ imageData: photo.imageData, borderCorners: det.corners, size: 13, margin: m });
+        var hit = 0;
+        for (var i = 0; i < gt.labels.length; i++) if (r.points[i].cls === GT_CLS[gt.labels[i]]) hit++;
+        out[m] = { acc: +(hit / gt.labels.length).toFixed(4), score: +r.score.toFixed(4) };
+      } catch (e) { out[m] = null; }
+    });
+    return out;
+  }
+
   async function caseFit() {
     // サイズ・余白の候補ごとに「幾何の一致度」を測る（分類の平均信頼度をスコアにする）
     await ensureModel();
@@ -493,6 +527,8 @@
           else if (c === 'weights') out.weights = await caseWeights();
           else if (c === 'strategies') out.strategies = await caseStrategies();
           else if (c === 'fit') out.fit = await caseFit();
+          else if (c === 'marginAcc') out.marginAcc = await caseMarginAcc();
+          else if (c === 'autofit') out.autofit = await caseAutoFit();
           else if (c === 'synthetic' || c === 'all') out.synthetic = await caseSynthetic();
           else out.unknown = c;
         }

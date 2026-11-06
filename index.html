@@ -194,7 +194,7 @@
 
 <!-- photo import modal -->
 <div id="photoModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 z-50 hidden">
-  <div class="bg-white text-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-neutral-200 max-h-[94vh] overflow-y-auto">
+  <div id="photoCard" class="bg-white text-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-neutral-200 max-h-[96svh] sm:max-h-[94vh] overflow-y-auto overscroll-contain">
     <div class="flex items-center justify-between border-b px-4 py-3 border-neutral-200 sticky top-0 bg-white z-10">
       <h2 class="text-lg font-extrabold">写真から盤面を復元</h2>
       <button id="btnClosePhoto" aria-label="閉じる" class="w-9 h-9 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold">✕</button>
@@ -224,14 +224,13 @@
       <div class="flex flex-col gap-1.5">
         <div class="flex items-center justify-between">
           <span class="text-xs font-bold text-neutral-500">盤の余白（外枠と格子のすき間）</span>
-          <span id="photoMarginLabel" class="text-xs font-mono text-neutral-600">0.58 cell</span>
+          <span class="flex items-center gap-2">
+            <span id="photoMarginLabel" class="text-xs font-mono text-neutral-600">0.58 cell</span>
+            <span id="photoFitScore" class="text-xs font-mono text-neutral-500"></span>
+          </span>
         </div>
         <input id="photoMargin" type="range" min="0" max="1.2" step="0.02" value="0.58" class="w-full accent-neutral-900">
-        <div class="flex gap-2">
-          <button type="button" data-photo-margin="0.58" class="opt flex-1">実物の六角盤（0.58）</button>
-          <button type="button" data-photo-margin="0" class="opt flex-1">印刷した盤（0）</button>
-        </div>
-        <p class="text-[11px] text-neutral-500 leading-relaxed">印刷や自作の盤は外枠のすき間が一定でないので、緑の点を石に合わせながらスライダーで調整してください。</p>
+        <p class="text-[11px] text-neutral-500 leading-relaxed">読み込み時に石の位置へ自動で合わせます。ずれる場合は緑の点が石の中心に来るようスライダーで微調整してください。</p>
       </div>
       <div class="flex gap-2">
         <button id="btnPhotoRedetect" class="flex-1 py-2 border border-neutral-300 rounded-xl text-sm font-bold hover:bg-neutral-50">自動検出をやり直す</button>

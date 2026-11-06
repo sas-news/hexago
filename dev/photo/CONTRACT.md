@@ -35,6 +35,9 @@
 - `margin = 1/√3 ≈ 0.577` … 実物の六角盤（既定）
 - `margin = 0` … アプリから印刷した盤
 UI ではスライダーで調整する。`margin` 未指定なら従来どおり慣習名（honeycomb/triangular）で解釈する。
+`HexagoPhotoRecognize.autoFit(imageData, borderCorners)` が、サイズ {9,13,19,25} と
+margin 0〜1.0（0.1刻み→0.02刻み）を走査し、`quickScore`（元画像から直接サンプリングした
+パッチのヒューリスティック分類の平均確信度）が最大になる組み合わせを返す。
 
 ## 3. 前処理（v2: グローバル中央値ベースライン）
 

@@ -166,6 +166,121 @@
     return best;
   }
 
+  // ---------- 高速ジオメトリスコア（自動チューニング用） ----------
+  // canonical に変換せず、元画像から直接パッチをサンプリングして
+  // ヒューリスティック分類の平均確信度を返す。サイズ・余白の探索用。
+  function sampleRGB(data, w, h, x, y, out) {
+    if (x < 0) x = 0; else if (x > w - 1) x = w - 1;
+    if (y < 0) y = 0; else if (y > h - 1) y = h - 1;
+    var x0 = x | 0, y0 = y | 0;
+    var x1 = x0 + 1 >= w ? w - 1 : x0 + 1;
+    var y1 = y0 + 1 >= h ? h - 1 : y0 + 1;
+    var fx = x - x0, fy = y - y0;
+    var i00 = (y0 * w + x0) * 4, i10 = (y0 * w + x1) * 4;
+    var i01 = (y1 * w + x0) * 4, i11 = (y1 * w + x1) * 4;
+    for (var c = 0; c < 3; c++) {
+      var a = data[i00 + c] * (1 - fx) + data[i10 + c] * fx;
+      var b = data[i01 + c] * (1 - fx) + data[i11 + c] * fx;
+      out[c] = a * (1 - fy) + b * fy;
+    }
+    return out;
+  }
+
+  function quickScore(imageData, borderCorners, size, margin) {
+    var L = Geom.layout(size);
+    var lat = Geom.latticeCornersFromBorder(borderCorners, size, margin);
+    var H = Geom.homography(lat, L.corners);
+    if (!H) return -1;
+    var Hi = Geom.inv3(H);
+    if (!Hi) return -1;
+    var data = imageData.data, w = imageData.width, h = imageData.height;
+    var N = L.pts.length;
+    var stride = Math.max(1, Math.round(N / 44));
+    var idxs = [], k;
+    for (var i = 0; i < N; i += stride) idxs.push(i);
+    var side = 0.9 * L.cell;
+    var patches = [], rings = [];
+    var tmp = [0, 0, 0];
+    for (k = 0; k < idxs.length; k++) {
+      var p = L.pts[idxs[k]];
+      var a = Geom.apply(Hi, p[0], p[1]);
+      var bx = Geom.apply(Hi, p[0] + side, p[1]);
+      var by = Geom.apply(Hi, p[0], p[1] + side);
+      var sx = Math.hypot(bx[0] - a[0], bx[1] - a[1]);
+      var sy = Math.hypot(by[0] - a[0], by[1] - a[1]);
+      if (!(sx > 1) || !(sy > 1)) return -1;
+      var patch = new Float32Array(16 * 16 * 3);
+      for (var j = 0; j < 16; j++) {
+        for (var ii = 0; ii < 16; ii++) {
+          var x = a[0] + (ii - 7.5) / 16 * sx;
+          var y = a[1] + (j - 7.5) / 16 * sy;
+          sampleRGB(data, w, h, x, y, tmp);
+          var o = (j * 16 + ii) * 3;
+          patch[o] = tmp[0]; patch[o + 1] = tmp[1]; patch[o + 2] = tmp[2];
+        }
+      }
+      patches.push(patch);
+      // 外周リング（盤色推定用）
+      var rs = [0, 0, 0], rc = 0;
+      for (j = 0; j < 16; j++) {
+        for (ii = 0; ii < 16; ii++) {
+          if (!(ii < 2 || ii >= 14 || j < 2 || j >= 14)) continue;
+          var o2 = (j * 16 + ii) * 3;
+          rs[0] += patch[o2]; rs[1] += patch[o2 + 1]; rs[2] += patch[o2 + 2]; rc++;
+        }
+      }
+      rings.push([rs[0] / rc, rs[1] / rc, rs[2] / rc]);
+    }
+    // ベースライン = リング色の中央値
+    var med = [0, 1, 2].map(function (c) {
+      var arr = rings.map(function (r) { return r[c]; }).sort(function (x, y) { return x - y; });
+      return arr[arr.length >> 1];
+    });
+    var sum = 0;
+    for (k = 0; k < patches.length; k++) {
+      var f = global.HexagoPhotoFeatures.extract(patches[k], med);
+      var probs = heuristicProbs(f, med);
+      var mx = 0;
+      for (var q = 0; q < probs.length; q++) if (probs[q] > mx) mx = probs[q];
+      sum += mx;
+    }
+    return sum / patches.length;
+  }
+
+  // 盤面サイズと余白を自動調整する（石の位置に合う組み合わせを探索）
+  function autoFit(imageData, borderCorners, opts) {
+    opts = opts || {};
+    var baseMargin = typeof opts.margin === 'number' ? opts.margin : (1 / Math.sqrt(3));
+    var sizes = opts.sizes || [9, 13, 19, 25];
+    var best = null, k;
+    for (k = 0; k < sizes.length; k++) {
+      var sc = quickScore(imageData, borderCorners, sizes[k], baseMargin);
+      if (sc > 0 && (!best || sc > best.score)) best = { size: sizes[k], margin: baseMargin, score: sc };
+    }
+    if (!best) return null;
+    // 余白: 粗い探索 → 細かい探索
+    var coarse = [];
+    for (var m = 0; m <= 1.001; m += 0.1) coarse.push(Math.round(m * 100) / 100);
+    var bestM = { margin: best.margin, score: best.score };
+    for (k = 0; k < coarse.length; k++) {
+      var s2 = quickScore(imageData, borderCorners, best.size, coarse[k]);
+      if (s2 > bestM.score) bestM = { margin: coarse[k], score: s2 };
+    }
+    for (var d = -0.1; d <= 0.101; d += 0.02) {
+      var mm = Math.round((bestM.margin + d) * 100) / 100;
+      if (mm < 0 || mm > 1.2) continue;
+      var s3 = quickScore(imageData, borderCorners, best.size, mm);
+      if (s3 > bestM.score) bestM = { margin: mm, score: s3 };
+    }
+    // 決まった余白でサイズをもう一度確認
+    var finalSize = best.size;
+    for (k = 0; k < sizes.length; k++) {
+      var s4 = quickScore(imageData, borderCorners, sizes[k], bestM.margin);
+      if (s4 > bestM.score) { finalSize = sizes[k]; }
+    }
+    return { size: finalSize, margin: bestM.margin, score: bestM.score };
+  }
+
   // ---------- 1条件での解析 ----------
   function analyze(opts) {
     var imageData = opts.imageData;
@@ -267,6 +382,8 @@
     CLASSES: CLASSES,
     CLASS_COLORS: CLASS_COLORS,
     analyze: analyze,
+    autoFit: autoFit,
+    quickScore: quickScore,
     autoPick: autoPick,
     classifyFeatures: classifyFeatures,
     heuristicProbs: heuristicProbs,
