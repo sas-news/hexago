@@ -21,19 +21,26 @@ function sim(b, i, p) {
 function activeCount() { return Array.from({length:G.playerCount||3},(_,i)=>i+1).filter(p => !G.out[p]).length; }
 function nextTurn() { let t = G.turn, count=G.playerCount||3, guard=0; do { t = t % count + 1; guard++; } while (G.out[t] && guard<=count); G.turn = t; }
 function snap(by) {
-  G.hist.push({ by, board: G.board.slice(), damage: G.damage.slice(), turn: G.turn, passes: G.passes, last: G.last, out: G.out.slice(), seen: G.seen.length });
+  if (typeof ensureGameRecord === 'function') ensureGameRecord();
+  const recordLength = G.record && Array.isArray(G.record.events) ? G.record.events.length : null;
+  G.hist.push({ recordLength, by, board: G.board.slice(), damage: G.damage.slice(), turn: G.turn, passes: G.passes, last: G.last, out: G.out.slice(), seen: G.seen.length });
   if (G.hist.length > 40) G.hist.shift();
 }
 function play(i) {
   const p = G.turn, r = sim(G.board, i, p); if (!r) return false;
+  if (autoPassController) autoPassController.disable(p);
   snap(p); r.cap.forEach(x => G.damage[G.board[x]]++);
   G.board = r.a; G.last = i; G.passes = 0;
   const h = hash(G.board); G.seen.push(h); seenSet.add(h);
-  r.cap.length ? snd.cap() : snd.place(); nextTurn(); return true;
+  r.cap.length ? snd.cap() : snd.place(); nextTurn();
+  if (typeof recordGameEvent === 'function') recordGameEvent({ type: 'play', player: p, point: i, captured: r.cap });
+  return true;
 }
-function doPass() {
-  snd.click(); snap(G.turn); G.passes++; G.last = -1;
+function doPass(automatic = false) {
+  const p = G.turn;
+  snd.click(); snap(p); G.passes++; G.last = -1;
   if (G.passes >= activeCount()) { G.phase = 'dead'; G.dead = detectDeadStonesSmart(); prev = -1; } else nextTurn();
+  if (typeof recordGameEvent === 'function') recordGameEvent({ type: 'pass', player: p, ...(automatic ? { automatic: true } : {}) });
 }
 function territory() {
   const t = Array((G?.playerCount || playerCount || 3) + 1).fill(0), vis = new Set();
@@ -159,6 +166,8 @@ function detectDeadStonesSmart() {
   return [...new Set(dead)];
 }
 function finishScore() {
+  if (typeof ensureGameRecord === 'function') ensureGameRecord();
+  const removedForRecord = G.dead.slice();
   // 選択された死に石を盤上から除去する（捕獲数による減点はしない）。
   G.dead.forEach(i => { if (G.board[i]) G.board[i] = 0; });
   G.dead = []; G.phase = 'ended'; G.over = true;
@@ -170,13 +179,18 @@ function finishScore() {
   const title = top.length > 1 ? `引き分け (${top.map(p => playerName(p)).join('・')} ${sc[rank[0]]}点)` : `${playerName(rank[0])}の勝ち (${sc[rank[0]]}点)`;
   const row = p => `<div class="flex justify-between items-center gap-3"><span class="whitespace-nowrap"><span class="dot" style="background:${playerFill(p)};border-color:${playerStroke(p)}"></span>${playerName(p)}${G.out[p] ? ' (投了)' : ''}</span><span class="text-right">地 ${t[p]} ＋ 石 ${stones[p]} ＝ <strong>${sc[p]}点</strong></span></div>`;
   G.result = { title, details: Array.from({length:G.playerCount||3},(_,i)=>i+1).map(row).join('') };
+  if (typeof recordGameEvent === 'function') recordGameEvent({ type: 'score', removed: removedForRecord, scores: sc, result: title });
   snd.win(); showResult();
 }
 function resign() {
-  const p = G.turn; G.out[p] = true; snd.click();
+  if (typeof ensureGameRecord === 'function') ensureGameRecord();
+  const p = G.turn;
+  if (autoPassController) autoPassController.disable(p);
+  G.out[p] = true; snd.click();
   if (activeCount() <= 1) {
     const w = Array.from({length:G.playerCount||3},(_,i)=>i+1).find(x => !G.out[x]); G.over = true;
     G.result = { title: `${playerName(w)}の勝ち`, details: `${playerName(p)} が投了し、残りは ${playerName(w)} のみとなりました。` };
     snd.win(); showResult();
   } else { G.passes = 0; nextTurn(); }
+  if (typeof recordGameEvent === 'function') recordGameEvent({ type: 'resign', player: p });
 }

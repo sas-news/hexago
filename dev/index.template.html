@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HEXAGO</title>
+<link rel="icon" href="data:,">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<link rel="stylesheet" href="./css/app.css">
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-6 select-none">
+<div class="w-full max-w-xl flex flex-col items-center gap-4 sm:gap-5">
+  <header class="w-full grid grid-cols-[1fr_auto_1fr] items-center pt-1">
+    <div aria-hidden="true"></div>
+    <h1 class="text-2xl sm:text-3xl font-extrabold tracking-wider text-center">HEXAGO</h1>
+    <div class="flex items-center gap-0.5 sm:gap-1 justify-self-end">
+    <button id="btnOpenRecord" type="button" title="棋譜を保存" aria-label="棋譜を保存" class="w-9 h-9 flex items-center justify-center rounded-full text-current opacity-60 hover:opacity-90 hover:bg-black/5 active:scale-95 transition-all">
+      <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9l-6-6zM14 3v6h6M8 13h8M8 17h5"/></svg>
+    </button>
+    <button id="btnOpenPhoto" type="button" title="写真から盤面を復元" aria-label="写真から盤面を復元" class="w-9 h-9 flex items-center justify-center rounded-full text-current opacity-60 hover:opacity-90 hover:bg-black/5 active:scale-95 transition-all">
+      <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h1.5l1-2h7l1 2H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3.5" stroke-width="2"/></svg>
+    </button>
+    <button id="btnOpenRules" type="button" title="ルールを見る" aria-label="ルールを見る" class="w-9 h-9 flex items-center justify-center rounded-full text-current opacity-35 hover:opacity-70 hover:bg-black/5 active:scale-95 transition-all text-2xl font-semibold">ⓘ</button>
+    <button id="btnOpenSettings" type="button" title="設定" aria-label="設定" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-black/5 active:scale-95 transition-all">
+      <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+    </button>
+    </div>
+  </header>
+
+  <div class="card w-full p-3.5 sm:p-4 rounded-xl flex flex-col gap-3 text-sm sm:text-base">
+    <div class="flex items-center justify-between font-medium">
+      <div class="flex items-center gap-2"><span class="opacity-70">手番:</span><span id="turnInd" class="font-bold underline decoration-2 underline-offset-4" aria-live="polite"></span></div>
+      <div id="modeBadge" class="text-xs px-2.5 py-1 rounded-full font-semibold border opacity-80"></div>
+    </div>
+    <div class="flex items-center justify-between text-xs sm:text-sm pt-1 border-t border-current/10">
+      <div class="flex-1 min-w-0 flex flex-col gap-1"><span class="opacity-70">現在の石数:</span><span id="dmg" class="grid gap-x-3 gap-y-1 min-w-0"></span></div>
+      <div class="flex items-center gap-1.5"><span class="opacity-70">コミ:</span><span class="font-bold">なし</span></div>
+    </div>
+  </div>
+
+  <div class="w-full flex justify-center items-center relative">
+    <canvas id="cv" class="w-full aspect-square cursor-pointer max-w-[520px] rounded-lg" role="img" aria-label="HEXAGO の盤面（交点をタップして着手）"></canvas>
+    <div id="aiOv" class="absolute top-2 left-2 z-10 flex items-start justify-start hidden pointer-events-none">
+      <div class="card px-3 py-2 rounded-full shadow-lg font-bold text-sm flex items-center gap-2" style="color:var(--tx);background:var(--card);border-color:var(--bd)"><div class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div><span id="aiOvText">AI 思考中...</span></div>
+    </div>
+  </div>
+
+  <div class="w-full flex justify-between items-center gap-3">
+    <button id="btnUndo" class="btn flex-1 py-2.5 px-4 text-xs sm:text-sm font-bold rounded-xl hover:opacity-80 active:scale-95 transition-all shadow-sm disabled:opacity-40">1手戻る</button>
+    <button id="btnPass" class="btn flex-1 py-2.5 px-4 text-xs sm:text-sm font-bold rounded-xl hover:opacity-80 active:scale-95 transition-all shadow-sm">パス</button>
+    <button id="btnResign" class="flex-1 py-2.5 px-4 text-xs sm:text-sm font-bold border border-red-500/50 text-red-600 rounded-xl hover:bg-red-500/10 active:scale-95 transition-all shadow-sm">投了</button>
+  </div>
+
+  <div class="w-full flex flex-col gap-2" id="seatControlPanel">
+    <div id="autoPassControls" class="hidden seat-control-row" aria-label="連続パス"></div>
+  </div>
+
+  <div id="bnDead" class="hidden w-full flex flex-col gap-2 p-3 bg-amber-50 text-amber-900 text-xs sm:text-sm rounded-xl border border-amber-200 shadow-sm">
+    <div class="flex items-center justify-between font-bold"><span>⚠️ 終局・死に石確認</span><span id="deadCount" class="text-xs font-semibold opacity-80">自動判定中…</span></div>
+    <p class="text-xs text-amber-800/90 leading-relaxed">死んでいる可能性が高い石を自動で選択しました。盤面の×印を確認し、判定が違う連はタップして切り替えてください。確定後、死に石を取り除き「地＋盤上の石」で集計します。</p>
+    <div class="flex gap-2 pt-1">
+      <button id="btnDeadRecheck" class="flex-1 py-1.5 px-3 bg-white border border-amber-300 font-bold rounded-lg hover:bg-amber-100 text-amber-900">自動判定をやり直す</button>
+      <button id="btnDeadClear" class="flex-1 py-1.5 px-3 bg-white border border-amber-300 font-bold rounded-lg hover:bg-amber-100 text-amber-900">選択を全解除</button>
+    </div>
+    <div class="flex gap-2">
+      <button id="btnDeadCancel" class="flex-1 py-1.5 px-3 bg-white border border-amber-300 font-bold rounded-lg hover:bg-amber-100 text-amber-900">対局再開</button>
+      <button id="btnDeadOk" class="flex-1 py-1.5 px-3 bg-amber-900 text-white font-bold rounded-lg hover:bg-amber-800">死に石を除去して集計</button>
+    </div>
+  </div>
+
+  <div id="bnResult" class="hidden w-full flex items-center justify-between py-2 px-3 bg-neutral-100 text-xs sm:text-sm rounded-lg text-neutral-800 border border-neutral-200">
+    <span class="font-medium">対局終了</span><button id="btnShowResult" class="font-bold underline hover:opacity-70">結果を見る</button>
+  </div>
+
+  <p class="text-xs opacity-60 text-center leading-relaxed">PC: 交点のホバーでプレビュー・クリックで打つ / スマホ: 1タップ目プレビュー、同じ交点を2タップ目で確定<br>石は6方向の空点(呼吸点)がすべて無くなると取られます</p>
+</div>
+<div></div>
+
+<!-- game record modal -->
+<div id="recordModal" role="dialog" aria-modal="true" aria-labelledby="recordTitle" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+  <div class="bg-white text-neutral-900 p-5 sm:p-6 max-w-md w-full rounded-2xl shadow-2xl flex flex-col gap-4 border border-neutral-200 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between border-b pb-3 border-neutral-200">
+      <h2 id="recordTitle" class="text-xl font-bold">棋譜の保存</h2>
+      <button id="btnCloseRecord" aria-label="棋譜を閉じる" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0">✕</button>
+    </div>
+    <p id="recordSummary" class="text-base font-semibold"></p>
+    <p id="recordNotice" class="hidden text-sm leading-relaxed text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3"></p>
+    <p class="text-sm leading-relaxed text-neutral-600">現在の対局の着手・パス・投了を保存します。対局中でも終局後でも書き出せます。</p>
+    <button id="btnExportJson" class="w-full py-3 px-4 bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-xl">JSONで保存<span class="block text-xs font-normal opacity-80 mt-1">盤面と手順を含む、解析・再利用向けの棋譜</span></button>
+    <button id="btnExportText" class="w-full py-3 px-4 border border-neutral-300 hover:bg-neutral-100 font-bold rounded-xl">テキストで保存<span class="block text-xs font-normal text-neutral-600 mt-1">手順を読みやすくまとめた棋譜</span></button>
+    <p id="recordExportStatus" role="status" class="text-sm text-neutral-600 min-h-5"></p>
+  </div>
+</div>
+
+<!-- undo modal -->
+<div id="undoModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+  <div class="bg-white text-neutral-900 p-6 max-w-sm w-full text-center flex flex-col gap-5 rounded-2xl shadow-2xl border border-neutral-200">
+    <h2 class="text-xl font-extrabold">1手戻りますか？</h2>
+    <p class="text-sm text-neutral-600">直前の着手(またはパス)を取り消します。</p>
+    <div class="flex flex-col gap-2">
+      <button id="btnUndoOk" class="w-full py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-xl">1手戻る</button>
+      <button id="btnUndoNo" class="w-full py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-sm font-bold rounded-xl">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- settings modal -->
+<div id="setModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+  <div class="bg-white text-neutral-900 p-5 sm:p-6 max-w-md w-full rounded-2xl shadow-2xl flex flex-col gap-5 border border-neutral-200 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between border-b pb-3 border-neutral-200">
+      <h2 class="text-xl font-bold">ゲーム設定</h2>
+      <button id="btnCloseSettings" aria-label="閉じる" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0">✕</button>
+    </div>
+    <div id="modeConfig" class="flex flex-col gap-1.5">
+      <label class="text-xs font-bold tracking-wider text-neutral-500">対戦モード</label>
+      <div class="grid grid-cols-2 gap-2" id="modeBtns">
+        <button data-v="local" class="opt">ローカル対戦</button><button data-v="online" class="opt">オンライン対戦</button>
+      </div>
+    </div>
+    <div id="onlineRoleConfig" class="flex flex-col gap-1.5 hidden">
+      <label class="text-xs font-bold tracking-wider text-neutral-500">オンラインでの役割</label>
+      <div class="grid grid-cols-2 gap-2" id="boardViewToggle">
+        <button type="button" id="btnHostBoard" data-board-view="host" class="opt">ホスト</button>
+        <button type="button" id="btnParticipantBoard" data-board-view="participant" class="opt">参加者</button>
+      </div>
+    </div>
+    <div id="boardSizeConfig" class="flex flex-col gap-1.5">
+      <label class="text-xs font-bold tracking-wider text-neutral-500">盤面サイズ (1方向の路数)</label>
+      <div class="grid grid-cols-4 gap-2" id="sizeBtns">
+        <button data-v="9" class="opt">9路盤</button><button data-v="13" class="opt">13路盤</button><button data-v="19" class="opt">19路盤</button><button data-v="25" class="opt">25路盤</button>
+      </div>
+    </div>
+    <div id="playerCountConfig" class="flex flex-col gap-1.5">
+      <label class="text-xs font-bold tracking-wider text-neutral-500">部屋設定：参加人数</label>
+      <div class="grid grid-cols-5 gap-2" id="playerCountBtns">
+        <button data-count="2" class="opt">2人</button><button data-count="3" class="opt">3人</button><button data-count="4" class="opt">4人</button><button data-count="5" class="opt">5人</button><button data-count="6" class="opt">6人</button>
+      </div>
+    </div>
+    <div id="seatBox" class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col gap-2">
+      <span class="text-xs font-bold text-neutral-600">プレイヤー枠（人間 / AI）</span>
+      <p class="text-[11px] leading-relaxed text-neutral-500">初期状態はすべて人間です。対局中の人間 / AI 切替は即時反映されます。人数・盤サイズの変更は次の対局から適用されます。</p>
+      <div class="flex gap-2">
+        <button data-bulk="human" class="opt flex-1">全員人間</button>
+        <button data-bulk="ai" class="opt flex-1">全員AI</button>
+      </div>
+      <div class="flex flex-col gap-2" id="seatBtns"></div>
+    </div>
+    <div id="aiModeConfig" class="flex flex-col gap-1.5">
+      <label class="text-xs font-bold tracking-wider text-neutral-500">AI 思考時間</label>
+      <div class="grid grid-cols-4 gap-2" id="aiModeBtns">
+        <button type="button" data-ai-time="1000" data-ai-mode="fast" class="opt">1秒</button>
+        <button type="button" data-ai-time="3000" data-ai-mode="fast" class="opt">3秒</button>
+        <button type="button" data-ai-time="10000" data-ai-mode="deep" class="opt">10秒</button>
+        <button type="button" data-ai-time="30000" data-ai-mode="deep" class="opt">30秒</button>
+      </div>
+      <p class="text-[11px] leading-relaxed text-neutral-500">1秒は軽快で実用的、長いほど深く読みます（1〜3秒は最大4並列、10〜30秒は最大8並列）。変更は次のAIの手番から反映されます。</p>
+    </div>
+    <div id="aiStyleConfig" class="flex flex-col gap-1.5">
+      <label class="text-xs font-bold tracking-wider text-neutral-500">AI 棋風（一括）</label>
+      <div class="grid grid-cols-3 gap-2" id="aiStyleBtns">
+        <button type="button" data-ai-style="solid" class="opt">堅実</button>
+        <button type="button" data-ai-style="balanced" class="opt">バランス</button>
+        <button type="button" data-ai-style="aggressive" class="opt">攻撃的</button>
+      </div>
+      <p class="text-[11px] leading-relaxed text-neutral-500">全AIへ一括適用します。AIボタンを繰り返しタップすると席ごとに棋風を切り替えられます。</p>
+    </div>
+    <div id="onlineBox" class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col gap-3 hidden text-xs">
+      <div id="hostRoomSection" class="flex flex-col gap-1.5">
+        <span class="font-bold text-neutral-700">部屋を作る（対局中でも作成できます）</span>
+        <label for="hostNickname" class="text-neutral-600">ホストのニックネーム（5字以内）</label>
+        <input id="hostNickname" maxlength="5" placeholder="例：ホスト" class="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:border-neutral-900">
+        <label for="hostRoomId" class="text-neutral-600">設定するルームID（英数字・ハイフン・アンダースコア）</label>
+        <input id="hostRoomId" maxlength="32" autocomplete="off" placeholder="例：my-room_01" class="w-full px-3 py-2 border border-neutral-300 rounded-lg text-center font-mono text-sm uppercase focus:outline-none focus:border-neutral-900">
+        <button id="btnCreate" class="py-2 bg-neutral-900 text-white font-bold rounded-lg hover:bg-neutral-800">このIDでルーム作成</button>
+      </div>
+      <div id="joinRoomSection" class="border-t border-neutral-200 pt-3 flex flex-col gap-1.5 hidden">
+        <span class="font-bold text-neutral-700">部屋に参加</span>
+        <label for="roomIn" class="text-neutral-600">ルームID</label>
+        <input id="roomIn" maxlength="32" autocomplete="off" placeholder="ルームID" class="w-full px-3 py-2 border border-neutral-300 rounded-lg text-center font-mono text-sm uppercase focus:outline-none focus:border-neutral-900">
+        <label for="nickIn" class="text-neutral-600">ニックネーム（5字以内）</label>
+        <div class="flex gap-2">
+          <input id="nickIn" maxlength="5" placeholder="ニックネーム" class="flex-1 min-w-0 px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:border-neutral-900">
+          <button id="btnJoin" class="px-4 py-2 bg-neutral-800 text-white font-bold rounded-lg hover:bg-neutral-700">入室</button>
+        </div>
+        <p class="text-[11px] text-neutral-500 leading-relaxed">入室しただけでは観戦プールに入るだけです。下のプレイヤー枠から参加する席を選んでください。</p>
+      </div>
+      <div class="border-t border-neutral-200 pt-3 flex flex-col gap-2">
+        <div id="roomSt" class="text-center font-bold text-neutral-700 break-words"></div>
+        <div class="flex items-center justify-between"><span class="font-bold text-neutral-700">参加者プール</span><span class="text-neutral-500">着席するまでは観戦</span></div>
+        <div id="roomPool" class="flex flex-col gap-1.5"></div>
+        <div class="font-bold text-neutral-700 pt-1">プレイヤーとして参加する席</div>
+        <div id="roomSeatBtns" class="flex flex-col gap-1.5"></div>
+      </div>
+    </div>
+    <div id="soundConfig" class="flex items-center justify-between pt-1">
+      <span class="text-sm font-bold text-neutral-700">効果音 (SE)</span>
+      <button id="btnSound" class="px-3 py-1 text-xs font-bold rounded-full border border-neutral-300 bg-neutral-100">ON</button>
+    </div>
+    <div class="flex flex-col gap-1.5">
+      <label class="text-xs font-bold tracking-wider text-neutral-500">カラーテーマ</label>
+      <div class="grid grid-cols-1 gap-1.5" id="themeList"></div>
+    </div>
+    <button id="btnNew" class="w-full py-3 bg-neutral-900 text-white font-bold text-sm tracking-wider rounded-xl hover:bg-neutral-800 mt-2">ニューゲームスタート</button>
+  </div>
+</div>
+
+<!-- rules modal -->
+<div id="rulesModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+  <div class="bg-white text-neutral-900 p-5 sm:p-6 max-w-md w-full rounded-2xl shadow-2xl flex flex-col gap-4 border border-neutral-200 max-h-[88vh] overflow-y-auto">
+    <div class="flex items-center justify-between border-b pb-3 border-neutral-200"><h2 class="text-xl font-extrabold">HEXAGO ルール</h2><button id="btnCloseRules" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0" aria-label="閉じる">✕</button></div>
+    <section class="flex flex-col gap-1"><h3 class="font-bold">1. 基本</h3><p class="text-sm leading-relaxed">自分の手番に空いている交点へ1個打ちます。石は隣接する6方向の呼吸点がすべてなくなると取られます。自殺手や同一局面を繰り返す手は打てません。</p></section>
+    <section class="flex flex-col gap-1"><h3 class="font-bold">2. 得点（エリア方式）</h3><p class="text-sm leading-relaxed">終局後の得点は「自分の地＋盤上に残った自分の石」です。地1マスも石1個も、それぞれ1点です。捕獲数は得点から差し引きません。</p></section>
+    <section class="flex flex-col gap-1"><h3 class="font-bold">3. 地と中立地</h3><p class="text-sm leading-relaxed">空点の連結領域が1色の石だけに接している場合、その色の地として数えます。複数色に接する領域は中立地として数えません。</p></section>
+    <section class="flex flex-col gap-1"><h3 class="font-bold">4. パスと終局</h3><p class="text-sm leading-relaxed">生きているプレイヤー全員が続けてパスすると終局確認に入ります。死んでいる可能性が高い石は自動で選択されます。×印を確認し、必要なら連をタップして判定を直してから確定します。</p></section>
+    <section class="flex flex-col gap-1"><h3 class="font-bold">5. 死に石と勝敗</h3><p class="text-sm leading-relaxed">確定した死に石は盤上から取り除いてから地を再計算します。取り除いた石は石の得点に含めません。最終得点が最も高いプレイヤーの勝ちです。</p></section>
+    <p class="text-xs text-neutral-500 leading-relaxed">※ 死に石の自動判定は盤面からの推定です。誤判定があれば終局確認画面で修正してください。</p>
+    <button id="btnRulesDone" class="w-full py-2.5 bg-neutral-900 text-white text-sm font-bold rounded-xl">閉じる</button>
+  </div>
+</div>
+
+<!-- result modal -->
+<div id="resModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+  <div class="relative bg-white text-neutral-900 p-6 sm:p-8 max-w-sm w-full text-center flex flex-col gap-5 rounded-2xl shadow-2xl border border-neutral-200">
+    <button id="btnCloseResult" type="button" aria-label="閉じる" class="absolute top-2 right-2 w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold">✕</button>
+    <h2 id="resTitle" class="text-2xl font-extrabold">対局終了</h2>
+    <div id="resDet" class="text-sm text-neutral-700 flex flex-col gap-2 py-3 border-y border-neutral-200 font-medium"></div>
+    <div class="flex flex-col gap-2">
+      <button id="btnViewBoard" class="w-full py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-sm font-bold rounded-xl">盤面を確認する</button>
+      <button id="btnAgain" class="w-full py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-xl">もう一度遊ぶ</button>
+    </div>
+  </div>
+</div>
+
+<!-- photo import modal -->
+<div id="photoModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 z-50 hidden">
+  <div id="photoCard" class="bg-white text-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-neutral-200 max-h-[96svh] sm:max-h-[94vh] overflow-y-auto overscroll-contain">
+    <div class="flex items-center justify-between border-b px-4 py-3 border-neutral-200 sticky top-0 bg-white z-10">
+      <h2 class="text-lg font-extrabold">写真から盤面を復元</h2>
+      <button id="btnClosePhoto" aria-label="閉じる" class="w-9 h-9 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold">✕</button>
+    </div>
+
+    <div id="photoStep1" class="p-4 flex flex-col gap-3">
+      <p class="text-xs text-neutral-600 leading-relaxed">実物の六角盤を撮影した写真を選んでください。盤全体が写っていると精度が上がります。</p>
+      <label class="w-full py-9 border-2 border-dashed border-neutral-300 rounded-xl flex flex-col items-center gap-2 cursor-pointer hover:bg-neutral-50">
+        <span class="text-3xl">🖼️</span>
+        <span class="font-bold text-sm">写真を選ぶ（ライブラリ / ファイル）</span>
+        <span class="text-[11px] text-neutral-500">撮影済みの JPEG / PNG など</span>
+        <input id="photoFile" type="file" accept="image/*" class="hidden">
+      </label>
+      <label class="w-full py-2.5 border border-neutral-300 rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-neutral-50 font-bold text-sm text-neutral-700">
+        <span>📷</span>
+        <span>カメラでその場で撮影する</span>
+        <input id="photoCamera" type="file" accept="image/*" capture="environment" class="hidden">
+      </label>
+      <p id="photoErr" class="text-xs text-red-600 hidden"></p>
+    </div>
+
+    <div id="photoStep2" class="p-4 flex flex-col gap-3 hidden">
+      <div class="relative w-full flex justify-center bg-neutral-900 rounded-xl overflow-hidden">
+        <canvas id="photoAdjust" class="touch-none"></canvas>
+      </div>
+      <p class="text-[11px] text-neutral-500 leading-relaxed">6つの丸をドラッグして、盤の6隅（石を置ける位置の一番外側）に合わせてください。緑の点が読み取り位置のプレビューです。</p>
+      <div class="flex flex-col gap-1.5">
+        <span class="text-xs font-bold text-neutral-500">盤面サイズ</span>
+        <div class="grid grid-cols-4 gap-2" id="photoSizeBtns"></div>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-neutral-500">盤の余白（外枠と格子のすき間）</span>
+          <span class="flex items-center gap-2">
+            <span id="photoMarginLabel" class="text-xs font-mono text-neutral-600">0.58 cell</span>
+            <span id="photoFitScore" class="text-xs font-mono text-neutral-500"></span>
+          </span>
+        </div>
+        <input id="photoMargin" type="range" min="0" max="1.2" step="0.02" value="0.58" class="w-full accent-neutral-900">
+        <p class="text-[11px] text-neutral-500 leading-relaxed">読み込み時に石の位置へ自動で合わせます。ずれる場合は緑の点が石の中心に来るようスライダーで微調整してください。</p>
+      </div>
+      <div class="flex gap-2">
+        <button id="btnPhotoRedetect" class="flex-1 py-2 border border-neutral-300 rounded-xl text-sm font-bold hover:bg-neutral-50">自動検出をやり直す</button>
+        <button id="btnPhotoRead" class="flex-1 py-2 bg-neutral-900 text-white rounded-xl text-sm font-bold hover:bg-neutral-800">この状態で読み取る</button>
+      </div>
+      <p id="photoDetectInfo" class="text-[11px] text-neutral-500"></p>
+      <p id="photoFitInfo" class="text-[11px] text-neutral-500"></p>
+    </div>
+
+    <div id="photoStep3" class="p-4 flex flex-col gap-3 hidden">
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <div id="photoViewBtns" class="inline-flex rounded-lg border border-neutral-300 overflow-hidden text-xs font-bold">
+          <button type="button" data-photo-view="ring" class="px-2.5 py-1 bg-neutral-900 text-white">枠で重ねる</button>
+          <button type="button" data-photo-view="split" class="px-2.5 py-1 bg-white text-neutral-700 border-l border-neutral-300">並べて比較</button>
+          <button type="button" data-photo-view="photo" class="px-2.5 py-1 bg-white text-neutral-700 border-l border-neutral-300">元写真のみ</button>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button id="btnPhotoCalibrate" type="button" disabled class="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-40 disabled:bg-neutral-300 disabled:text-neutral-600 transition-colors">修正した石で自動調整</button>
+          <button id="btnPhotoResetRead" type="button" class="text-[11px] underline text-neutral-500 hover:text-neutral-800 hidden">初期判定に戻す</button>
+        </div>
+      </div>
+      <div id="photoCanvasWrap" class="grid grid-cols-1 gap-2">
+        <div class="flex justify-center bg-neutral-900 rounded-xl overflow-hidden">
+          <canvas id="photoResult" class="touch-none"></canvas>
+        </div>
+        <div id="photoBoardWrap" class="hidden justify-center bg-neutral-900 rounded-xl overflow-hidden">
+          <canvas id="photoBoardPreview" class="touch-none"></canvas>
+        </div>
+      </div>
+      <p class="text-[11px] text-neutral-500 leading-relaxed">交点をタップすると「空 → 参加中の色」を巡回します。誤判定がある石を1〜2個タップして直してから「修正した石で自動調整」を押すと、同じ色合いの石をまとめて再判定します。</p>
+      <div id="photoCounts" class="text-xs flex flex-wrap gap-x-3 gap-y-1 items-center"></div>
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+        <label for="photoPlayerCount" class="flex items-center gap-2 font-bold text-neutral-700">人数
+          <select id="photoPlayerCount" class="px-2 py-1 border border-neutral-300 rounded-lg text-sm bg-white"></select>
+        </label>
+        <label for="photoTurn" class="flex items-center gap-2 font-bold text-neutral-700">次の手番
+          <select id="photoTurn" class="px-2 py-1 border border-neutral-300 rounded-lg text-sm bg-white"></select>
+        </label>
+        <label class="flex items-center gap-2 text-xs font-bold text-neutral-600 ml-auto cursor-pointer">
+          <input id="photoAllColors" type="checkbox" class="w-4 h-4 accent-neutral-900"> 全色から選ぶ
+        </label>
+      </div>
+      <p id="photoColorHint" class="text-[11px] text-neutral-500 leading-relaxed"></p>
+      <div id="photoOutRow" class="flex flex-wrap items-center gap-1.5 text-xs"></div>
+      <div class="flex gap-2">
+        <button id="btnPhotoBack" class="flex-1 py-2 border border-neutral-300 rounded-xl text-sm font-bold">やり直す</button>
+        <button id="btnPhotoSave" class="flex-1 py-2 border border-neutral-300 rounded-xl text-sm font-bold">保存</button>
+        <button id="btnPhotoPlay" class="flex-1 py-2 bg-neutral-900 text-white rounded-xl text-sm font-bold">この局面から対局</button>
+      </div>
+      <div class="border-t border-neutral-200 pt-2 flex items-center justify-between">
+        <button id="btnPhotoLibrary" class="text-xs underline opacity-70">保存した局面（<span id="photoLibCount">0</span>）</button>
+        <button id="btnPhotoExport" class="text-xs underline opacity-50">JSON書き出し</button>
+      </div>
+    </div>
+
+    <div id="photoLibraryView" class="p-4 flex flex-col gap-3 hidden">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold">保存した局面</h3>
+        <button id="btnPhotoLibImport" class="text-xs underline opacity-70">JSON読み込み</button>
+        <input id="photoLibFile" type="file" accept="application/json" class="hidden">
+      </div>
+      <div id="photoLibList" class="flex flex-col gap-2"></div>
+      <button id="btnPhotoLibBack" class="w-full py-2 border border-neutral-300 rounded-xl text-sm font-bold">戻る</button>
+    </div>
+  </div>
+</div>
+
+<!-- INLINE_JSON:photo-model-json:./js/photo/model.json -->
+<!-- INLINE_TEXT:ai-engine-src:./js/ai/engine.js -->
+
+<!-- app modules (classic scripts: 実行順がそのまま依存順; dev/build-html.js で index.html へ単一ファイル化) -->
+<script src="./js/core/features.js"></script>
+<script src="./js/core/theme.js"></script>
+<script src="./js/core/sound.js"></script>
+<script src="./js/core/geometry.js"></script>
+<script src="./js/core/state.js"></script>
+<script src="./js/core/rules.js"></script>
+<script src="./js/ai/heuristic.js"></script>
+<script src="./js/ai/pool.js"></script>
+<script src="./js/ui/input.js"></script>
+<script src="./js/ui/render.js"></script>
+<script src="./js/ui/ui.js"></script>
+<script src="./js/ui/modals.js"></script>
+<script src="./js/ui/settings.js"></script>
+<script src="./js/ui/online.js"></script>
+<script src="./js/photo/geom.js"></script>
+<script src="./js/photo/features.js"></script>
+<script src="./js/photo/model.js"></script>
+<script src="./js/photo/rectify.js"></script>
+<script src="./js/photo/detect.js"></script>
+<script src="./js/photo/recognize.js"></script>
+<script src="./js/photo/store.js"></script>
+<script src="./js/photo/ui.js"></script>
+<script src="./js/ui/debug.js"></script>
+<script src="./js/main.js"></script>
+</body>
+</html>

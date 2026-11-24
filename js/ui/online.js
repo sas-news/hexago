@@ -22,6 +22,7 @@ function resetRoomData() {
   roomPool = Object.create(null); disconnectedNicknames = Object.create(null);
 }
 function closePeer() {
+  if (typeof clearAutoPass === 'function') clearAutoPass();
   stopNetTimers();
   releaseWakeLock();
   clearOnlineSession();

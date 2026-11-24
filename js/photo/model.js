@@ -44,8 +44,23 @@
     };
   }
 
+  function loadEmbedded() {
+    if (state) return true;
+    if (typeof document === 'undefined') return false;
+    var el = document.getElementById('photo-model-json');
+    if (!el || !el.textContent) return false;
+    try {
+      var json = JSON.parse(el.textContent);
+      if (!json || json.trained !== true) return false;
+      state = parseModel(json);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function load(url) {
-    if (state) return Promise.resolve(api);
+    if (state || loadEmbedded()) return Promise.resolve(api);
     if (loading) return loading;
     if (typeof fetch !== 'function') {
       return Promise.reject(new Error('HexagoPhotoModel: fetch is not available'));

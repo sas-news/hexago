@@ -1,6 +1,6 @@
 # HEXAGO
 
-六角形の盤で打つ囲碁風ゲームです。ビルド不要の静的アプリで、`index.html` を HTTP で配信するだけで動きます（ローカル対戦・PeerJS によるオンライン対戦・写真からの盤面復元）。
+六角形の盤で打つ囲碁風ゲームです。`index.html` 1ファイルに CSS・JS・AI エンジン・写真認識モデルまで全てインライン化された単一ファイル配信のため、GitHub Pages のほか、Google Apps Script（GAS）等の単一HTMLプロキシ経由やローカル環境でもそのまま動きます（ローカル対戦・PeerJS によるオンライン対戦・棋譜保存・連続パス・写真からの盤面復元）。
 
 ## 遊び方
 
@@ -9,17 +9,23 @@ python3 -m http.server 8000
 # http://localhost:8000/index.html
 ```
 
-GitHub Pages にリポジトリを置けばそのまま公開できます（リポジトリ直下がそのまま配信物です）。
+GitHub Pages にリポジトリを置けばそのまま公開できます（リポジトリ直下の `index.html` 1枚がそのまま配信物です）。
 PC は交点をホバーしてクリック、スマホは同じ交点を2タップで着手します。
 オンライン対戦は PeerJS の公開シグナリングサーバーを使います。
+
+## 棋譜の保存・連続パス
+
+- **棋譜の保存**: ヘッダの棋譜アイコンから、対局中・終局後いつでも着手・パス・投了・終局結果を **JSON（`hexago-kifu` v1）** または **テキスト（`.txt`）** で書き出せます。`1手戻る` や写真復元からの途中対局にも対応しています。
+- **連続パス**: 盤面下の席別スイッチを ON にすると、自分の手番で自動的にパスし続けます（モーダル表示中・AI 思考中・切断時は自動停止、手動着手・投了・新規対局で解除）。
 
 ## AI
 
 MCTS（モンテカルロ木探索）+ 面積利得評価（`hexago-mcts/2.1.0`）。設定画面で **AI 思考時間** と **AI 棋風（重み）** をそれぞれ切り替えられます：
 
-- **AI 思考時間**:
-  - **高速**: 1手あたり 2.5〜6秒（9路2.5s / 13路3s / 19路4s / 25路6s）・最大4並列。軽快にテンポよく対局できます。
-  - **長考**: 1手あたり 12〜15秒・最大8並列で深く読みます。
+- **AI 思考時間**（`localStorage` 保存）:
+  - **1秒**（既定）: 軽快なテンポで実用的な強さ（最大4並列）。9路で1万〜3万局面超、13路でも数千〜1万局面規模を瞬時に読みます。
+  - **3秒**: 標準バランス（最大4並列）。
+  - **10秒 / 30秒**: 長考モード（最大8並列）でさらに深く読みます。
 - **AI 棋風（重み）**（一括切替＋AIボタンを繰り返しタップで席ごとに個別変更可）:
   - **堅実**: 連結・守り・安全係数重視（無謀な侵入をさらに抑え、堅く地をまとめる）
   - **バランス**: 勝率・攻守の最適バランス
@@ -93,27 +99,34 @@ MCTS（モンテカルロ木探索）+ 面積利得評価（`hexago-mcts/2.1.0`�
 ## 構成
 
 ```
-index.html            アプリ本体（マークアップのみ / 約300行）
+index.html            単一ファイル配信物（dev/build-html.js で生成。GAS プロキシ等でも単体動作）
+dev/index.template.html  HTML テンプレート（編集元）
+dev/build-html.js     単一ファイル index.html 生成スクリプト（依存なし）
 css/app.css           スタイル
 js/main.js            起動
-js/core/              theme / sound / geometry / state / rules
+js/core/              features（棋譜・連続パス） / theme / sound / geometry / state / rules
 js/ai/                engine.js(MCTS) / worker.js / pool.js / heuristic.js
 js/ui/                input / render / ui / modals / settings / online / debug
 js/photo/             写真復元（geom / features / model(.json) / rectify / detect / recognize / store / ui）
-dev/                  開発ツール（自己テスト・E2E）
+dev/                  開発ツール（自己テスト・E2E・ビルド）
 bench/                AI強さベンチマーク
 ```
 
-`index.html` は classic script を順に読み込むだけの構成で、ビルド工程はありません。相対パスで読み込むため GitHub Pages のサブパス配信でもそのまま動きます。
+開発時はモジュール分割された `css/`・`js/`・`dev/index.template.html` を編集し、`node dev/build-html.js` で単一ファイル `index.html` を再生成します。相対パスのローカルファイル参照を一切持たないため、GitHub Pages のサブパス配信だけでなく Google Apps Script（GAS）等の単一HTMLプロキシ環境でも動作します。
 
 ## 開発
 
 ```bash
+# エンジン同期 & 単一ファイル index.html を生成
+node dev/sync-engine.js
+node dev/build-html.js
+
+# 同期・生成物の整合性チェック
+node dev/sync-engine.js --check
+node dev/build-html.js --check
+
 # エンジン自己テスト（ページ側の実装と突き合わせ）
 node dev/engine-selftest.js
-
-# エンジンのコピーが古くなっていないか
-node dev/sync-engine.js --check
 
 # 強さベンチ（例）
 node bench/bench.js --old-vs-random --games 2 --size 9
@@ -122,5 +135,5 @@ node bench/bench.js --old-vs-random --games 2 --size 9
 ## 注意
 
 - オンライン対戦は PeerJS の公開シグナリングサーバー依存です。
-- `file://` で直接開いた場合、Web Worker が使えないため簡易探索になります。
+- Web Worker が使えない環境（`file://` や厳格なサンドボックス等）でも、メインスレッドの MCTS エンジンへ自動フォールバックして動作します。
 - 写真復元は端末内で完結しますが、写真の撮り方（照明・映り込み・斜め撮影）によって精度が変わります。その場合は6隅のドラッグとタップ修正で必ず正しい局面にできます。

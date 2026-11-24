@@ -1,5 +1,5 @@
 // ===== モーダル共通: 背景クリック / Esc / ✕ で閉じる =====
-const MODAL_IDS = ['setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal'];
+const MODAL_IDS = ['recordModal', 'setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal'];
 function modalEl(id) { return document.getElementById(id); }
 function visibleModals() {
   return MODAL_IDS.map(modalEl).filter(el => el && !el.classList.contains('hidden'));
@@ -7,6 +7,7 @@ function visibleModals() {
 function closeModal(el) {
   if (!el || el.classList.contains('hidden')) return false;
   el.classList.add('hidden');
+  if (G && typeof autoPass === 'function' && autoPass()) autoPass().update();
   return true;
 }
 MODAL_IDS.forEach(id => {
@@ -54,7 +55,7 @@ $('btnResign').onclick = () => {
 $('btnUndo').onclick = () => { snd.click(); if (canUndo()) $('undoModal').classList.remove('hidden'); };
 $('btnUndoNo').onclick = () => closeModal($('undoModal'));
 $('btnUndoOk').onclick = () => { closeModal($('undoModal')); undo(); };
-$('btnDeadCancel').onclick = () => { snd.click(); G.phase = 'playing'; G.passes = 0; G.dead = []; after(); };
+$('btnDeadCancel').onclick = () => { snd.click(); if (typeof ensureGameRecord === 'function') ensureGameRecord(); if (typeof clearAutoPass === 'function') clearAutoPass(); G.phase = 'playing'; G.passes = 0; G.dead = []; if (typeof recordGameEvent === 'function') recordGameEvent({ type: 'resume' }); after(); };
 $('btnDeadOk').onclick = () => { snd.click(); finishScore(); after(); };
 $('btnDeadRecheck').onclick = () => { snd.click(); G.dead = detectDeadStonesSmart(); updateUI(); save(); sync(); };
 $('btnDeadClear').onclick = () => { snd.click(); G.dead = []; updateUI(); save(); sync(); };

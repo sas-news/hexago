@@ -61,6 +61,16 @@
     if (st.modelTried || !global.HexagoPhotoModel) return;
     st.modelTried = true;
     var M = global.HexagoPhotoModel;
+    var embedded = document.getElementById('photo-model-json');
+    if (embedded && embedded.textContent) {
+      try {
+        var embeddedJson = JSON.parse(embedded.textContent);
+        if (embeddedJson && embeddedJson.trained === true && M.fromJSON) {
+          M.fromJSON(embeddedJson);
+          return;
+        }
+      } catch (e) { /* fall through to fetch */ }
+    }
     var url = './js/photo/model.json';
     fetch(url, { cache: 'no-store' }).then(function (r) {
       if (!r.ok) throw new Error('model not found');
@@ -1216,6 +1226,7 @@
     syncButtons();
     renderTurnSelect();
     $('photoModal').classList.remove('hidden');
+    if (typeof autoPass === 'function' && autoPass()) autoPass().update();
     loadModel();
   }
 

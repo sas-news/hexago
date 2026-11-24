@@ -13,7 +13,8 @@ const path = require('path');
 const REPO = path.resolve(__dirname, '..');
 
 const FILES = [
-  'index.html',
+  'dev/index.template.html',
+  'js/core/features.js',
   'js/core/theme.js',
   'js/core/sound.js',
   'js/core/geometry.js',

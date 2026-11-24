@@ -53,8 +53,11 @@ function syncSettings() {
   $('onlineRoleConfig').classList.toggle('hidden', mode !== 'online');
   $('seatBox').classList.toggle('hidden', participantView);
   ['boardSizeConfig', 'playerCountConfig', 'aiModeConfig', 'aiStyleConfig', 'soundConfig'].forEach(id => $(id).classList.toggle('hidden', participantView));
+  const curTime = typeof currentAITimeMs === 'function' ? currentAITimeMs() : 1000;
   document.querySelectorAll('#aiModeBtns .opt').forEach(b => {
-    const active = b.dataset.aiMode === (typeof currentAIMode === 'function' ? currentAIMode() : 'fast');
+    const active = b.dataset.aiTime
+      ? Number(b.dataset.aiTime) === curTime
+      : b.dataset.aiMode === (typeof currentAIMode === 'function' ? currentAIMode() : 'fast');
     b.classList.toggle('on', active);
     b.setAttribute('aria-pressed', String(active));
     b.disabled = !canManageRoom();
@@ -134,7 +137,8 @@ document.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => setAllSe
 document.querySelectorAll('#aiModeBtns .opt').forEach(b => b.onclick = () => {
   if (!canManageRoom()) return;
   snd.click();
-  if (typeof setAIMode === 'function') setAIMode(b.dataset.aiMode);
+  if (b.dataset.aiTime && typeof setAITimeMs === 'function') setAITimeMs(Number(b.dataset.aiTime));
+  else if (typeof setAIMode === 'function') setAIMode(b.dataset.aiMode);
   syncSettings(); save();
 });
 document.querySelectorAll('#aiStyleBtns .opt').forEach(b => b.onclick = () => {
@@ -146,13 +150,13 @@ document.querySelectorAll('#aiStyleBtns .opt').forEach(b => b.onclick = () => {
 $('btnHostBoard').onclick = () => { boardView = 'host'; syncSettings(); };
 $('btnParticipantBoard').onclick = () => { boardView = 'participant'; syncSettings(); };
 $('btnSound').onclick = () => { snd.on = !snd.on; syncSettings(); snd.click(); save(); };
-$('btnOpenSettings').onclick = () => { snd.click(); syncSettings(); $('setModal').classList.remove('hidden'); };
-$('btnOpenRules').onclick = () => { snd.click(); $('rulesModal').classList.remove('hidden'); };
+$('btnOpenSettings').onclick = () => { snd.click(); syncSettings(); $('setModal').classList.remove('hidden'); if (typeof autoPass === 'function' && autoPass()) autoPass().update(); };
+$('btnOpenRules').onclick = () => { snd.click(); $('rulesModal').classList.remove('hidden'); if (typeof autoPass === 'function' && autoPass()) autoPass().update(); };
 $('btnCloseRules').onclick = () => closeModal($('rulesModal'));
 $('btnRulesDone').onclick = () => closeModal($('rulesModal'));
 $('btnCloseSettings').onclick = () => closeModal($('setModal'));
 $('btnCloseResult').onclick = () => closeModal($('resModal'));
-$('btnNew').onclick = () => { snd.click(); if (reset()) $('setModal').classList.add('hidden'); };
+$('btnNew').onclick = () => { snd.click(); if (reset()) closeModal($('setModal')); };
 
 function applyTheme(th) {
   theme = th; const s = document.body.style;
@@ -171,6 +175,7 @@ function buildThemes() {
 }
 function reset() {
   if (mode === 'online' && !isHost) { $('roomSt').textContent = '新規対局はホストが開始します'; return false; }
+  if (typeof clearAutoPass === 'function') clearAutoPass();
   build(pendingSize); G = newG(pendingSize);
   // 未着席の人間席は対局中だけAIが代打し、席は後から着席可能なまま維持する。
   if (mode === 'online') {
