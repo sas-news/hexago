@@ -1104,7 +1104,7 @@
       resizeCanvas();
       updateUI();
       save();
-      toast('写真の局面を読み込みました');
+      toast((entry.meta && entry.meta.source === 'game') ? '保存した盤面を読み込みました' : '写真の局面を読み込みました');
     } catch (e) {
       toast('局面の読み込みに失敗しました');
     }
@@ -1128,7 +1128,7 @@
       var row = document.createElement('div');
       row.className = 'flex items-center gap-3 p-2 border border-neutral-200 rounded-xl';
       var img = document.createElement('img');
-      img.src = e.thumb || '';
+      img.src = e.thumb || (typeof makeBoardThumb === 'function' ? makeBoardThumb(e) : '');
       img.alt = '';
       img.className = 'w-14 h-14 rounded-lg bg-neutral-100 object-cover shrink-0';
       var info = document.createElement('div');
@@ -1149,6 +1149,7 @@
         if (!global.confirm('この局面を削除しますか？')) return;
         S.remove(e.id);
         renderLibrary();
+        if (typeof refreshRecordSummary === 'function') refreshRecordSummary();
       };
       btns.appendChild(b1); btns.appendChild(b2);
       row.appendChild(img); row.appendChild(info); row.appendChild(btns);

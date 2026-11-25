@@ -89,7 +89,8 @@ function saveCurrentBoardToLibrary() {
       out: G.out.slice(),
       colors,
       names,
-      meta: { source: 'game' }
+      meta: { source: 'game' },
+      thumb: typeof makeBoardThumb === 'function' ? makeBoardThumb({ size: G.size, board: G.board, colors }) : ''
     };
     window.HexagoPhotoStore.save(entry);
     refreshRecordSummary();

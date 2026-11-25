@@ -32,3 +32,64 @@ function render() {
     if (ok) stone(x, y, r0, G.turn, 0.5); else { ctx.save(); const o = r0 * .5; ctx.lineCap = 'round'; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(x, y, r0, 0, 7); ctx.strokeStyle = theme.tx; ctx.globalAlpha = .75; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x - o, y - o); ctx.lineTo(x + o, y + o); ctx.moveTo(x + o, y - o); ctx.lineTo(x - o, y + o); ctx.lineWidth = 2.5; ctx.stroke(); ctx.restore(); }
   }
 }
+function makeBoardThumb(entry) {
+  if (!entry || !Array.isArray(entry.board)) return '';
+  const size = Number(entry.size) || 9;
+  const side = (size + 1) / 2, s = side - 1;
+  if (!Number.isInteger(side) || s < 1) return '';
+  const pts = [], map = Object.create(null);
+  for (let r = -s; r < side; r++) {
+    for (let q = -s; q < side; q++) {
+      if (Math.abs(q + r) <= s) { map[q + ',' + r] = pts.length; pts.push([q, r]); }
+    }
+  }
+  const w = 160, pad = w * 0.08, cell = (w - pad * 2) / (2 * s);
+  const pos = (q, r) => [w / 2 + cell * (q + r / 2), w / 2 + cell * r * 0.866];
+  const c = document.createElement('canvas');
+  c.width = w; c.height = w;
+  const g = c.getContext('2d');
+  if (!g) return '';
+  g.fillStyle = (typeof theme !== 'undefined' && theme && theme.board) ? theme.board : '#d9b382';
+  g.fillRect(0, 0, w, w);
+  g.strokeStyle = (typeof theme !== 'undefined' && theme && theme.line) ? theme.line : 'rgba(90,70,50,0.45)';
+  g.lineWidth = size >= 19 ? 0.5 : 0.8;
+  g.beginPath();
+  for (let i = 0; i < pts.length; i++) {
+    const [q, r] = pts[i], [x, y] = pos(q, r);
+    for (let d = 0; d < 3; d++) {
+      const k = map[(q + DIRS[d][0]) + ',' + (r + DIRS[d][1])];
+      if (k !== undefined) {
+        const [x2, y2] = pos(pts[k][0], pts[k][1]);
+        g.moveTo(x, y); g.lineTo(x2, y2);
+      }
+    }
+  }
+  g.stroke();
+  g.lineWidth = 1.4;
+  g.beginPath();
+  [[s, 0], [0, s], [-s, s], [-s, 0], [0, -s], [s, -s]].forEach(([q, r], idx) => {
+    const [x, y] = pos(q, r);
+    if (idx) g.lineTo(x, y); else g.moveTo(x, y);
+  });
+  g.closePath();
+  g.stroke();
+  const r0 = Math.max(1.8, cell * 0.44);
+  const colors = entry.colors || {};
+  for (let i = 0; i < pts.length && i < entry.board.length; i++) {
+    const p = entry.board[i];
+    if (!p) continue;
+    const [x, y] = pos(pts[i][0], pts[i][1]);
+    const col = colors[p] || colors[String(p)];
+    const fill = (col && col.fill) || (typeof playerFill === 'function' ? playerFill(p) : '#111');
+    const stroke = (col && col.stroke) || (typeof playerStroke === 'function' ? playerStroke(p) : '#000');
+    g.beginPath();
+    g.arc(x, y, r0, 0, 7);
+    g.fillStyle = fill;
+    g.fill();
+    g.strokeStyle = stroke;
+    g.lineWidth = size >= 19 ? 0.7 : 1.1;
+    g.stroke();
+  }
+  try { return c.toDataURL('image/png'); } catch (e) { return ''; }
+}
+
