@@ -3,14 +3,11 @@ const gameFeatures = (typeof window !== 'undefined' && window.HexagoGameFeatures
 let autoPassController = null;
 let G, seenSet = new Set();
 let onlineAI = false, pendingSize = 9, mode = 'local', playerCount = 3, seats = [0, 'human', 'human', 'human', 'human', 'human', 'human'];
-const AI_TIME_OPTIONS = [1000, 3000, 12000];
-let aiTimeMs = 1000;      // 1000(高速1秒) / 3000(標準3秒) / 12000(長考: 9・13路12秒 / 19・25路15秒)
+let aiMode = 'fast'; // 'fast'(高速・盤サイズ別自動最適) / 'deep'(長考・盤サイズ別自動最適)
 try {
-  const savedTime = Number(localStorage.getItem('hexago-ai-time'));
-  if (AI_TIME_OPTIONS.includes(savedTime)) aiTimeMs = savedTime;
-  else if (savedTime >= 10000) aiTimeMs = 12000;
+  const savedMode = localStorage.getItem('hexago-ai-mode');
+  if (savedMode === 'deep' || savedMode === 'fast') aiMode = savedMode;
 } catch (e) { }
-let aiMode = aiTimeMs >= 10000 ? 'deep' : 'fast'; // 互換用: 長考=最大8並列, 1〜3秒=最大4並列
 let aiStyle = 'balanced'; // 一括デフォルト棋風: 'solid' | 'balanced' | 'aggressive'
 let seatStyles = [0, null, null, null, null, null, null]; // null = 一括設定に従う, 文字列 = 席ごとの個別棋風
 let boardView = 'host';
@@ -37,7 +34,7 @@ function hash(a) { // cyrb53
 }
 const KEY = 'hexago-save-v1';
 function save() {
-  try { sessionStorage.setItem(KEY, JSON.stringify({ G, onlineAI, pendingSize, mode, seats, aiTimeMs, aiMode, aiStyle, seatStyles, theme: theme.id, sound: snd.on })); } catch (e) { }
+  try { sessionStorage.setItem(KEY, JSON.stringify({ G, onlineAI, pendingSize, mode, seats, aiMode, aiStyle, seatStyles, theme: theme.id, sound: snd.on })); } catch (e) { }
   try { if (typeof saveOnlineSession === 'function') saveOnlineSession(); } catch (e) { }
 }
 function load() {
@@ -46,9 +43,7 @@ function load() {
     if (!s || !s.G || ![9, 13, 19, 25].includes(s.G.size)) return false;
     build(s.G.size); if (s.G.board.length !== P.length) return false;
     G = s.G; onlineAI = !!s.onlineAI; pendingSize = s.pendingSize || G.size;
-    if (AI_TIME_OPTIONS.includes(Number(s.aiTimeMs))) aiTimeMs = Number(s.aiTimeMs);
-    else if (Number(s.aiTimeMs) >= 10000 || s.aiMode === 'deep' || s.aiMode === 'beta') aiTimeMs = 12000;
-    aiMode = aiTimeMs >= 10000 ? 'deep' : 'fast';
+    aiMode = (s.aiMode === 'deep' || s.aiMode === 'beta') ? 'deep' : 'fast';
     aiStyle = (s.aiStyle === 'solid' || s.aiStyle === 'aggressive') ? s.aiStyle : 'balanced';
     const ss = Array.isArray(s.seatStyles) ? s.seatStyles : null;
     const allSameAsBulk = ss && ss.slice(1, 7).every(v => v === aiStyle);

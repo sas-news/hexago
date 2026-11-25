@@ -53,11 +53,8 @@ function syncSettings() {
   $('onlineRoleConfig').classList.toggle('hidden', mode !== 'online');
   $('seatBox').classList.toggle('hidden', participantView);
   ['boardSizeConfig', 'playerCountConfig', 'aiModeConfig', 'aiStyleConfig', 'soundConfig'].forEach(id => $(id).classList.toggle('hidden', participantView));
-  const curTime = typeof currentAITimeMs === 'function' ? currentAITimeMs() : 1000;
   document.querySelectorAll('#aiModeBtns .opt').forEach(b => {
-    const active = b.dataset.aiTime
-      ? Number(b.dataset.aiTime) === curTime
-      : b.dataset.aiMode === (typeof currentAIMode === 'function' ? currentAIMode() : 'fast');
+    const active = b.dataset.aiMode === (typeof currentAIMode === 'function' ? currentAIMode() : 'fast');
     b.classList.toggle('on', active);
     b.setAttribute('aria-pressed', String(active));
     b.disabled = !canManageRoom();
@@ -137,8 +134,7 @@ document.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => setAllSe
 document.querySelectorAll('#aiModeBtns .opt').forEach(b => b.onclick = () => {
   if (!canManageRoom()) return;
   snd.click();
-  if (b.dataset.aiTime && typeof setAITimeMs === 'function') setAITimeMs(Number(b.dataset.aiTime));
-  else if (typeof setAIMode === 'function') setAIMode(b.dataset.aiMode);
+  if (typeof setAIMode === 'function') setAIMode(b.dataset.aiMode);
   syncSettings(); save();
 });
 document.querySelectorAll('#aiStyleBtns .opt').forEach(b => b.onclick = () => {

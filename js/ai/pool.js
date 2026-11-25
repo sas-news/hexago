@@ -5,7 +5,7 @@
 // 開発用の分割読み込み時は js/ai/worker.js を直接起動する。
 // Worker が使えない環境（file:// や厳しいサンドボックス）ではメインスレッド MCTS にフォールバックし、
 // それも失敗した場合だけ従来の1手読み AI (aiChoose) にフォールバックする。
-// AI 設定: 思考時間（1秒 / 3秒 / 10秒 / 30秒、1〜3秒は最大4並列・10〜30秒は最大8並列）と
+// AI 設定: テンポ（'fast' 高速・盤サイズ別自動最適 / 'deep' 長考・盤サイズ別自動最適）と
 // 棋風・重み（'solid' 堅実 / 'balanced' バランス / 'aggressive' 攻撃的）を独立に切替可能。
 let aiTestBudgetMs = null, lastAIStats = null;
 let aiGeneration = 0, aiWorkerError = '', aiMsgSeq = 0, aiWaiters = new Map();
@@ -51,15 +51,8 @@ function aiEngineSourceText() {
   const el = typeof document !== 'undefined' && document.getElementById('ai-engine-src');
   return el ? el.textContent.trim() : '';
 }
-function currentAITimeMs() {
-  if (typeof aiTimeMs === 'number') {
-    if (AI_TIME_OPTIONS.includes(aiTimeMs)) return aiTimeMs;
-    if (aiTimeMs >= 10000) return 12000;
-  }
-  return 1000;
-}
 function currentAIMode() {
-  return currentAITimeMs() >= 10000 ? 'deep' : 'fast';
+  return (typeof aiMode === 'string' && (aiMode === 'deep' || aiMode === 'beta')) ? 'deep' : 'fast';
 }
 function currentAIStyle() {
   return (typeof aiStyle === 'string' && (aiStyle === 'solid' || aiStyle === 'aggressive')) ? aiStyle : 'balanced';
@@ -74,22 +67,15 @@ function seatStyleOverride(p) {
 function aiStyleForSeat(p) {
   return seatStyleOverride(p) || currentAIStyle();
 }
-function setAITimeMs(ms) {
-  const n = Number(ms);
-  const next = AI_TIME_OPTIONS.includes(n) ? n : (n >= 10000 ? 12000 : 1000);
-  const prevDeep = currentAIMode() === 'deep';
-  aiTimeMs = next;
-  aiMode = next >= 10000 ? 'deep' : 'fast';
-  try { localStorage.setItem('hexago-ai-time', String(next)); } catch (e) { }
-  if (prevDeep !== (aiMode === 'deep') && !aiBusy && aiPool.length) {
+function setAIMode(nextMode) {
+  const m = (nextMode === 'deep' || nextMode === 'beta') ? 'deep' : 'fast';
+  const changed = typeof aiMode !== 'undefined' && aiMode !== m;
+  aiMode = m;
+  try { localStorage.setItem('hexago-ai-mode', m); } catch (e) { }
+  if (changed && !aiBusy && aiPool.length) {
     aiPool.forEach(slot => { try { slot.worker.terminate(); } catch (e) { } });
     aiPool = [];
   }
-  return next;
-}
-function setAIMode(nextMode) {
-  const m = (nextMode === 'deep' || nextMode === 'beta') ? 'deep' : 'fast';
-  setAITimeMs(m === 'deep' ? 12000 : 1000);
   return m;
 }
 function setAIStyle(nextStyle) {
@@ -107,11 +93,20 @@ function setSeatAIStyle(p, nextStyle) {
   }
   return s;
 }
+// 強さ曲線の実測に基づき、盤サイズごとに最適な思考時間を自動設定する（プレイヤーに秒数を意識させない）。
 function aiBudgetMs() {
   if (aiTestBudgetMs != null) return aiTestBudgetMs;
-  const t = currentAITimeMs();
-  if (t >= 10000) return (typeof P !== 'undefined' && P.length >= 250) ? 15000 : 12000;
-  return t;
+  const pts = (typeof P !== 'undefined' && P.length) || 61;
+  if (currentAIMode() === 'deep') {
+    if (pts >= 450) return 12000;
+    if (pts >= 250) return 10000;
+    if (pts >= 120) return 6000;
+    return 3000;
+  }
+  if (pts >= 450) return 2500;
+  if (pts >= 250) return 2000;
+  if (pts >= 120) return 1200;
+  return 800;
 }
 function aiPoolWant() {
   const cores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4;

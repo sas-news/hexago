@@ -177,13 +177,12 @@ canvas{display:block;touch-action:manipulation}
       <div class="flex flex-col gap-2" id="seatBtns"></div>
     </div>
     <div id="aiModeConfig" class="flex flex-col gap-1.5">
-      <label class="text-xs font-bold tracking-wider text-neutral-500">AI 思考時間</label>
-      <div class="grid grid-cols-3 gap-2" id="aiModeBtns">
-        <button type="button" data-ai-time="1000" data-ai-mode="fast" class="opt">1秒</button>
-        <button type="button" data-ai-time="3000" data-ai-mode="fast" class="opt">3秒</button>
-        <button type="button" data-ai-time="12000" data-ai-mode="deep" class="opt">長考</button>
+      <label class="text-xs font-bold tracking-wider text-neutral-500">AI のテンポ</label>
+      <div class="grid grid-cols-2 gap-2" id="aiModeBtns">
+        <button type="button" data-ai-mode="fast" class="opt">高速</button>
+        <button type="button" data-ai-mode="deep" class="opt">長考</button>
       </div>
-      <p class="text-[11px] leading-relaxed text-neutral-500">最新AI（MCTS）を使用。1秒は軽快で実用的、3秒は標準（最大4並列）、長考は12〜15秒・最大8並列で深く読みます。</p>
+      <p class="text-[11px] leading-relaxed text-neutral-500">盤サイズに合わせて思考時間を自動調整します。</p>
     </div>
     <div id="aiStyleConfig" class="flex flex-col gap-1.5">
       <label class="text-xs font-bold tracking-wider text-neutral-500">AI 棋風（一括）</label>
@@ -3520,14 +3519,11 @@ const gameFeatures = (typeof window !== 'undefined' && window.HexagoGameFeatures
 let autoPassController = null;
 let G, seenSet = new Set();
 let onlineAI = false, pendingSize = 9, mode = 'local', playerCount = 3, seats = [0, 'human', 'human', 'human', 'human', 'human', 'human'];
-const AI_TIME_OPTIONS = [1000, 3000, 12000];
-let aiTimeMs = 1000;      // 1000(高速1秒) / 3000(標準3秒) / 12000(長考: 9・13路12秒 / 19・25路15秒)
+let aiMode = 'fast'; // 'fast'(高速・盤サイズ別自動最適) / 'deep'(長考・盤サイズ別自動最適)
 try {
-  const savedTime = Number(localStorage.getItem('hexago-ai-time'));
-  if (AI_TIME_OPTIONS.includes(savedTime)) aiTimeMs = savedTime;
-  else if (savedTime >= 10000) aiTimeMs = 12000;
+  const savedMode = localStorage.getItem('hexago-ai-mode');
+  if (savedMode === 'deep' || savedMode === 'fast') aiMode = savedMode;
 } catch (e) { }
-let aiMode = aiTimeMs >= 10000 ? 'deep' : 'fast'; // 互換用: 長考=最大8並列, 1〜3秒=最大4並列
 let aiStyle = 'balanced'; // 一括デフォルト棋風: 'solid' | 'balanced' | 'aggressive'
 let seatStyles = [0, null, null, null, null, null, null]; // null = 一括設定に従う, 文字列 = 席ごとの個別棋風
 let boardView = 'host';
@@ -3554,7 +3550,7 @@ function hash(a) { // cyrb53
 }
 const KEY = 'hexago-save-v1';
 function save() {
-  try { sessionStorage.setItem(KEY, JSON.stringify({ G, onlineAI, pendingSize, mode, seats, aiTimeMs, aiMode, aiStyle, seatStyles, theme: theme.id, sound: snd.on })); } catch (e) { }
+  try { sessionStorage.setItem(KEY, JSON.stringify({ G, onlineAI, pendingSize, mode, seats, aiMode, aiStyle, seatStyles, theme: theme.id, sound: snd.on })); } catch (e) { }
   try { if (typeof saveOnlineSession === 'function') saveOnlineSession(); } catch (e) { }
 }
 function load() {
@@ -3563,9 +3559,7 @@ function load() {
     if (!s || !s.G || ![9, 13, 19, 25].includes(s.G.size)) return false;
     build(s.G.size); if (s.G.board.length !== P.length) return false;
     G = s.G; onlineAI = !!s.onlineAI; pendingSize = s.pendingSize || G.size;
-    if (AI_TIME_OPTIONS.includes(Number(s.aiTimeMs))) aiTimeMs = Number(s.aiTimeMs);
-    else if (Number(s.aiTimeMs) >= 10000 || s.aiMode === 'deep' || s.aiMode === 'beta') aiTimeMs = 12000;
-    aiMode = aiTimeMs >= 10000 ? 'deep' : 'fast';
+    aiMode = (s.aiMode === 'deep' || s.aiMode === 'beta') ? 'deep' : 'fast';
     aiStyle = (s.aiStyle === 'solid' || s.aiStyle === 'aggressive') ? s.aiStyle : 'balanced';
     const ss = Array.isArray(s.seatStyles) ? s.seatStyles : null;
     const allSameAsBulk = ss && ss.slice(1, 7).every(v => v === aiStyle);
@@ -4469,7 +4463,7 @@ const aiSeatOf = p => mode === 'online' ? !!(G.aiSeats ? G.aiSeats[p] : G.aiSeat
 // 開発用の分割読み込み時は js/ai/worker.js を直接起動する。
 // Worker が使えない環境（file:// や厳しいサンドボックス）ではメインスレッド MCTS にフォールバックし、
 // それも失敗した場合だけ従来の1手読み AI (aiChoose) にフォールバックする。
-// AI 設定: 思考時間（1秒 / 3秒 / 10秒 / 30秒、1〜3秒は最大4並列・10〜30秒は最大8並列）と
+// AI 設定: テンポ（'fast' 高速・盤サイズ別自動最適 / 'deep' 長考・盤サイズ別自動最適）と
 // 棋風・重み（'solid' 堅実 / 'balanced' バランス / 'aggressive' 攻撃的）を独立に切替可能。
 let aiTestBudgetMs = null, lastAIStats = null;
 let aiGeneration = 0, aiWorkerError = '', aiMsgSeq = 0, aiWaiters = new Map();
@@ -4515,15 +4509,8 @@ function aiEngineSourceText() {
   const el = typeof document !== 'undefined' && document.getElementById('ai-engine-src');
   return el ? el.textContent.trim() : '';
 }
-function currentAITimeMs() {
-  if (typeof aiTimeMs === 'number') {
-    if (AI_TIME_OPTIONS.includes(aiTimeMs)) return aiTimeMs;
-    if (aiTimeMs >= 10000) return 12000;
-  }
-  return 1000;
-}
 function currentAIMode() {
-  return currentAITimeMs() >= 10000 ? 'deep' : 'fast';
+  return (typeof aiMode === 'string' && (aiMode === 'deep' || aiMode === 'beta')) ? 'deep' : 'fast';
 }
 function currentAIStyle() {
   return (typeof aiStyle === 'string' && (aiStyle === 'solid' || aiStyle === 'aggressive')) ? aiStyle : 'balanced';
@@ -4538,22 +4525,15 @@ function seatStyleOverride(p) {
 function aiStyleForSeat(p) {
   return seatStyleOverride(p) || currentAIStyle();
 }
-function setAITimeMs(ms) {
-  const n = Number(ms);
-  const next = AI_TIME_OPTIONS.includes(n) ? n : (n >= 10000 ? 12000 : 1000);
-  const prevDeep = currentAIMode() === 'deep';
-  aiTimeMs = next;
-  aiMode = next >= 10000 ? 'deep' : 'fast';
-  try { localStorage.setItem('hexago-ai-time', String(next)); } catch (e) { }
-  if (prevDeep !== (aiMode === 'deep') && !aiBusy && aiPool.length) {
+function setAIMode(nextMode) {
+  const m = (nextMode === 'deep' || nextMode === 'beta') ? 'deep' : 'fast';
+  const changed = typeof aiMode !== 'undefined' && aiMode !== m;
+  aiMode = m;
+  try { localStorage.setItem('hexago-ai-mode', m); } catch (e) { }
+  if (changed && !aiBusy && aiPool.length) {
     aiPool.forEach(slot => { try { slot.worker.terminate(); } catch (e) { } });
     aiPool = [];
   }
-  return next;
-}
-function setAIMode(nextMode) {
-  const m = (nextMode === 'deep' || nextMode === 'beta') ? 'deep' : 'fast';
-  setAITimeMs(m === 'deep' ? 12000 : 1000);
   return m;
 }
 function setAIStyle(nextStyle) {
@@ -4571,11 +4551,20 @@ function setSeatAIStyle(p, nextStyle) {
   }
   return s;
 }
+// 強さ曲線の実測に基づき、盤サイズごとに最適な思考時間を自動設定する（プレイヤーに秒数を意識させない）。
 function aiBudgetMs() {
   if (aiTestBudgetMs != null) return aiTestBudgetMs;
-  const t = currentAITimeMs();
-  if (t >= 10000) return (typeof P !== 'undefined' && P.length >= 250) ? 15000 : 12000;
-  return t;
+  const pts = (typeof P !== 'undefined' && P.length) || 61;
+  if (currentAIMode() === 'deep') {
+    if (pts >= 450) return 12000;
+    if (pts >= 250) return 10000;
+    if (pts >= 120) return 6000;
+    return 3000;
+  }
+  if (pts >= 450) return 2500;
+  if (pts >= 250) return 2000;
+  if (pts >= 120) return 1200;
+  return 800;
 }
 function aiPoolWant() {
   const cores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4;
@@ -5294,11 +5283,8 @@ function syncSettings() {
   $('onlineRoleConfig').classList.toggle('hidden', mode !== 'online');
   $('seatBox').classList.toggle('hidden', participantView);
   ['boardSizeConfig', 'playerCountConfig', 'aiModeConfig', 'aiStyleConfig', 'soundConfig'].forEach(id => $(id).classList.toggle('hidden', participantView));
-  const curTime = typeof currentAITimeMs === 'function' ? currentAITimeMs() : 1000;
   document.querySelectorAll('#aiModeBtns .opt').forEach(b => {
-    const active = b.dataset.aiTime
-      ? Number(b.dataset.aiTime) === curTime
-      : b.dataset.aiMode === (typeof currentAIMode === 'function' ? currentAIMode() : 'fast');
+    const active = b.dataset.aiMode === (typeof currentAIMode === 'function' ? currentAIMode() : 'fast');
     b.classList.toggle('on', active);
     b.setAttribute('aria-pressed', String(active));
     b.disabled = !canManageRoom();
@@ -5378,8 +5364,7 @@ document.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => setAllSe
 document.querySelectorAll('#aiModeBtns .opt').forEach(b => b.onclick = () => {
   if (!canManageRoom()) return;
   snd.click();
-  if (b.dataset.aiTime && typeof setAITimeMs === 'function') setAITimeMs(Number(b.dataset.aiTime));
-  else if (typeof setAIMode === 'function') setAIMode(b.dataset.aiMode);
+  if (typeof setAIMode === 'function') setAIMode(b.dataset.aiMode);
   syncSettings(); save();
 });
 document.querySelectorAll('#aiStyleBtns .opt').forEach(b => b.onclick = () => {
@@ -9235,10 +9220,9 @@ window.addEventListener('offline', () => {
 // --- ./js/ui/debug.js ---
 // ===== デバッグ用フック（E2E 検証・AI 性能確認用。UI には影響しない） =====
 window.__hexagoDebug = {
-  state: () => ({ board: G.board.slice(), turn: G.turn, over: G.over, phase: G.phase, playerCount: G.playerCount, size: G.size, seats: seats.slice(), mode, aiTimeMs: currentAITimeMs(), aiMode: currentAIMode(), aiStyle: currentAIStyle(), seatStyles: seatStyles.slice(), aiBusy, aiBudget: aiBudgetMs(), seen: G.seen.length, lastAI: lastAIStats, out: G.out.slice() }),
+  state: () => ({ board: G.board.slice(), turn: G.turn, over: G.over, phase: G.phase, playerCount: G.playerCount, size: G.size, seats: seats.slice(), mode, aiMode: currentAIMode(), aiStyle: currentAIStyle(), seatStyles: seatStyles.slice(), aiBusy, aiBudget: aiBudgetMs(), seen: G.seen.length, lastAI: lastAIStats, out: G.out.slice() }),
   think: (budget) => aiThink(aiStateSnapshot(), budget || aiBudgetMs()),
-  engine: () => ({ worker: aiPool.length > 0, workers: aiPool.length, wantWorkers: aiPoolWant(), aiTimeMs: currentAITimeMs(), aiMode: currentAIMode(), aiStyle: currentAIStyle(), error: aiWorkerError, loaded: aiEngineLoaded(), workerUrl: aiPool[0] ? aiPool[0].url : AI_WORKER_URL, inlineEngine: !!aiEngineSourceText() }),
-  setAITimeMs: (ms) => { const r = setAITimeMs(ms); syncSettings(); save(); return r; },
+  engine: () => ({ worker: aiPool.length > 0, workers: aiPool.length, wantWorkers: aiPoolWant(), aiMode: currentAIMode(), aiStyle: currentAIStyle(), error: aiWorkerError, loaded: aiEngineLoaded(), workerUrl: aiPool[0] ? aiPool[0].url : AI_WORKER_URL, inlineEngine: !!aiEngineSourceText() }),
   setAIMode: (m) => { const r = setAIMode(m); syncSettings(); save(); return r; },
   setAIStyle: (s) => { const r = setAIStyle(s); syncSettings(); save(); return r; },
   setSeatAIStyle: (p, s) => { const r = setSeatAIStyle(p, s); syncSettings(); save(); return r; },

@@ -159,13 +159,12 @@
       <div class="flex flex-col gap-2" id="seatBtns"></div>
     </div>
     <div id="aiModeConfig" class="flex flex-col gap-1.5">
-      <label class="text-xs font-bold tracking-wider text-neutral-500">AI 思考時間</label>
-      <div class="grid grid-cols-3 gap-2" id="aiModeBtns">
-        <button type="button" data-ai-time="1000" data-ai-mode="fast" class="opt">1秒</button>
-        <button type="button" data-ai-time="3000" data-ai-mode="fast" class="opt">3秒</button>
-        <button type="button" data-ai-time="12000" data-ai-mode="deep" class="opt">長考</button>
+      <label class="text-xs font-bold tracking-wider text-neutral-500">AI のテンポ</label>
+      <div class="grid grid-cols-2 gap-2" id="aiModeBtns">
+        <button type="button" data-ai-mode="fast" class="opt">高速</button>
+        <button type="button" data-ai-mode="deep" class="opt">長考</button>
       </div>
-      <p class="text-[11px] leading-relaxed text-neutral-500">最新AI（MCTS）を使用。1秒は軽快で実用的、3秒は標準（最大4並列）、長考は12〜15秒・最大8並列で深く読みます。</p>
+      <p class="text-[11px] leading-relaxed text-neutral-500">盤サイズに合わせて思考時間を自動調整します。</p>
     </div>
     <div id="aiStyleConfig" class="flex flex-col gap-1.5">
       <label class="text-xs font-bold tracking-wider text-neutral-500">AI 棋風（一括）</label>
