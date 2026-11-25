@@ -216,22 +216,48 @@ function autoPass() {
   }
   return autoPassController;
 }
-function clearAutoPass() { if (autoPassController) autoPassController.clear(); }
+function clearAutoPass() { autoPassOfferSeat = 0; if (autoPassController) autoPassController.clear(); }
+function escAutoPassHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
 function renderAutoPassControls() {
-  const el = $('autoPassControls');
-  const wrap = $('autoPassConfig');
-  if (!el || !gameFeatures) return;
+  const el = $('bnAutoPass');
+  if (!el || !gameFeatures || !G) return;
   const c = autoPassContext();
-  const show = c.playing && !c.over && c.eligible.length > 0;
-  if (wrap) wrap.classList.toggle('hidden', !show);
+  const active = c.playing && !c.over;
+  if (!active) autoPassOfferSeat = 0;
+  const enabled = active ? autoPass().enabledSeats().filter(p => c.eligible.includes(p)) : [];
+  const offer = (active && autoPassOfferSeat && c.eligible.includes(autoPassOfferSeat) && !autoPass().isEnabled(autoPassOfferSeat)) ? autoPassOfferSeat : 0;
+  const show = enabled.length > 0 || offer > 0;
   el.classList.toggle('hidden', !show);
   if (!show) { el.replaceChildren(); return; }
-  el.style.setProperty('--seat-count', G.playerCount);
-  el.innerHTML = '<span class="seat-control-label">席:</span>' + Array.from({ length: G.playerCount }, (_, i) => i + 1).map(p => {
-    const allowed = c.eligible.includes(p), on = allowed && autoPass().isEnabled(p);
-    const hint = allowed ? p + 'P の手番で自動的にパスし続けます' : G.out[p] ? '投了した席です' : aiSeatOf(p) ? '人間の席で利用できます' : '自分の席で利用できます';
-    return '<div class="flex flex-col items-center gap-1"><span class="text-[11px] font-bold opacity-75">' + p + 'P</span><button type="button" role="switch" data-auto-pass="' + p + '" aria-label="' + p + 'Pの連続パス" aria-checked="' + on + '" title="' + hint + '"' + (allowed ? '' : ' disabled') + ' class="pass-switch"><span class="pass-thumb" aria-hidden="true"></span><span class="sr-only">' + (on ? 'ON' : 'OFF') + '</span></button></div>';
-  }).join('');
+  const parts = [];
+  if (offer) {
+    const label = escAutoPassHtml(playerDisplayName(offer));
+    parts.push(
+      '<div class="flex items-center justify-between gap-2">' +
+        '<span class="min-w-0 truncate">' + dotHtml(offer) + '<strong>' + label + ' (' + offer + 'P)</strong> がパスしました</span>' +
+        '<div class="flex items-center gap-1.5 shrink-0">' +
+          '<button type="button" data-auto-pass-enable="' + offer + '" class="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold active:scale-95 transition-all">このまま連続パス</button>' +
+          '<button type="button" data-auto-pass-dismiss="1" aria-label="閉じる" title="閉じる" class="w-6 h-6 flex items-center justify-center rounded-full opacity-50 hover:opacity-90 hover:bg-black/5 text-sm font-bold">✕</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+  if (enabled.length) {
+    const chips = enabled.map(p => {
+      const label = escAutoPassHtml(playerDisplayName(p));
+      return '<button type="button" data-auto-pass-disable="' + p + '" title="タップして連続パスを解除" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-700/15 border border-emerald-700/35 text-xs font-bold hover:bg-emerald-700/25 active:scale-95 transition-all">' +
+        dotHtml(p) + '<span>' + label + ' (' + p + 'P)</span><span aria-hidden="true" class="opacity-70 ml-0.5">✕</span>' +
+      '</button>';
+    }).join('');
+    parts.push(
+      '<div class="flex items-center flex-wrap gap-1.5">' +
+        '<span class="text-xs font-bold opacity-75 shrink-0">連続パス中:</span>' + chips +
+      '</div>'
+    );
+  }
+  el.innerHTML = parts.join('');
 }
 function updateGameFeaturesUI() {
   if (!gameFeatures || !G) return;
@@ -239,12 +265,28 @@ function updateGameFeaturesUI() {
   renderAutoPassControls();
   if ($('recordModal') && !$('recordModal').classList.contains('hidden')) refreshRecordSummary();
 }
-if ($('autoPassControls')) {
-  $('autoPassControls').addEventListener('click', e => {
-    const button = e.target.closest('[data-auto-pass]');
-    if (button && !button.disabled && autoPass()) {
+if ($('bnAutoPass')) {
+  $('bnAutoPass').addEventListener('click', e => {
+    const enBtn = e.target.closest('[data-auto-pass-enable]');
+    if (enBtn && autoPass()) {
+      const p = +enBtn.dataset.autoPassEnable;
       snd.click();
-      autoPass().toggle(+button.dataset.autoPass);
+      if (!autoPass().isEnabled(p)) autoPass().toggle(p);
+      if (autoPassOfferSeat === p) autoPassOfferSeat = 0;
+      renderAutoPassControls();
+      return;
+    }
+    const disBtn = e.target.closest('[data-auto-pass-disable]');
+    if (disBtn && autoPass()) {
+      const p = +disBtn.dataset.autoPassDisable;
+      snd.click();
+      autoPass().disable(p);
+      renderAutoPassControls();
+      return;
+    }
+    if (e.target.closest('[data-auto-pass-dismiss]')) {
+      snd.click();
+      autoPassOfferSeat = 0;
       renderAutoPassControls();
     }
   });

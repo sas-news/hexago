@@ -49,6 +49,8 @@
     <button id="btnResign" class="flex-1 py-2.5 px-4 text-xs sm:text-sm font-bold border border-red-500/50 text-red-600 rounded-xl hover:bg-red-500/10 active:scale-95 transition-all shadow-sm">投了</button>
   </div>
 
+  <div id="bnAutoPass" class="hidden w-full card rounded-xl px-3 py-2 text-xs sm:text-sm flex flex-col gap-2 shadow-sm" aria-live="polite"></div>
+
   <div id="bnDead" class="hidden w-full flex flex-col gap-2 p-3 bg-amber-50 text-amber-900 text-xs sm:text-sm rounded-xl border border-amber-200 shadow-sm">
     <div class="flex items-center justify-between font-bold"><span>⚠️ 終局・死に石確認</span><span id="deadCount" class="text-xs font-semibold opacity-80">自動判定中…</span></div>
     <p class="text-xs text-amber-800/90 leading-relaxed">死んでいる可能性が高い石を自動で選択しました。盤面の×印を確認し、判定が違う連はタップして切り替えてください。確定後、死に石を取り除き「地＋盤上の石」で集計します。</p>
@@ -166,11 +168,6 @@
         <button type="button" data-ai-mode="deep" class="opt">長考</button>
       </div>
       <p class="text-[11px] leading-relaxed text-neutral-500">盤サイズに合わせて思考時間を自動調整します。AIボタンを繰り返しタップすると席ごとにテンポを切り替えられます。</p>
-    </div>
-    <div id="autoPassConfig" class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col gap-2 hidden">
-      <span class="text-xs font-bold text-neutral-600">連続パス（自動パス）</span>
-      <div id="autoPassControls" class="seat-control-row" aria-label="連続パス"></div>
-      <p class="text-[11px] leading-relaxed text-neutral-500">ONにした席は、設定を閉じると自分の手番で自動的にパスし続けます（着手・投了で解除）。</p>
     </div>
     <div id="onlineBox" class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col gap-3 hidden text-xs">
       <div id="hostRoomSection" class="flex flex-col gap-1.5">

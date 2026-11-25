@@ -29,6 +29,7 @@ function snap(by) {
 function play(i) {
   const p = G.turn, r = sim(G.board, i, p); if (!r) return false;
   if (autoPassController) autoPassController.disable(p);
+  if (typeof autoPassOfferSeat !== 'undefined' && autoPassOfferSeat === p) autoPassOfferSeat = 0;
   snap(p); r.cap.forEach(x => G.damage[G.board[x]]++);
   G.board = r.a; G.last = i; G.passes = 0;
   const h = hash(G.board); G.seen.push(h); seenSet.add(h);
@@ -40,6 +41,10 @@ function doPass(automatic = false) {
   const p = G.turn;
   snd.click(); snap(p); G.passes++; G.last = -1;
   if (G.passes >= activeCount()) { G.phase = 'dead'; G.dead = detectDeadStonesSmart(); prev = -1; } else nextTurn();
+  if (typeof autoPassOfferSeat !== 'undefined') {
+    if (G.phase === 'playing' && !automatic && !aiSeatOf(p) && (mode === 'local' || p === myRole)) autoPassOfferSeat = p;
+    else if (G.phase !== 'playing') autoPassOfferSeat = 0;
+  }
   if (typeof recordGameEvent === 'function') recordGameEvent({ type: 'pass', player: p, ...(automatic ? { automatic: true } : {}) });
 }
 function territory() {
@@ -186,6 +191,7 @@ function resign() {
   if (typeof ensureGameRecord === 'function') ensureGameRecord();
   const p = G.turn;
   if (autoPassController) autoPassController.disable(p);
+  if (typeof autoPassOfferSeat !== 'undefined' && autoPassOfferSeat === p) autoPassOfferSeat = 0;
   G.out[p] = true; snd.click();
   if (activeCount() <= 1) {
     const w = Array.from({length:G.playerCount||3},(_,i)=>i+1).find(x => !G.out[x]); G.over = true;

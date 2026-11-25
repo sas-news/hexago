@@ -16,15 +16,6 @@ canvas{display:block;touch-action:manipulation}
 .opt.on{background:#171717;color:#fff}
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;border:1.5px solid;vertical-align:-1px;margin-right:3px}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(150,150,150,.3);border-radius:3px}
-.seat-control-row{display:grid;grid-template-columns:68px repeat(var(--seat-count),minmax(0,1fr));gap:6px;width:100%;align-items:center}
-.seat-control-row.hidden{display:none}
-.seat-control-label{text-align:right;padding-right:4px;font-size:13px;opacity:.75}
-.pass-switch{position:relative;justify-self:center;width:36px;height:22px;border:1px solid #9ca3af;border-radius:999px;background:#d1d5db;transition:background .15s,border-color .15s}
-.pass-switch .pass-thumb{position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:white;box-shadow:0 1px 2px #0003;transition:transform .15s}
-.pass-switch[aria-checked="true"]{background:#15803d;border-color:#15803d}
-.pass-switch[aria-checked="true"] .pass-thumb{transform:translateX(14px)}
-.pass-switch:disabled{opacity:.3;cursor:not-allowed}
-.pass-switch:focus-visible{outline:2px solid var(--tx);outline-offset:3px}
 </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-6 select-none">
@@ -66,6 +57,8 @@ canvas{display:block;touch-action:manipulation}
     <button id="btnPass" class="btn flex-1 py-2.5 px-4 text-xs sm:text-sm font-bold rounded-xl hover:opacity-80 active:scale-95 transition-all shadow-sm">パス</button>
     <button id="btnResign" class="flex-1 py-2.5 px-4 text-xs sm:text-sm font-bold border border-red-500/50 text-red-600 rounded-xl hover:bg-red-500/10 active:scale-95 transition-all shadow-sm">投了</button>
   </div>
+
+  <div id="bnAutoPass" class="hidden w-full card rounded-xl px-3 py-2 text-xs sm:text-sm flex flex-col gap-2 shadow-sm" aria-live="polite"></div>
 
   <div id="bnDead" class="hidden w-full flex flex-col gap-2 p-3 bg-amber-50 text-amber-900 text-xs sm:text-sm rounded-xl border border-amber-200 shadow-sm">
     <div class="flex items-center justify-between font-bold"><span>⚠️ 終局・死に石確認</span><span id="deadCount" class="text-xs font-semibold opacity-80">自動判定中…</span></div>
@@ -184,11 +177,6 @@ canvas{display:block;touch-action:manipulation}
         <button type="button" data-ai-mode="deep" class="opt">長考</button>
       </div>
       <p class="text-[11px] leading-relaxed text-neutral-500">盤サイズに合わせて思考時間を自動調整します。AIボタンを繰り返しタップすると席ごとにテンポを切り替えられます。</p>
-    </div>
-    <div id="autoPassConfig" class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col gap-2 hidden">
-      <span class="text-xs font-bold text-neutral-600">連続パス（自動パス）</span>
-      <div id="autoPassControls" class="seat-control-row" aria-label="連続パス"></div>
-      <p class="text-[11px] leading-relaxed text-neutral-500">ONにした席は、設定を閉じると自分の手番で自動的にパスし続けます（着手・投了で解除）。</p>
     </div>
     <div id="onlineBox" class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col gap-3 hidden text-xs">
       <div id="hostRoomSection" class="flex flex-col gap-1.5">
@@ -3489,7 +3477,7 @@ function build(n) {
 // --- ./js/core/state.js ---
 // ===== 状態 =====
 const gameFeatures = (typeof window !== 'undefined' && window.HexagoGameFeatures) || null;
-let autoPassController = null;
+let autoPassController = null, autoPassOfferSeat = 0;
 let G, seenSet = new Set();
 let onlineAI = false, pendingSize = 9, mode = 'local', playerCount = 3, seats = [0, 'human', 'human', 'human', 'human', 'human', 'human'];
 let aiMode = 'fast'; // 'fast'(高速・盤サイズ別自動最適) / 'deep'(長考・盤サイズ別自動最適)
@@ -3574,6 +3562,7 @@ function snap(by) {
 function play(i) {
   const p = G.turn, r = sim(G.board, i, p); if (!r) return false;
   if (autoPassController) autoPassController.disable(p);
+  if (typeof autoPassOfferSeat !== 'undefined' && autoPassOfferSeat === p) autoPassOfferSeat = 0;
   snap(p); r.cap.forEach(x => G.damage[G.board[x]]++);
   G.board = r.a; G.last = i; G.passes = 0;
   const h = hash(G.board); G.seen.push(h); seenSet.add(h);
@@ -3585,6 +3574,10 @@ function doPass(automatic = false) {
   const p = G.turn;
   snd.click(); snap(p); G.passes++; G.last = -1;
   if (G.passes >= activeCount()) { G.phase = 'dead'; G.dead = detectDeadStonesSmart(); prev = -1; } else nextTurn();
+  if (typeof autoPassOfferSeat !== 'undefined') {
+    if (G.phase === 'playing' && !automatic && !aiSeatOf(p) && (mode === 'local' || p === myRole)) autoPassOfferSeat = p;
+    else if (G.phase !== 'playing') autoPassOfferSeat = 0;
+  }
   if (typeof recordGameEvent === 'function') recordGameEvent({ type: 'pass', player: p, ...(automatic ? { automatic: true } : {}) });
 }
 function territory() {
@@ -3731,6 +3724,7 @@ function resign() {
   if (typeof ensureGameRecord === 'function') ensureGameRecord();
   const p = G.turn;
   if (autoPassController) autoPassController.disable(p);
+  if (typeof autoPassOfferSeat !== 'undefined' && autoPassOfferSeat === p) autoPassOfferSeat = 0;
   G.out[p] = true; snd.click();
   if (activeCount() <= 1) {
     const w = Array.from({length:G.playerCount||3},(_,i)=>i+1).find(x => !G.out[x]); G.over = true;
@@ -5117,22 +5111,48 @@ function autoPass() {
   }
   return autoPassController;
 }
-function clearAutoPass() { if (autoPassController) autoPassController.clear(); }
+function clearAutoPass() { autoPassOfferSeat = 0; if (autoPassController) autoPassController.clear(); }
+function escAutoPassHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
 function renderAutoPassControls() {
-  const el = $('autoPassControls');
-  const wrap = $('autoPassConfig');
-  if (!el || !gameFeatures) return;
+  const el = $('bnAutoPass');
+  if (!el || !gameFeatures || !G) return;
   const c = autoPassContext();
-  const show = c.playing && !c.over && c.eligible.length > 0;
-  if (wrap) wrap.classList.toggle('hidden', !show);
+  const active = c.playing && !c.over;
+  if (!active) autoPassOfferSeat = 0;
+  const enabled = active ? autoPass().enabledSeats().filter(p => c.eligible.includes(p)) : [];
+  const offer = (active && autoPassOfferSeat && c.eligible.includes(autoPassOfferSeat) && !autoPass().isEnabled(autoPassOfferSeat)) ? autoPassOfferSeat : 0;
+  const show = enabled.length > 0 || offer > 0;
   el.classList.toggle('hidden', !show);
   if (!show) { el.replaceChildren(); return; }
-  el.style.setProperty('--seat-count', G.playerCount);
-  el.innerHTML = '<span class="seat-control-label">席:</span>' + Array.from({ length: G.playerCount }, (_, i) => i + 1).map(p => {
-    const allowed = c.eligible.includes(p), on = allowed && autoPass().isEnabled(p);
-    const hint = allowed ? p + 'P の手番で自動的にパスし続けます' : G.out[p] ? '投了した席です' : aiSeatOf(p) ? '人間の席で利用できます' : '自分の席で利用できます';
-    return '<div class="flex flex-col items-center gap-1"><span class="text-[11px] font-bold opacity-75">' + p + 'P</span><button type="button" role="switch" data-auto-pass="' + p + '" aria-label="' + p + 'Pの連続パス" aria-checked="' + on + '" title="' + hint + '"' + (allowed ? '' : ' disabled') + ' class="pass-switch"><span class="pass-thumb" aria-hidden="true"></span><span class="sr-only">' + (on ? 'ON' : 'OFF') + '</span></button></div>';
-  }).join('');
+  const parts = [];
+  if (offer) {
+    const label = escAutoPassHtml(playerDisplayName(offer));
+    parts.push(
+      '<div class="flex items-center justify-between gap-2">' +
+        '<span class="min-w-0 truncate">' + dotHtml(offer) + '<strong>' + label + ' (' + offer + 'P)</strong> がパスしました</span>' +
+        '<div class="flex items-center gap-1.5 shrink-0">' +
+          '<button type="button" data-auto-pass-enable="' + offer + '" class="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold active:scale-95 transition-all">このまま連続パス</button>' +
+          '<button type="button" data-auto-pass-dismiss="1" aria-label="閉じる" title="閉じる" class="w-6 h-6 flex items-center justify-center rounded-full opacity-50 hover:opacity-90 hover:bg-black/5 text-sm font-bold">✕</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+  if (enabled.length) {
+    const chips = enabled.map(p => {
+      const label = escAutoPassHtml(playerDisplayName(p));
+      return '<button type="button" data-auto-pass-disable="' + p + '" title="タップして連続パスを解除" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-700/15 border border-emerald-700/35 text-xs font-bold hover:bg-emerald-700/25 active:scale-95 transition-all">' +
+        dotHtml(p) + '<span>' + label + ' (' + p + 'P)</span><span aria-hidden="true" class="opacity-70 ml-0.5">✕</span>' +
+      '</button>';
+    }).join('');
+    parts.push(
+      '<div class="flex items-center flex-wrap gap-1.5">' +
+        '<span class="text-xs font-bold opacity-75 shrink-0">連続パス中:</span>' + chips +
+      '</div>'
+    );
+  }
+  el.innerHTML = parts.join('');
 }
 function updateGameFeaturesUI() {
   if (!gameFeatures || !G) return;
@@ -5140,12 +5160,28 @@ function updateGameFeaturesUI() {
   renderAutoPassControls();
   if ($('recordModal') && !$('recordModal').classList.contains('hidden')) refreshRecordSummary();
 }
-if ($('autoPassControls')) {
-  $('autoPassControls').addEventListener('click', e => {
-    const button = e.target.closest('[data-auto-pass]');
-    if (button && !button.disabled && autoPass()) {
+if ($('bnAutoPass')) {
+  $('bnAutoPass').addEventListener('click', e => {
+    const enBtn = e.target.closest('[data-auto-pass-enable]');
+    if (enBtn && autoPass()) {
+      const p = +enBtn.dataset.autoPassEnable;
       snd.click();
-      autoPass().toggle(+button.dataset.autoPass);
+      if (!autoPass().isEnabled(p)) autoPass().toggle(p);
+      if (autoPassOfferSeat === p) autoPassOfferSeat = 0;
+      renderAutoPassControls();
+      return;
+    }
+    const disBtn = e.target.closest('[data-auto-pass-disable]');
+    if (disBtn && autoPass()) {
+      const p = +disBtn.dataset.autoPassDisable;
+      snd.click();
+      autoPass().disable(p);
+      renderAutoPassControls();
+      return;
+    }
+    if (e.target.closest('[data-auto-pass-dismiss]')) {
+      snd.click();
+      autoPassOfferSeat = 0;
       renderAutoPassControls();
     }
   });
@@ -5377,7 +5413,7 @@ document.querySelectorAll('#aiModeBtns .opt').forEach(b => b.onclick = () => {
 $('btnHostBoard').onclick = () => { boardView = 'host'; syncSettings(); };
 $('btnParticipantBoard').onclick = () => { boardView = 'participant'; syncSettings(); };
 $('btnSound').onclick = () => { snd.on = !snd.on; syncSettings(); snd.click(); save(); };
-$('btnOpenSettings').onclick = () => { snd.click(); syncSettings(); if (typeof renderAutoPassControls === 'function' && G) renderAutoPassControls(); $('setModal').classList.remove('hidden'); if (typeof autoPass === 'function' && autoPass()) autoPass().update(); };
+$('btnOpenSettings').onclick = () => { snd.click(); syncSettings(); $('setModal').classList.remove('hidden'); if (typeof autoPass === 'function' && autoPass()) autoPass().update(); };
 $('btnOpenRules').onclick = () => { snd.click(); $('rulesModal').classList.remove('hidden'); if (typeof autoPass === 'function' && autoPass()) autoPass().update(); };
 $('btnCloseRules').onclick = () => closeModal($('rulesModal'));
 $('btnRulesDone').onclick = () => closeModal($('rulesModal'));

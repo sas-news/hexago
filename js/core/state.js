@@ -1,6 +1,6 @@
 // ===== 状態 =====
 const gameFeatures = (typeof window !== 'undefined' && window.HexagoGameFeatures) || null;
-let autoPassController = null;
+let autoPassController = null, autoPassOfferSeat = 0;
 let G, seenSet = new Set();
 let onlineAI = false, pendingSize = 9, mode = 'local', playerCount = 3, seats = [0, 'human', 'human', 'human', 'human', 'human', 'human'];
 let aiMode = 'fast'; // 'fast'(高速・盤サイズ別自動最適) / 'deep'(長考・盤サイズ別自動最適)

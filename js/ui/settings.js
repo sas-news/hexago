@@ -132,7 +132,7 @@ document.querySelectorAll('#aiModeBtns .opt').forEach(b => b.onclick = () => {
 $('btnHostBoard').onclick = () => { boardView = 'host'; syncSettings(); };
 $('btnParticipantBoard').onclick = () => { boardView = 'participant'; syncSettings(); };
 $('btnSound').onclick = () => { snd.on = !snd.on; syncSettings(); snd.click(); save(); };
-$('btnOpenSettings').onclick = () => { snd.click(); syncSettings(); if (typeof renderAutoPassControls === 'function' && G) renderAutoPassControls(); $('setModal').classList.remove('hidden'); if (typeof autoPass === 'function' && autoPass()) autoPass().update(); };
+$('btnOpenSettings').onclick = () => { snd.click(); syncSettings(); $('setModal').classList.remove('hidden'); if (typeof autoPass === 'function' && autoPass()) autoPass().update(); };
 $('btnOpenRules').onclick = () => { snd.click(); $('rulesModal').classList.remove('hidden'); if (typeof autoPass === 'function' && autoPass()) autoPass().update(); };
 $('btnCloseRules').onclick = () => closeModal($('rulesModal'));
 $('btnRulesDone').onclick = () => closeModal($('rulesModal'));
