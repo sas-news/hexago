@@ -1,8 +1,7 @@
 // ===== プレイヤー設定 =====
 const SEAT_MODES = ['human', 'ai'];
 const SEAT_LABELS = { human: '人間', ai: 'AI' };
-const AI_STYLE_CYCLE = [null, 'solid', 'balanced', 'aggressive'];
-const AI_STYLE_LABELS = { solid: '堅実', balanced: 'バランス', aggressive: '攻撃的' };
+const AI_MODE_LABELS = { fast: '高速', deep: '長考' };
 function canManageRoom() { return mode === 'local' || !roomCode || isHost; }
 function isMatchRunning() { return !!(G && G.phase !== 'setup' && !G.over); }
 function setSeatAIFlag(p) {
@@ -22,7 +21,7 @@ function setSeatMode(p, nextMode, quiet=false) {
   if (!canManageRoom() || p < 1 || p > 6 || !SEAT_MODES.includes(nextMode)) return;
   if (seats[p] === nextMode) return;
   if (nextMode === 'ai') releaseSeat(p);
-  if (typeof setSeatAIStyle === 'function') setSeatAIStyle(p, null);
+  if (typeof setSeatAIMode === 'function') setSeatAIMode(p, null);
   seats[p] = nextMode;
   setSeatAIFlag(p);
   if (!quiet) {
@@ -33,7 +32,7 @@ function setSeatMode(p, nextMode, quiet=false) {
 }
 function setAllSeatModes(value) {
   if (!canManageRoom()) return;
-  for (let p = 1; p <= playerCount; p++) setSeatMode(p, value, true);
+  for (let p = 1; p <= 6; p++) setSeatMode(p, value, true);
   snd.click(); syncSettings();
   if (mode === 'online' && isHost) sync();
   after();
@@ -52,16 +51,10 @@ function syncSettings() {
   const participantView = mode === 'online' && boardView === 'participant';
   $('onlineRoleConfig').classList.toggle('hidden', mode !== 'online');
   $('seatBox').classList.toggle('hidden', participantView);
-  ['boardSizeConfig', 'playerCountConfig', 'aiModeConfig', 'aiStyleConfig', 'soundConfig'].forEach(id => $(id).classList.toggle('hidden', participantView));
+  ['boardSizeConfig', 'playerCountConfig', 'aiModeConfig', 'soundConfig'].forEach(id => $(id).classList.toggle('hidden', participantView));
+  const bulkMode = typeof currentAIMode === 'function' ? currentAIMode() : 'fast';
   document.querySelectorAll('#aiModeBtns .opt').forEach(b => {
-    const active = b.dataset.aiMode === (typeof currentAIMode === 'function' ? currentAIMode() : 'fast');
-    b.classList.toggle('on', active);
-    b.setAttribute('aria-pressed', String(active));
-    b.disabled = !canManageRoom();
-  });
-  const bulkStyle = typeof currentAIStyle === 'function' ? currentAIStyle() : 'balanced';
-  document.querySelectorAll('#aiStyleBtns .opt').forEach(b => {
-    const active = b.dataset.aiStyle === bulkStyle;
+    const active = b.dataset.aiMode === bulkMode;
     b.classList.toggle('on', active);
     b.setAttribute('aria-pressed', String(active));
     b.disabled = !canManageRoom();
@@ -76,14 +69,14 @@ function syncSettings() {
     const row = document.createElement('div'); row.className = 'flex items-center gap-1.5';
     const label = document.createElement('span'); label.className = 'w-16 shrink-0 text-xs font-bold text-neutral-700';
     label.textContent = `${p}P ${playerName(p)}`; row.appendChild(label);
-    const ovSt = typeof seatStyleOverride === 'function' ? seatStyleOverride(p) : null;
+    const ovMode = typeof seatAIModeOverride === 'function' ? seatAIModeOverride(p) : null;
     for (const value of SEAT_MODES) {
       const b = document.createElement('button'); b.type = 'button';
       b.className = 'opt flex-1' + (seats[p] === value ? ' on' : '');
       if (value === 'ai') {
         b.dataset.seatAi = String(p);
-        b.textContent = (seats[p] === 'ai' && ovSt) ? `AI（${AI_STYLE_LABELS[ovSt]}）` : SEAT_LABELS.ai;
-        b.title = 'AIを繰り返しタップで席ごとの棋風を切替';
+        b.textContent = (seats[p] === 'ai' && ovMode) ? `AI（${AI_MODE_LABELS[ovMode]}）` : SEAT_LABELS.ai;
+        b.title = 'AIを繰り返しタップで席ごとのテンポを切替';
       } else {
         b.textContent = SEAT_LABELS[value];
       }
@@ -93,9 +86,8 @@ function syncSettings() {
         if (value === 'ai' && seats[p] === 'ai') {
           if (!canManageRoom()) return;
           snd.click();
-          const idx = AI_STYLE_CYCLE.indexOf(ovSt);
-          const nextSt = AI_STYLE_CYCLE[(idx + 1) % AI_STYLE_CYCLE.length];
-          if (typeof setSeatAIStyle === 'function') setSeatAIStyle(p, nextSt);
+          const nextM = ovMode ? null : (bulkMode === 'fast' ? 'deep' : 'fast');
+          if (typeof setSeatAIMode === 'function') setSeatAIMode(p, nextM);
           syncSettings(); save();
           return;
         }
@@ -135,12 +127,6 @@ document.querySelectorAll('#aiModeBtns .opt').forEach(b => b.onclick = () => {
   if (!canManageRoom()) return;
   snd.click();
   if (typeof setAIMode === 'function') setAIMode(b.dataset.aiMode);
-  syncSettings(); save();
-});
-document.querySelectorAll('#aiStyleBtns .opt').forEach(b => b.onclick = () => {
-  if (!canManageRoom()) return;
-  snd.click();
-  if (typeof setAIStyle === 'function') setAIStyle(b.dataset.aiStyle);
   syncSettings(); save();
 });
 $('btnHostBoard').onclick = () => { boardView = 'host'; syncSettings(); };

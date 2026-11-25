@@ -1,12 +1,11 @@
 // ===== デバッグ用フック（E2E 検証・AI 性能確認用。UI には影響しない） =====
 window.__hexagoDebug = {
-  state: () => ({ board: G.board.slice(), turn: G.turn, over: G.over, phase: G.phase, playerCount: G.playerCount, size: G.size, seats: seats.slice(), mode, aiMode: currentAIMode(), aiStyle: currentAIStyle(), seatStyles: seatStyles.slice(), aiBusy, aiBudget: aiBudgetMs(), seen: G.seen.length, lastAI: lastAIStats, out: G.out.slice() }),
-  think: (budget) => aiThink(aiStateSnapshot(), budget || aiBudgetMs()),
-  engine: () => ({ worker: aiPool.length > 0, workers: aiPool.length, wantWorkers: aiPoolWant(), aiMode: currentAIMode(), aiStyle: currentAIStyle(), error: aiWorkerError, loaded: aiEngineLoaded(), workerUrl: aiPool[0] ? aiPool[0].url : AI_WORKER_URL, inlineEngine: !!aiEngineSourceText() }),
+  state: () => ({ board: G.board.slice(), turn: G.turn, over: G.over, phase: G.phase, playerCount: G.playerCount, size: G.size, seats: seats.slice(), mode, aiMode: currentAIMode(), seatAIModes: seatAIModes.slice(), aiBusy, aiBudget: aiBudgetMs(G.turn), seen: G.seen.length, lastAI: lastAIStats, out: G.out.slice() }),
+  think: (budget) => aiThink(aiStateSnapshot(), budget || aiBudgetMs(G.turn)),
+  engine: () => ({ worker: aiPool.length > 0, workers: aiPool.length, wantWorkers: aiPoolWant(G.turn), aiMode: currentAIMode(), error: aiWorkerError, loaded: aiEngineLoaded(), workerUrl: aiPool[0] ? aiPool[0].url : AI_WORKER_URL, inlineEngine: !!aiEngineSourceText() }),
   setAIMode: (m) => { const r = setAIMode(m); syncSettings(); save(); return r; },
-  setAIStyle: (s) => { const r = setAIStyle(s); syncSettings(); save(); return r; },
-  setSeatAIStyle: (p, s) => { const r = setSeatAIStyle(p, s); syncSettings(); save(); return r; },
-  setAIBudgetMs: (ms) => { aiTestBudgetMs = ms == null ? null : Math.max(1, ms | 0); return aiBudgetMs(); },
+  setSeatAIMode: (p, m) => { const r = setSeatAIMode(p, m); syncSettings(); save(); return r; },
+  setAIBudgetMs: (ms) => { aiTestBudgetMs = ms == null ? null : Math.max(1, ms | 0); return aiBudgetMs(G.turn); },
   exportRecord: () => (typeof exportCurrentRecord === 'function' ? exportCurrentRecord() : null),
   exportRecordText: () => (typeof exportCurrentRecord === 'function' && gameFeatures ? gameFeatures.toText(exportCurrentRecord()) : ''),
   importJSON: (text) => (typeof importBoardOrKifuJSON === 'function' ? importBoardOrKifuJSON(text) : null),

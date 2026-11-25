@@ -3,7 +3,7 @@ function canUndo() {
   if (G.over || G.phase !== 'playing' || !G.hist.length || aiBusy) return false;
   const top = G.hist[G.hist.length - 1];
   if (mode === 'online') { let k = G.hist.length - 1; while (k >= 0 && aiSeatOf(G.hist[k].by)) k--; return k >= 0 && G.hist[k].by === myRole; }
-  return seats[G.turn] === 'human' || seats.slice(1).includes('human');
+  return seats[G.turn] === 'human' || seats.slice(1, (G.playerCount || playerCount) + 1).includes('human');
 }
 function undo() {
   if (!canUndo()) return;

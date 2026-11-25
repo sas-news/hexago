@@ -5,8 +5,7 @@
 // 開発用の分割読み込み時は js/ai/worker.js を直接起動する。
 // Worker が使えない環境（file:// や厳しいサンドボックス）ではメインスレッド MCTS にフォールバックし、
 // それも失敗した場合だけ従来の1手読み AI (aiChoose) にフォールバックする。
-// AI 設定: テンポ（'fast' 高速・盤サイズ別自動最適 / 'deep' 長考・盤サイズ別自動最適）と
-// 棋風・重み（'solid' 堅実 / 'balanced' バランス / 'aggressive' 攻撃的）を独立に切替可能。
+// AI 設定: テンポ（'fast' 高速・盤サイズ別自動最適 / 'deep' 長考・盤サイズ別自動最適）。棋風は最強の balanced に統一。
 let aiTestBudgetMs = null, lastAIStats = null;
 let aiGeneration = 0, aiWorkerError = '', aiMsgSeq = 0, aiWaiters = new Map();
 let aiPool = [];   // [{ index, worker, url, failed }]
@@ -27,7 +26,7 @@ const AI_WORKER_GLUE = [
   '  try {',
   '    var st = d.state || {};',
   '    var opts = d.options || {};',
-  '    var style = (opts.style === "solid" || opts.style === "aggressive") ? opts.style : "balanced";',
+  '    var style = "balanced";',
   '    var key = String(st.size) + ":" + String(st.playerCount) + ":" + style;',
   '    var eng = __hexEngines[key];',
   '    if (!eng) { eng = HexagoAI.createEngine({ size: st.size, playerCount: st.playerCount, style: style }); __hexEngines[key] = eng; }',
@@ -54,50 +53,38 @@ function aiEngineSourceText() {
 function currentAIMode() {
   return (typeof aiMode === 'string' && (aiMode === 'deep' || aiMode === 'beta')) ? 'deep' : 'fast';
 }
-function currentAIStyle() {
-  return (typeof aiStyle === 'string' && (aiStyle === 'solid' || aiStyle === 'aggressive')) ? aiStyle : 'balanced';
-}
-function seatStyleOverride(p) {
-  if (typeof seatStyles !== 'undefined' && Array.isArray(seatStyles) && p >= 1 && p <= 6) {
-    const v = seatStyles[p];
-    if (v === 'solid' || v === 'balanced' || v === 'aggressive') return v;
+function seatAIModeOverride(p) {
+  if (typeof seatAIModes !== 'undefined' && Array.isArray(seatAIModes) && p >= 1 && p <= 6) {
+    const v = seatAIModes[p];
+    if (v === 'fast' || v === 'deep') return v;
   }
   return null;
 }
-function aiStyleForSeat(p) {
-  return seatStyleOverride(p) || currentAIStyle();
+function aiModeForSeat(p) {
+  return seatAIModeOverride(p) || currentAIMode();
 }
 function setAIMode(nextMode) {
   const m = (nextMode === 'deep' || nextMode === 'beta') ? 'deep' : 'fast';
-  const changed = typeof aiMode !== 'undefined' && aiMode !== m;
   aiMode = m;
+  if (typeof seatAIModes !== 'undefined' && Array.isArray(seatAIModes)) {
+    for (let p = 1; p <= 6; p++) seatAIModes[p] = null;
+  }
   try { localStorage.setItem('hexago-ai-mode', m); } catch (e) { }
-  if (changed && !aiBusy && aiPool.length) {
-    aiPool.forEach(slot => { try { slot.worker.terminate(); } catch (e) { } });
-    aiPool = [];
+  return m;
+}
+function setSeatAIMode(p, nextMode) {
+  const m = (nextMode === 'fast' || nextMode === 'deep') ? nextMode : null;
+  if (typeof seatAIModes !== 'undefined' && Array.isArray(seatAIModes) && p >= 1 && p <= 6) {
+    seatAIModes[p] = m;
   }
   return m;
 }
-function setAIStyle(nextStyle) {
-  const s = (nextStyle === 'solid' || nextStyle === 'aggressive') ? nextStyle : 'balanced';
-  aiStyle = s;
-  if (typeof seatStyles !== 'undefined' && Array.isArray(seatStyles)) {
-    for (let p = 1; p <= 6; p++) seatStyles[p] = null;
-  }
-  return s;
-}
-function setSeatAIStyle(p, nextStyle) {
-  const s = (nextStyle === 'solid' || nextStyle === 'balanced' || nextStyle === 'aggressive') ? nextStyle : null;
-  if (typeof seatStyles !== 'undefined' && Array.isArray(seatStyles) && p >= 1 && p <= 6) {
-    seatStyles[p] = s;
-  }
-  return s;
-}
 // 強さ曲線の実測に基づき、盤サイズごとに最適な思考時間を自動設定する（プレイヤーに秒数を意識させない）。
-function aiBudgetMs() {
+function aiBudgetMs(seat) {
   if (aiTestBudgetMs != null) return aiTestBudgetMs;
   const pts = (typeof P !== 'undefined' && P.length) || 61;
-  if (currentAIMode() === 'deep') {
+  const m = seat ? aiModeForSeat(seat) : currentAIMode();
+  if (m === 'deep') {
     if (pts >= 450) return 12000;
     if (pts >= 250) return 10000;
     if (pts >= 120) return 6000;
@@ -108,9 +95,10 @@ function aiBudgetMs() {
   if (pts >= 120) return 1200;
   return 800;
 }
-function aiPoolWant() {
+function aiPoolWant(seat) {
   const cores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4;
-  let want = currentAIMode() === 'deep'
+  const m = seat ? aiModeForSeat(seat) : currentAIMode();
+  let want = m === 'deep'
     ? Math.min(8, Math.max(1, cores))
     : Math.min(4, Math.max(1, cores - 1));
   const mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 8;
@@ -160,12 +148,12 @@ function makeAIWorkerSlot(index) {
   if (isBlob) setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) { } }, 60000);
   return slot;
 }
-function ensureAIPool() {
+function ensureAIPool(want) {
   aiPool = aiPool.filter(slot => !slot.failed);
-  const want = aiPoolWant();
+  const target = want || aiPoolWant();
   if (!aiEngineLoaded()) { aiWorkerError = 'AI engine is not loaded'; return []; }
   try {
-    while (aiPool.length < want) aiPool.push(makeAIWorkerSlot(aiPool.length));
+    while (aiPool.length < target) aiPool.push(makeAIWorkerSlot(aiPool.length));
   } catch (err) {
     aiWorkerError = String((err && err.message) || err);
     aiPool.forEach(slot => { try { slot.worker.terminate(); } catch (e) { } });
@@ -189,9 +177,8 @@ function ensureMainAI() {
   return aiMainAPI;
 }
 function mainAIEngine(state) {
-  const style = aiStyleForSeat(state && state.turn);
-  const key = state.size + ':' + state.playerCount + ':' + style;
-  if (!aiMainEngines[key]) aiMainEngines[key] = ensureMainAI().createEngine({ size: state.size, playerCount: state.playerCount, style: style });
+  const key = state.size + ':' + state.playerCount + ':balanced';
+  if (!aiMainEngines[key]) aiMainEngines[key] = ensureMainAI().createEngine({ size: state.size, playerCount: state.playerCount, style: 'balanced' });
   return aiMainEngines[key];
 }
 function aiStateSnapshot() {
@@ -220,7 +207,7 @@ function aiThinkOnSlot(slot, state, budgetMs) {
       resolve: r => { clearTimeout(timer); resolve(r); },
       reject: e => { clearTimeout(timer); reject(e); },
     });
-    slot.worker.postMessage({ id: id, state: state, options: { budgetMs: budgetMs, style: aiStyleForSeat(state && state.turn), returnAllMoves: true, resignThreshold: 0.02 } });
+    slot.worker.postMessage({ id: id, state: state, options: { budgetMs: budgetMs, style: 'balanced', returnAllMoves: true, resignThreshold: 0.02 } });
   });
 }
 // root parallel MCTS: 各 Worker のルート直下の訪問数を合算して着手を選ぶ。
@@ -286,7 +273,8 @@ function runMainThreadAI(state, budgetMs) {
   });
 }
 function aiThink(state, budgetMs) {
-  const pool = ensureAIPool();
+  const want = aiPoolWant(state && state.turn);
+  const pool = ensureAIPool(want).slice(0, want);
   if (pool.length) {
     return Promise.allSettled(pool.map(slot => aiThinkOnSlot(slot, state, budgetMs))).then(settled => {
       const ok = [];
@@ -319,7 +307,7 @@ function maybeAI() {
   if (G.phase === 'dead') return;
   if (G.phase !== 'playing' || !aiSeatOf(G.turn)) return;
   const gen = ++aiGeneration, turn = G.turn;
-  const state = aiStateSnapshot(), budget = aiBudgetMs();
+  const state = aiStateSnapshot(), budget = aiBudgetMs(turn);
   aiBusy = true;
   const ovText = document.getElementById('aiOvText');
   if (ovText) ovText.textContent = 'AI 思考中...';

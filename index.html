@@ -183,16 +183,7 @@ canvas{display:block;touch-action:manipulation}
         <button type="button" data-ai-mode="fast" class="opt">高速</button>
         <button type="button" data-ai-mode="deep" class="opt">長考</button>
       </div>
-      <p class="text-[11px] leading-relaxed text-neutral-500">盤サイズに合わせて思考時間を自動調整します。</p>
-    </div>
-    <div id="aiStyleConfig" class="flex flex-col gap-1.5">
-      <label class="text-xs font-bold tracking-wider text-neutral-500">AI 棋風（一括）</label>
-      <div class="grid grid-cols-3 gap-2" id="aiStyleBtns">
-        <button type="button" data-ai-style="solid" class="opt">堅実</button>
-        <button type="button" data-ai-style="balanced" class="opt">バランス</button>
-        <button type="button" data-ai-style="aggressive" class="opt">攻撃的</button>
-      </div>
-      <p class="text-[11px] leading-relaxed text-neutral-500">全AIへ一括適用します。AIボタンを繰り返しタップすると席ごとに棋風を切り替えられます。</p>
+      <p class="text-[11px] leading-relaxed text-neutral-500">盤サイズに合わせて思考時間を自動調整します。AIボタンを繰り返しタップすると席ごとにテンポを切り替えられます。</p>
     </div>
     <div id="autoPassConfig" class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col gap-2 hidden">
       <span class="text-xs font-bold text-neutral-600">連続パス（自動パス）</span>
@@ -3506,8 +3497,7 @@ try {
   const savedMode = localStorage.getItem('hexago-ai-mode');
   if (savedMode === 'deep' || savedMode === 'fast') aiMode = savedMode;
 } catch (e) { }
-let aiStyle = 'balanced'; // 一括デフォルト棋風: 'solid' | 'balanced' | 'aggressive'
-let seatStyles = [0, null, null, null, null, null, null]; // null = 一括設定に従う, 文字列 = 席ごとの個別棋風
+let seatAIModes = [0, null, null, null, null, null, null]; // null = 一括設定に従う, 'fast' | 'deep' = 席ごとの個別テンポ
 let boardView = 'host';
 let prev = -1, ptype = 'mouse', aiBusy = false;
 let peer = null, conns = [], hostConn = null, myRole = null, isHost = false, roomCode = null;
@@ -3532,7 +3522,7 @@ function hash(a) { // cyrb53
 }
 const KEY = 'hexago-save-v1';
 function save() {
-  try { sessionStorage.setItem(KEY, JSON.stringify({ G, onlineAI, pendingSize, mode, seats, aiMode, aiStyle, seatStyles, theme: theme.id, sound: snd.on })); } catch (e) { }
+  try { sessionStorage.setItem(KEY, JSON.stringify({ G, onlineAI, pendingSize, mode, seats, aiMode, seatAIModes, theme: theme.id, sound: snd.on })); } catch (e) { }
   try { if (typeof saveOnlineSession === 'function') saveOnlineSession(); } catch (e) { }
 }
 function load() {
@@ -3542,10 +3532,9 @@ function load() {
     build(s.G.size); if (s.G.board.length !== P.length) return false;
     G = s.G; onlineAI = !!s.onlineAI; pendingSize = s.pendingSize || G.size;
     aiMode = (s.aiMode === 'deep' || s.aiMode === 'beta') ? 'deep' : 'fast';
-    aiStyle = (s.aiStyle === 'solid' || s.aiStyle === 'aggressive') ? s.aiStyle : 'balanced';
-    const ss = Array.isArray(s.seatStyles) ? s.seatStyles : null;
-    const allSameAsBulk = ss && ss.slice(1, 7).every(v => v === aiStyle);
-    seatStyles = Array.from({length:7}, (_, i) => i === 0 ? 0 : (!allSameAsBulk && ss && (ss[i] === 'solid' || ss[i] === 'balanced' || ss[i] === 'aggressive') ? ss[i] : null));
+    const sm = Array.isArray(s.seatAIModes) ? s.seatAIModes : null;
+    const allSameAsBulk = sm && sm.slice(1, 7).every(v => v === aiMode);
+    seatAIModes = Array.from({length:7}, (_, i) => i === 0 ? 0 : (!allSameAsBulk && sm && (sm[i] === 'fast' || sm[i] === 'deep') ? sm[i] : null));
     seats = s.seats || seats; seats = Array.from({length:7}, (_, i) => i === 0 ? 0 : (seats[i] === 'ai' ? 'ai' : 'human'));
     playerCount = Math.max(2, Math.min(6, G.playerCount || 3)); G.playerCount=playerCount; G.damage=Array.from({length:playerCount+1},(_,i)=>(G.damage||[])[i]||0); G.out=Array.from({length:playerCount+1},(_,i)=>!!((G.out||[])[i])); seats.length = 7; seatOwners = Array(7).fill(null); seatNicknames = ['', '', '', '', '', '', '']; roomPool = Object.create(null); disconnectedNicknames = Object.create(null); G.aiSeats = Array.from({length:playerCount+1},(_,i)=>i===0?false:(seats[i] !== 'human')); G.aiSeat = G.aiSeats.findIndex((v,i)=>i>0&&v); mode = 'local';
     if (THEMES[s.theme]) theme = THEMES[s.theme]; if (s.sound === false) snd.on = false;
@@ -4445,8 +4434,7 @@ const aiSeatOf = p => mode === 'online' ? !!(G.aiSeats ? G.aiSeats[p] : G.aiSeat
 // 開発用の分割読み込み時は js/ai/worker.js を直接起動する。
 // Worker が使えない環境（file:// や厳しいサンドボックス）ではメインスレッド MCTS にフォールバックし、
 // それも失敗した場合だけ従来の1手読み AI (aiChoose) にフォールバックする。
-// AI 設定: テンポ（'fast' 高速・盤サイズ別自動最適 / 'deep' 長考・盤サイズ別自動最適）と
-// 棋風・重み（'solid' 堅実 / 'balanced' バランス / 'aggressive' 攻撃的）を独立に切替可能。
+// AI 設定: テンポ（'fast' 高速・盤サイズ別自動最適 / 'deep' 長考・盤サイズ別自動最適）。棋風は最強の balanced に統一。
 let aiTestBudgetMs = null, lastAIStats = null;
 let aiGeneration = 0, aiWorkerError = '', aiMsgSeq = 0, aiWaiters = new Map();
 let aiPool = [];   // [{ index, worker, url, failed }]
@@ -4467,7 +4455,7 @@ const AI_WORKER_GLUE = [
   '  try {',
   '    var st = d.state || {};',
   '    var opts = d.options || {};',
-  '    var style = (opts.style === "solid" || opts.style === "aggressive") ? opts.style : "balanced";',
+  '    var style = "balanced";',
   '    var key = String(st.size) + ":" + String(st.playerCount) + ":" + style;',
   '    var eng = __hexEngines[key];',
   '    if (!eng) { eng = HexagoAI.createEngine({ size: st.size, playerCount: st.playerCount, style: style }); __hexEngines[key] = eng; }',
@@ -4494,50 +4482,38 @@ function aiEngineSourceText() {
 function currentAIMode() {
   return (typeof aiMode === 'string' && (aiMode === 'deep' || aiMode === 'beta')) ? 'deep' : 'fast';
 }
-function currentAIStyle() {
-  return (typeof aiStyle === 'string' && (aiStyle === 'solid' || aiStyle === 'aggressive')) ? aiStyle : 'balanced';
-}
-function seatStyleOverride(p) {
-  if (typeof seatStyles !== 'undefined' && Array.isArray(seatStyles) && p >= 1 && p <= 6) {
-    const v = seatStyles[p];
-    if (v === 'solid' || v === 'balanced' || v === 'aggressive') return v;
+function seatAIModeOverride(p) {
+  if (typeof seatAIModes !== 'undefined' && Array.isArray(seatAIModes) && p >= 1 && p <= 6) {
+    const v = seatAIModes[p];
+    if (v === 'fast' || v === 'deep') return v;
   }
   return null;
 }
-function aiStyleForSeat(p) {
-  return seatStyleOverride(p) || currentAIStyle();
+function aiModeForSeat(p) {
+  return seatAIModeOverride(p) || currentAIMode();
 }
 function setAIMode(nextMode) {
   const m = (nextMode === 'deep' || nextMode === 'beta') ? 'deep' : 'fast';
-  const changed = typeof aiMode !== 'undefined' && aiMode !== m;
   aiMode = m;
+  if (typeof seatAIModes !== 'undefined' && Array.isArray(seatAIModes)) {
+    for (let p = 1; p <= 6; p++) seatAIModes[p] = null;
+  }
   try { localStorage.setItem('hexago-ai-mode', m); } catch (e) { }
-  if (changed && !aiBusy && aiPool.length) {
-    aiPool.forEach(slot => { try { slot.worker.terminate(); } catch (e) { } });
-    aiPool = [];
+  return m;
+}
+function setSeatAIMode(p, nextMode) {
+  const m = (nextMode === 'fast' || nextMode === 'deep') ? nextMode : null;
+  if (typeof seatAIModes !== 'undefined' && Array.isArray(seatAIModes) && p >= 1 && p <= 6) {
+    seatAIModes[p] = m;
   }
   return m;
 }
-function setAIStyle(nextStyle) {
-  const s = (nextStyle === 'solid' || nextStyle === 'aggressive') ? nextStyle : 'balanced';
-  aiStyle = s;
-  if (typeof seatStyles !== 'undefined' && Array.isArray(seatStyles)) {
-    for (let p = 1; p <= 6; p++) seatStyles[p] = null;
-  }
-  return s;
-}
-function setSeatAIStyle(p, nextStyle) {
-  const s = (nextStyle === 'solid' || nextStyle === 'balanced' || nextStyle === 'aggressive') ? nextStyle : null;
-  if (typeof seatStyles !== 'undefined' && Array.isArray(seatStyles) && p >= 1 && p <= 6) {
-    seatStyles[p] = s;
-  }
-  return s;
-}
 // 強さ曲線の実測に基づき、盤サイズごとに最適な思考時間を自動設定する（プレイヤーに秒数を意識させない）。
-function aiBudgetMs() {
+function aiBudgetMs(seat) {
   if (aiTestBudgetMs != null) return aiTestBudgetMs;
   const pts = (typeof P !== 'undefined' && P.length) || 61;
-  if (currentAIMode() === 'deep') {
+  const m = seat ? aiModeForSeat(seat) : currentAIMode();
+  if (m === 'deep') {
     if (pts >= 450) return 12000;
     if (pts >= 250) return 10000;
     if (pts >= 120) return 6000;
@@ -4548,9 +4524,10 @@ function aiBudgetMs() {
   if (pts >= 120) return 1200;
   return 800;
 }
-function aiPoolWant() {
+function aiPoolWant(seat) {
   const cores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4;
-  let want = currentAIMode() === 'deep'
+  const m = seat ? aiModeForSeat(seat) : currentAIMode();
+  let want = m === 'deep'
     ? Math.min(8, Math.max(1, cores))
     : Math.min(4, Math.max(1, cores - 1));
   const mem = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 8;
@@ -4600,12 +4577,12 @@ function makeAIWorkerSlot(index) {
   if (isBlob) setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) { } }, 60000);
   return slot;
 }
-function ensureAIPool() {
+function ensureAIPool(want) {
   aiPool = aiPool.filter(slot => !slot.failed);
-  const want = aiPoolWant();
+  const target = want || aiPoolWant();
   if (!aiEngineLoaded()) { aiWorkerError = 'AI engine is not loaded'; return []; }
   try {
-    while (aiPool.length < want) aiPool.push(makeAIWorkerSlot(aiPool.length));
+    while (aiPool.length < target) aiPool.push(makeAIWorkerSlot(aiPool.length));
   } catch (err) {
     aiWorkerError = String((err && err.message) || err);
     aiPool.forEach(slot => { try { slot.worker.terminate(); } catch (e) { } });
@@ -4629,9 +4606,8 @@ function ensureMainAI() {
   return aiMainAPI;
 }
 function mainAIEngine(state) {
-  const style = aiStyleForSeat(state && state.turn);
-  const key = state.size + ':' + state.playerCount + ':' + style;
-  if (!aiMainEngines[key]) aiMainEngines[key] = ensureMainAI().createEngine({ size: state.size, playerCount: state.playerCount, style: style });
+  const key = state.size + ':' + state.playerCount + ':balanced';
+  if (!aiMainEngines[key]) aiMainEngines[key] = ensureMainAI().createEngine({ size: state.size, playerCount: state.playerCount, style: 'balanced' });
   return aiMainEngines[key];
 }
 function aiStateSnapshot() {
@@ -4660,7 +4636,7 @@ function aiThinkOnSlot(slot, state, budgetMs) {
       resolve: r => { clearTimeout(timer); resolve(r); },
       reject: e => { clearTimeout(timer); reject(e); },
     });
-    slot.worker.postMessage({ id: id, state: state, options: { budgetMs: budgetMs, style: aiStyleForSeat(state && state.turn), returnAllMoves: true, resignThreshold: 0.02 } });
+    slot.worker.postMessage({ id: id, state: state, options: { budgetMs: budgetMs, style: 'balanced', returnAllMoves: true, resignThreshold: 0.02 } });
   });
 }
 // root parallel MCTS: 各 Worker のルート直下の訪問数を合算して着手を選ぶ。
@@ -4726,7 +4702,8 @@ function runMainThreadAI(state, budgetMs) {
   });
 }
 function aiThink(state, budgetMs) {
-  const pool = ensureAIPool();
+  const want = aiPoolWant(state && state.turn);
+  const pool = ensureAIPool(want).slice(0, want);
   if (pool.length) {
     return Promise.allSettled(pool.map(slot => aiThinkOnSlot(slot, state, budgetMs))).then(settled => {
       const ok = [];
@@ -4759,7 +4736,7 @@ function maybeAI() {
   if (G.phase === 'dead') return;
   if (G.phase !== 'playing' || !aiSeatOf(G.turn)) return;
   const gen = ++aiGeneration, turn = G.turn;
-  const state = aiStateSnapshot(), budget = aiBudgetMs();
+  const state = aiStateSnapshot(), budget = aiBudgetMs(turn);
   aiBusy = true;
   const ovText = document.getElementById('aiOvText');
   if (ovText) ovText.textContent = 'AI 思考中...';
@@ -4867,7 +4844,7 @@ function canUndo() {
   if (G.over || G.phase !== 'playing' || !G.hist.length || aiBusy) return false;
   const top = G.hist[G.hist.length - 1];
   if (mode === 'online') { let k = G.hist.length - 1; while (k >= 0 && aiSeatOf(G.hist[k].by)) k--; return k >= 0 && G.hist[k].by === myRole; }
-  return seats[G.turn] === 'human' || seats.slice(1).includes('human');
+  return seats[G.turn] === 'human' || seats.slice(1, (G.playerCount || playerCount) + 1).includes('human');
 }
 function undo() {
   if (!canUndo()) return;
@@ -5208,8 +5185,7 @@ $('btnDeadClear').onclick = () => { snd.click(); G.dead = []; updateUI(); save()
 // ===== プレイヤー設定 =====
 const SEAT_MODES = ['human', 'ai'];
 const SEAT_LABELS = { human: '人間', ai: 'AI' };
-const AI_STYLE_CYCLE = [null, 'solid', 'balanced', 'aggressive'];
-const AI_STYLE_LABELS = { solid: '堅実', balanced: 'バランス', aggressive: '攻撃的' };
+const AI_MODE_LABELS = { fast: '高速', deep: '長考' };
 function canManageRoom() { return mode === 'local' || !roomCode || isHost; }
 function isMatchRunning() { return !!(G && G.phase !== 'setup' && !G.over); }
 function setSeatAIFlag(p) {
@@ -5229,7 +5205,7 @@ function setSeatMode(p, nextMode, quiet=false) {
   if (!canManageRoom() || p < 1 || p > 6 || !SEAT_MODES.includes(nextMode)) return;
   if (seats[p] === nextMode) return;
   if (nextMode === 'ai') releaseSeat(p);
-  if (typeof setSeatAIStyle === 'function') setSeatAIStyle(p, null);
+  if (typeof setSeatAIMode === 'function') setSeatAIMode(p, null);
   seats[p] = nextMode;
   setSeatAIFlag(p);
   if (!quiet) {
@@ -5240,7 +5216,7 @@ function setSeatMode(p, nextMode, quiet=false) {
 }
 function setAllSeatModes(value) {
   if (!canManageRoom()) return;
-  for (let p = 1; p <= playerCount; p++) setSeatMode(p, value, true);
+  for (let p = 1; p <= 6; p++) setSeatMode(p, value, true);
   snd.click(); syncSettings();
   if (mode === 'online' && isHost) sync();
   after();
@@ -5259,16 +5235,10 @@ function syncSettings() {
   const participantView = mode === 'online' && boardView === 'participant';
   $('onlineRoleConfig').classList.toggle('hidden', mode !== 'online');
   $('seatBox').classList.toggle('hidden', participantView);
-  ['boardSizeConfig', 'playerCountConfig', 'aiModeConfig', 'aiStyleConfig', 'soundConfig'].forEach(id => $(id).classList.toggle('hidden', participantView));
+  ['boardSizeConfig', 'playerCountConfig', 'aiModeConfig', 'soundConfig'].forEach(id => $(id).classList.toggle('hidden', participantView));
+  const bulkMode = typeof currentAIMode === 'function' ? currentAIMode() : 'fast';
   document.querySelectorAll('#aiModeBtns .opt').forEach(b => {
-    const active = b.dataset.aiMode === (typeof currentAIMode === 'function' ? currentAIMode() : 'fast');
-    b.classList.toggle('on', active);
-    b.setAttribute('aria-pressed', String(active));
-    b.disabled = !canManageRoom();
-  });
-  const bulkStyle = typeof currentAIStyle === 'function' ? currentAIStyle() : 'balanced';
-  document.querySelectorAll('#aiStyleBtns .opt').forEach(b => {
-    const active = b.dataset.aiStyle === bulkStyle;
+    const active = b.dataset.aiMode === bulkMode;
     b.classList.toggle('on', active);
     b.setAttribute('aria-pressed', String(active));
     b.disabled = !canManageRoom();
@@ -5283,14 +5253,14 @@ function syncSettings() {
     const row = document.createElement('div'); row.className = 'flex items-center gap-1.5';
     const label = document.createElement('span'); label.className = 'w-16 shrink-0 text-xs font-bold text-neutral-700';
     label.textContent = `${p}P ${playerName(p)}`; row.appendChild(label);
-    const ovSt = typeof seatStyleOverride === 'function' ? seatStyleOverride(p) : null;
+    const ovMode = typeof seatAIModeOverride === 'function' ? seatAIModeOverride(p) : null;
     for (const value of SEAT_MODES) {
       const b = document.createElement('button'); b.type = 'button';
       b.className = 'opt flex-1' + (seats[p] === value ? ' on' : '');
       if (value === 'ai') {
         b.dataset.seatAi = String(p);
-        b.textContent = (seats[p] === 'ai' && ovSt) ? `AI（${AI_STYLE_LABELS[ovSt]}）` : SEAT_LABELS.ai;
-        b.title = 'AIを繰り返しタップで席ごとの棋風を切替';
+        b.textContent = (seats[p] === 'ai' && ovMode) ? `AI（${AI_MODE_LABELS[ovMode]}）` : SEAT_LABELS.ai;
+        b.title = 'AIを繰り返しタップで席ごとのテンポを切替';
       } else {
         b.textContent = SEAT_LABELS[value];
       }
@@ -5300,9 +5270,8 @@ function syncSettings() {
         if (value === 'ai' && seats[p] === 'ai') {
           if (!canManageRoom()) return;
           snd.click();
-          const idx = AI_STYLE_CYCLE.indexOf(ovSt);
-          const nextSt = AI_STYLE_CYCLE[(idx + 1) % AI_STYLE_CYCLE.length];
-          if (typeof setSeatAIStyle === 'function') setSeatAIStyle(p, nextSt);
+          const nextM = ovMode ? null : (bulkMode === 'fast' ? 'deep' : 'fast');
+          if (typeof setSeatAIMode === 'function') setSeatAIMode(p, nextM);
           syncSettings(); save();
           return;
         }
@@ -5342,12 +5311,6 @@ document.querySelectorAll('#aiModeBtns .opt').forEach(b => b.onclick = () => {
   if (!canManageRoom()) return;
   snd.click();
   if (typeof setAIMode === 'function') setAIMode(b.dataset.aiMode);
-  syncSettings(); save();
-});
-document.querySelectorAll('#aiStyleBtns .opt').forEach(b => b.onclick = () => {
-  if (!canManageRoom()) return;
-  snd.click();
-  if (typeof setAIStyle === 'function') setAIStyle(b.dataset.aiStyle);
   syncSettings(); save();
 });
 $('btnHostBoard').onclick = () => { boardView = 'host'; syncSettings(); };
@@ -9202,13 +9165,12 @@ window.addEventListener('offline', () => {
 // --- ./js/ui/debug.js ---
 // ===== デバッグ用フック（E2E 検証・AI 性能確認用。UI には影響しない） =====
 window.__hexagoDebug = {
-  state: () => ({ board: G.board.slice(), turn: G.turn, over: G.over, phase: G.phase, playerCount: G.playerCount, size: G.size, seats: seats.slice(), mode, aiMode: currentAIMode(), aiStyle: currentAIStyle(), seatStyles: seatStyles.slice(), aiBusy, aiBudget: aiBudgetMs(), seen: G.seen.length, lastAI: lastAIStats, out: G.out.slice() }),
-  think: (budget) => aiThink(aiStateSnapshot(), budget || aiBudgetMs()),
-  engine: () => ({ worker: aiPool.length > 0, workers: aiPool.length, wantWorkers: aiPoolWant(), aiMode: currentAIMode(), aiStyle: currentAIStyle(), error: aiWorkerError, loaded: aiEngineLoaded(), workerUrl: aiPool[0] ? aiPool[0].url : AI_WORKER_URL, inlineEngine: !!aiEngineSourceText() }),
+  state: () => ({ board: G.board.slice(), turn: G.turn, over: G.over, phase: G.phase, playerCount: G.playerCount, size: G.size, seats: seats.slice(), mode, aiMode: currentAIMode(), seatAIModes: seatAIModes.slice(), aiBusy, aiBudget: aiBudgetMs(G.turn), seen: G.seen.length, lastAI: lastAIStats, out: G.out.slice() }),
+  think: (budget) => aiThink(aiStateSnapshot(), budget || aiBudgetMs(G.turn)),
+  engine: () => ({ worker: aiPool.length > 0, workers: aiPool.length, wantWorkers: aiPoolWant(G.turn), aiMode: currentAIMode(), error: aiWorkerError, loaded: aiEngineLoaded(), workerUrl: aiPool[0] ? aiPool[0].url : AI_WORKER_URL, inlineEngine: !!aiEngineSourceText() }),
   setAIMode: (m) => { const r = setAIMode(m); syncSettings(); save(); return r; },
-  setAIStyle: (s) => { const r = setAIStyle(s); syncSettings(); save(); return r; },
-  setSeatAIStyle: (p, s) => { const r = setSeatAIStyle(p, s); syncSettings(); save(); return r; },
-  setAIBudgetMs: (ms) => { aiTestBudgetMs = ms == null ? null : Math.max(1, ms | 0); return aiBudgetMs(); },
+  setSeatAIMode: (p, m) => { const r = setSeatAIMode(p, m); syncSettings(); save(); return r; },
+  setAIBudgetMs: (ms) => { aiTestBudgetMs = ms == null ? null : Math.max(1, ms | 0); return aiBudgetMs(G.turn); },
   exportRecord: () => (typeof exportCurrentRecord === 'function' ? exportCurrentRecord() : null),
   exportRecordText: () => (typeof exportCurrentRecord === 'function' && gameFeatures ? gameFeatures.toText(exportCurrentRecord()) : ''),
   importJSON: (text) => (typeof importBoardOrKifuJSON === 'function' ? importBoardOrKifuJSON(text) : null),
