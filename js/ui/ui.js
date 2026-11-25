@@ -258,11 +258,6 @@ if ($('btnOpenSavedLib')) $('btnOpenSavedLib').onclick = () => {
   closeModal($('recordModal'));
   if (window.HexagoPhotoUI && window.HexagoPhotoUI.openLibrary) window.HexagoPhotoUI.openLibrary();
 };
-if ($('btnOpenPhotoFromRecord')) $('btnOpenPhotoFromRecord').onclick = () => {
-  snd.click();
-  closeModal($('recordModal'));
-  if (window.HexagoPhotoUI && window.HexagoPhotoUI.open) window.HexagoPhotoUI.open();
-};
 if ($('btnImportRecord')) $('btnImportRecord').onclick = () => { snd.click(); if ($('recordFile')) $('recordFile').click(); };
 if ($('recordFile')) $('recordFile').onchange = () => {
   const f = $('recordFile').files && $('recordFile').files[0];

@@ -27,16 +27,18 @@
   // ---------------- 画面切り替え ----------------
   function view(name) {
     var map = {
-      step1: 'photoStep1', step2: 'photoStep2', step3: 'photoStep3', library: 'photoLibraryView'
+      step2: 'photoStep2', step3: 'photoStep3', library: 'photoLibraryView'
     };
     Object.keys(map).forEach(function (k) {
       var el = $(map[k]);
       if (el) el.classList.toggle('hidden', k !== name);
     });
+    var titleEl = $('photoModalTitle');
+    if (titleEl) titleEl.textContent = name === 'library' ? '保存した盤面' : '写真から盤面を復元';
   }
   function err(msg) {
     var el = $('photoErr');
-    if (!el) return;
+    if (!el) { if (msg) toast(msg); return; }
     if (!msg) { el.classList.add('hidden'); el.textContent = ''; return; }
     el.textContent = msg;
     el.classList.remove('hidden');
@@ -83,14 +85,26 @@
   }
 
   // ---------------- 画像読み込み ----------------
+  function preparePhotoModal() {
+    reset();
+    st.libraryDirect = false;
+    buildSizeButtons();
+    syncButtons();
+    renderTurnSelect();
+    syncLibCountBadges();
+    loadModel();
+  }
   function loadImageFile(file) {
-    err('');
     if (!file) return;
+    preparePhotoModal();
     st.fileName = file.name || 'photo';
     var url = URL.createObjectURL(file);
     var img = new Image();
     img.onload = function () {
       URL.revokeObjectURL(url);
+      if (typeof closeModal === 'function') closeModal($('recordModal'));
+      $('photoModal').classList.remove('hidden');
+      if (typeof autoPass === 'function' && autoPass()) autoPass().update();
       setupImage(img);
     };
     img.onerror = function () {
@@ -1226,16 +1240,9 @@
   }
 
   function open() {
-    reset();
-    st.libraryDirect = false;
-    view('step1');
-    buildSizeButtons();
-    syncButtons();
-    renderTurnSelect();
-    syncLibCountBadges();
-    $('photoModal').classList.remove('hidden');
-    if (typeof autoPass === 'function' && autoPass()) autoPass().update();
     loadModel();
+    var f = $('photoFile');
+    if (f) f.click();
   }
 
   function openLibrary() {
@@ -1254,8 +1261,6 @@
     if (close) close.onclick = function () { closeModal($('photoModal')); };
     var file = $('photoFile');
     if (file) file.onchange = function () { var f0 = file.files && file.files[0]; file.value = ''; loadImageFile(f0); };
-    var cam = $('photoCamera');
-    if (cam) cam.onchange = function () { var f0 = cam.files && cam.files[0]; cam.value = ''; loadImageFile(f0); };
     var marginInput = $('photoMargin');
     if (marginInput) marginInput.oninput = function () {
       st.margin = Number(marginInput.value);
@@ -1316,8 +1321,6 @@
     if (play) play.onclick = function () { applyToGame(buildEntry()); };
     var lib = $('btnPhotoLibrary');
     if (lib) lib.onclick = showLibrary;
-    var libStep1 = $('btnPhotoLibraryStep1');
-    if (libStep1) libStep1.onclick = showLibrary;
     var exp = $('btnPhotoExport');
     if (exp) exp.onclick = doExport;
     var imp = $('btnPhotoLibImport');
@@ -1340,9 +1343,9 @@
     };
     var libBack = $('btnPhotoLibBack');
     if (libBack) libBack.onclick = function () {
-      if (st.libraryDirect) { closeModal($('photoModal')); return; }
-      view(st.result ? 'step3' : 'step1');
-      if (st.result) renderResult();
+      if (st.libraryDirect || !st.result) { closeModal($('photoModal')); return; }
+      view('step3');
+      renderResult();
     };
   }
 
@@ -1405,6 +1408,8 @@
   };
 
   function setupImageFromData(imageData) {
+    preparePhotoModal();
+    $('photoModal').classList.remove('hidden');
     st.width = imageData.width; st.height = imageData.height;
     st.imageData = imageData;
     st.img = null;

@@ -115,9 +115,10 @@ canvas{display:block;touch-action:manipulation}
       </button>
       <button id="btnImportRecord" type="button" class="w-full py-2.5 px-4 border border-neutral-300 hover:bg-neutral-100 text-sm font-bold rounded-xl">JSONファイルから読み込む<span class="block text-[11px] font-normal text-neutral-500 mt-0.5">棋譜JSON・保存盤面JSONに両対応</span></button>
       <input id="recordFile" type="file" accept=".json,application/json" class="hidden">
-      <button id="btnOpenPhotoFromRecord" type="button" class="w-full py-2.5 px-4 border border-neutral-300 hover:bg-neutral-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2">
+      <label id="btnOpenPhotoFromRecord" class="w-full py-2.5 px-4 border border-neutral-300 hover:bg-neutral-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer">
         <span>📷</span><span>写真から盤面を復元</span>
-      </button>
+        <input id="photoFile" type="file" accept="image/*" class="hidden">
+      </label>
     </div>
     <p id="recordExportStatus" role="status" class="text-xs text-neutral-600 min-h-4"></p>
   </div>
@@ -269,27 +270,8 @@ canvas{display:block;touch-action:manipulation}
 <div id="photoModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 z-50 hidden">
   <div id="photoCard" class="bg-white text-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-neutral-200 max-h-[96svh] sm:max-h-[94vh] overflow-y-auto overscroll-contain">
     <div class="flex items-center justify-between border-b px-4 py-3 border-neutral-200 sticky top-0 bg-white z-10">
-      <h2 class="text-lg font-extrabold">写真から盤面を復元</h2>
+      <h2 id="photoModalTitle" class="text-lg font-extrabold">写真から盤面を復元</h2>
       <button id="btnClosePhoto" aria-label="閉じる" class="w-9 h-9 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold">✕</button>
-    </div>
-
-    <div id="photoStep1" class="p-4 flex flex-col gap-3">
-      <p class="text-xs text-neutral-600 leading-relaxed">実物の六角盤を撮影した写真を選んでください。盤全体が写っていると精度が上がります。</p>
-      <label class="w-full py-9 border-2 border-dashed border-neutral-300 rounded-xl flex flex-col items-center gap-2 cursor-pointer hover:bg-neutral-50">
-        <span class="text-3xl">🖼️</span>
-        <span class="font-bold text-sm">写真を選ぶ（ライブラリ / ファイル）</span>
-        <span class="text-[11px] text-neutral-500">撮影済みの JPEG / PNG など</span>
-        <input id="photoFile" type="file" accept="image/*" class="hidden">
-      </label>
-      <label class="w-full py-2.5 border border-neutral-300 rounded-xl flex items-center justify-center gap-2 cursor-pointer hover:bg-neutral-50 font-bold text-sm text-neutral-700">
-        <span>📷</span>
-        <span>カメラでその場で撮影する</span>
-        <input id="photoCamera" type="file" accept="image/*" capture="environment" class="hidden">
-      </label>
-      <div class="border-t border-neutral-200 pt-2 flex items-center justify-end">
-        <button id="btnPhotoLibraryStep1" type="button" class="text-xs underline opacity-75 hover:opacity-100">保存した盤面を開く（<span id="photoLibCountStep1">0</span>件）</button>
-      </div>
-      <p id="photoErr" class="text-xs text-red-600 hidden"></p>
     </div>
 
     <div id="photoStep2" class="p-4 flex flex-col gap-3 hidden">
@@ -5140,11 +5122,6 @@ if ($('btnOpenSavedLib')) $('btnOpenSavedLib').onclick = () => {
   closeModal($('recordModal'));
   if (window.HexagoPhotoUI && window.HexagoPhotoUI.openLibrary) window.HexagoPhotoUI.openLibrary();
 };
-if ($('btnOpenPhotoFromRecord')) $('btnOpenPhotoFromRecord').onclick = () => {
-  snd.click();
-  closeModal($('recordModal'));
-  if (window.HexagoPhotoUI && window.HexagoPhotoUI.open) window.HexagoPhotoUI.open();
-};
 if ($('btnImportRecord')) $('btnImportRecord').onclick = () => { snd.click(); if ($('recordFile')) $('recordFile').click(); };
 if ($('recordFile')) $('recordFile').onchange = () => {
   const f = $('recordFile').files && $('recordFile').files[0];
@@ -7827,16 +7804,18 @@ window.addEventListener('offline', () => {
   // ---------------- 画面切り替え ----------------
   function view(name) {
     var map = {
-      step1: 'photoStep1', step2: 'photoStep2', step3: 'photoStep3', library: 'photoLibraryView'
+      step2: 'photoStep2', step3: 'photoStep3', library: 'photoLibraryView'
     };
     Object.keys(map).forEach(function (k) {
       var el = $(map[k]);
       if (el) el.classList.toggle('hidden', k !== name);
     });
+    var titleEl = $('photoModalTitle');
+    if (titleEl) titleEl.textContent = name === 'library' ? '保存した盤面' : '写真から盤面を復元';
   }
   function err(msg) {
     var el = $('photoErr');
-    if (!el) return;
+    if (!el) { if (msg) toast(msg); return; }
     if (!msg) { el.classList.add('hidden'); el.textContent = ''; return; }
     el.textContent = msg;
     el.classList.remove('hidden');
@@ -7883,14 +7862,26 @@ window.addEventListener('offline', () => {
   }
 
   // ---------------- 画像読み込み ----------------
+  function preparePhotoModal() {
+    reset();
+    st.libraryDirect = false;
+    buildSizeButtons();
+    syncButtons();
+    renderTurnSelect();
+    syncLibCountBadges();
+    loadModel();
+  }
   function loadImageFile(file) {
-    err('');
     if (!file) return;
+    preparePhotoModal();
     st.fileName = file.name || 'photo';
     var url = URL.createObjectURL(file);
     var img = new Image();
     img.onload = function () {
       URL.revokeObjectURL(url);
+      if (typeof closeModal === 'function') closeModal($('recordModal'));
+      $('photoModal').classList.remove('hidden');
+      if (typeof autoPass === 'function' && autoPass()) autoPass().update();
       setupImage(img);
     };
     img.onerror = function () {
@@ -9026,16 +9017,9 @@ window.addEventListener('offline', () => {
   }
 
   function open() {
-    reset();
-    st.libraryDirect = false;
-    view('step1');
-    buildSizeButtons();
-    syncButtons();
-    renderTurnSelect();
-    syncLibCountBadges();
-    $('photoModal').classList.remove('hidden');
-    if (typeof autoPass === 'function' && autoPass()) autoPass().update();
     loadModel();
+    var f = $('photoFile');
+    if (f) f.click();
   }
 
   function openLibrary() {
@@ -9054,8 +9038,6 @@ window.addEventListener('offline', () => {
     if (close) close.onclick = function () { closeModal($('photoModal')); };
     var file = $('photoFile');
     if (file) file.onchange = function () { var f0 = file.files && file.files[0]; file.value = ''; loadImageFile(f0); };
-    var cam = $('photoCamera');
-    if (cam) cam.onchange = function () { var f0 = cam.files && cam.files[0]; cam.value = ''; loadImageFile(f0); };
     var marginInput = $('photoMargin');
     if (marginInput) marginInput.oninput = function () {
       st.margin = Number(marginInput.value);
@@ -9116,8 +9098,6 @@ window.addEventListener('offline', () => {
     if (play) play.onclick = function () { applyToGame(buildEntry()); };
     var lib = $('btnPhotoLibrary');
     if (lib) lib.onclick = showLibrary;
-    var libStep1 = $('btnPhotoLibraryStep1');
-    if (libStep1) libStep1.onclick = showLibrary;
     var exp = $('btnPhotoExport');
     if (exp) exp.onclick = doExport;
     var imp = $('btnPhotoLibImport');
@@ -9140,9 +9120,9 @@ window.addEventListener('offline', () => {
     };
     var libBack = $('btnPhotoLibBack');
     if (libBack) libBack.onclick = function () {
-      if (st.libraryDirect) { closeModal($('photoModal')); return; }
-      view(st.result ? 'step3' : 'step1');
-      if (st.result) renderResult();
+      if (st.libraryDirect || !st.result) { closeModal($('photoModal')); return; }
+      view('step3');
+      renderResult();
     };
   }
 
@@ -9205,6 +9185,8 @@ window.addEventListener('offline', () => {
   };
 
   function setupImageFromData(imageData) {
+    preparePhotoModal();
+    $('photoModal').classList.remove('hidden');
     st.width = imageData.width; st.height = imageData.height;
     st.imageData = imageData;
     st.img = null;
