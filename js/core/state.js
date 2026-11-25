@@ -3,13 +3,14 @@ const gameFeatures = (typeof window !== 'undefined' && window.HexagoGameFeatures
 let autoPassController = null;
 let G, seenSet = new Set();
 let onlineAI = false, pendingSize = 9, mode = 'local', playerCount = 3, seats = [0, 'human', 'human', 'human', 'human', 'human', 'human'];
-const AI_TIME_OPTIONS = [1000, 3000, 10000, 30000];
-let aiTimeMs = 1000;      // 1000(高速1秒) / 3000(標準3秒) / 10000(長考10秒) / 30000(徹底30秒)
+const AI_TIME_OPTIONS = [1000, 3000, 12000];
+let aiTimeMs = 1000;      // 1000(高速1秒) / 3000(標準3秒) / 12000(長考: 9・13路12秒 / 19・25路15秒)
 try {
   const savedTime = Number(localStorage.getItem('hexago-ai-time'));
   if (AI_TIME_OPTIONS.includes(savedTime)) aiTimeMs = savedTime;
+  else if (savedTime >= 10000) aiTimeMs = 12000;
 } catch (e) { }
-let aiMode = aiTimeMs >= 10000 ? 'deep' : 'fast'; // 互換用: 10s以上=長考(最大8並列), 未満=高速(最大4並列)
+let aiMode = aiTimeMs >= 10000 ? 'deep' : 'fast'; // 互換用: 長考=最大8並列, 1〜3秒=最大4並列
 let aiStyle = 'balanced'; // 一括デフォルト棋風: 'solid' | 'balanced' | 'aggressive'
 let seatStyles = [0, null, null, null, null, null, null]; // null = 一括設定に従う, 文字列 = 席ごとの個別棋風
 let boardView = 'host';
@@ -46,7 +47,7 @@ function load() {
     build(s.G.size); if (s.G.board.length !== P.length) return false;
     G = s.G; onlineAI = !!s.onlineAI; pendingSize = s.pendingSize || G.size;
     if (AI_TIME_OPTIONS.includes(Number(s.aiTimeMs))) aiTimeMs = Number(s.aiTimeMs);
-    else if (s.aiMode === 'deep' || s.aiMode === 'beta') aiTimeMs = 10000;
+    else if (Number(s.aiTimeMs) >= 10000 || s.aiMode === 'deep' || s.aiMode === 'beta') aiTimeMs = 12000;
     aiMode = aiTimeMs >= 10000 ? 'deep' : 'fast';
     aiStyle = (s.aiStyle === 'solid' || s.aiStyle === 'aggressive') ? s.aiStyle : 'balanced';
     const ss = Array.isArray(s.seatStyles) ? s.seatStyles : null;

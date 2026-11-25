@@ -868,8 +868,14 @@
       }
       pcSel.value = String(pc);
     }
-    var lib = $('photoLibCount');
-    if (lib) lib.textContent = S.list().length;
+    syncLibCountBadges();
+  }
+  function syncLibCountBadges() {
+    var cnt = S.list().length;
+    ['photoLibCount', 'photoLibCountStep1', 'recordLibCount'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.textContent = String(cnt);
+    });
   }
 
   // タップでクラスを巡回（空 → 参加中の色 → …）。全色モードでは残りの色も選べる。
@@ -1221,13 +1227,24 @@
 
   function open() {
     reset();
+    st.libraryDirect = false;
     view('step1');
     buildSizeButtons();
     syncButtons();
     renderTurnSelect();
+    syncLibCountBadges();
     $('photoModal').classList.remove('hidden');
     if (typeof autoPass === 'function' && autoPass()) autoPass().update();
     loadModel();
+  }
+
+  function openLibrary() {
+    reset();
+    st.libraryDirect = true;
+    showLibrary();
+    syncLibCountBadges();
+    $('photoModal').classList.remove('hidden');
+    if (typeof autoPass === 'function' && autoPass()) autoPass().update();
   }
 
   function init() {
@@ -1299,6 +1316,8 @@
     if (play) play.onclick = function () { applyToGame(buildEntry()); };
     var lib = $('btnPhotoLibrary');
     if (lib) lib.onclick = showLibrary;
+    var libStep1 = $('btnPhotoLibraryStep1');
+    if (libStep1) libStep1.onclick = showLibrary;
     var exp = $('btnPhotoExport');
     if (exp) exp.onclick = doExport;
     var imp = $('btnPhotoLibImport');
@@ -1312,6 +1331,7 @@
         try {
           var n = S.importJSON(String(rd.result));
           toast(n + '件を読み込みました');
+          syncLibCountBadges();
           renderLibrary();
         } catch (e) { toast('読み込みに失敗しました'); }
       };
@@ -1319,7 +1339,11 @@
       libFile.value = '';
     };
     var libBack = $('btnPhotoLibBack');
-    if (libBack) libBack.onclick = function () { view(st.result ? 'step3' : 'step1'); if (st.result) renderResult(); };
+    if (libBack) libBack.onclick = function () {
+      if (st.libraryDirect) { closeModal($('photoModal')); return; }
+      view(st.result ? 'step3' : 'step1');
+      if (st.result) renderResult();
+    };
   }
 
   // 画面サイズが変わったらキャンバスを合わせ直す（iPad/スマホの回転など）
@@ -1339,6 +1363,8 @@
 
   global.HexagoPhotoUI = {
     open: open,
+    openLibrary: openLibrary,
+    applyToGame: applyToGame,
     close: function () { closeModal($('photoModal')); },
     state: function () {
       return {

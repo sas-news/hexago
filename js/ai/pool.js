@@ -52,7 +52,11 @@ function aiEngineSourceText() {
   return el ? el.textContent.trim() : '';
 }
 function currentAITimeMs() {
-  return (typeof aiTimeMs === 'number' && AI_TIME_OPTIONS.includes(aiTimeMs)) ? aiTimeMs : 1000;
+  if (typeof aiTimeMs === 'number') {
+    if (AI_TIME_OPTIONS.includes(aiTimeMs)) return aiTimeMs;
+    if (aiTimeMs >= 10000) return 12000;
+  }
+  return 1000;
 }
 function currentAIMode() {
   return currentAITimeMs() >= 10000 ? 'deep' : 'fast';
@@ -71,7 +75,8 @@ function aiStyleForSeat(p) {
   return seatStyleOverride(p) || currentAIStyle();
 }
 function setAITimeMs(ms) {
-  const next = AI_TIME_OPTIONS.includes(Number(ms)) ? Number(ms) : 1000;
+  const n = Number(ms);
+  const next = AI_TIME_OPTIONS.includes(n) ? n : (n >= 10000 ? 12000 : 1000);
   const prevDeep = currentAIMode() === 'deep';
   aiTimeMs = next;
   aiMode = next >= 10000 ? 'deep' : 'fast';
@@ -84,7 +89,7 @@ function setAITimeMs(ms) {
 }
 function setAIMode(nextMode) {
   const m = (nextMode === 'deep' || nextMode === 'beta') ? 'deep' : 'fast';
-  setAITimeMs(m === 'deep' ? 10000 : 1000);
+  setAITimeMs(m === 'deep' ? 12000 : 1000);
   return m;
 }
 function setAIStyle(nextStyle) {
@@ -104,7 +109,9 @@ function setSeatAIStyle(p, nextStyle) {
 }
 function aiBudgetMs() {
   if (aiTestBudgetMs != null) return aiTestBudgetMs;
-  return currentAITimeMs();
+  const t = currentAITimeMs();
+  if (t >= 10000) return (typeof P !== 'undefined' && P.length >= 250) ? 15000 : 12000;
+  return t;
 }
 function aiPoolWant() {
   const cores = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4;

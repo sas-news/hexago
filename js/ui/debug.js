@@ -10,6 +10,7 @@ window.__hexagoDebug = {
   setAIBudgetMs: (ms) => { aiTestBudgetMs = ms == null ? null : Math.max(1, ms | 0); return aiBudgetMs(); },
   exportRecord: () => (typeof exportCurrentRecord === 'function' ? exportCurrentRecord() : null),
   exportRecordText: () => (typeof exportCurrentRecord === 'function' && gameFeatures ? gameFeatures.toText(exportCurrentRecord()) : ''),
+  importJSON: (text) => (typeof importBoardOrKifuJSON === 'function' ? importBoardOrKifuJSON(text) : null),
   autoPassEnabled: () => (typeof autoPass === 'function' && autoPass() ? autoPass().enabledSeats() : []),
   toggleAutoPass: (p) => { if (typeof autoPass === 'function' && autoPass()) { autoPass().toggle(p); renderAutoPassControls(); return autoPass().enabledSeats(); } return []; },
   legacy: () => aiChoose(),

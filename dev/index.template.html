@@ -14,12 +14,9 @@
   <header class="w-full grid grid-cols-[1fr_auto_1fr] items-center pt-1">
     <div aria-hidden="true"></div>
     <h1 class="text-2xl sm:text-3xl font-extrabold tracking-wider text-center">HEXAGO</h1>
-    <div class="flex items-center gap-0.5 sm:gap-1 justify-self-end">
-    <button id="btnOpenRecord" type="button" title="棋譜を保存" aria-label="棋譜を保存" class="w-9 h-9 flex items-center justify-center rounded-full text-current opacity-60 hover:opacity-90 hover:bg-black/5 active:scale-95 transition-all">
-      <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9l-6-6zM14 3v6h6M8 13h8M8 17h5"/></svg>
-    </button>
-    <button id="btnOpenPhoto" type="button" title="写真から盤面を復元" aria-label="写真から盤面を復元" class="w-9 h-9 flex items-center justify-center rounded-full text-current opacity-60 hover:opacity-90 hover:bg-black/5 active:scale-95 transition-all">
-      <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h1.5l1-2h7l1 2H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3.5" stroke-width="2"/></svg>
+    <div class="flex items-center gap-1 justify-self-end">
+    <button id="btnOpenRecord" type="button" title="盤面・棋譜の保存と読み込み" aria-label="盤面・棋譜の保存と読み込み" class="w-9 h-9 flex items-center justify-center rounded-full text-current opacity-60 hover:opacity-90 hover:bg-black/5 active:scale-95 transition-all">
+      <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
     </button>
     <button id="btnOpenRules" type="button" title="ルールを見る" aria-label="ルールを見る" class="w-9 h-9 flex items-center justify-center rounded-full text-current opacity-35 hover:opacity-70 hover:bg-black/5 active:scale-95 transition-all text-2xl font-semibold">ⓘ</button>
     <button id="btnOpenSettings" type="button" title="設定" aria-label="設定" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-black/5 active:scale-95 transition-all">
@@ -52,10 +49,6 @@
     <button id="btnResign" class="flex-1 py-2.5 px-4 text-xs sm:text-sm font-bold border border-red-500/50 text-red-600 rounded-xl hover:bg-red-500/10 active:scale-95 transition-all shadow-sm">投了</button>
   </div>
 
-  <div class="w-full flex flex-col gap-2" id="seatControlPanel">
-    <div id="autoPassControls" class="hidden seat-control-row" aria-label="連続パス"></div>
-  </div>
-
   <div id="bnDead" class="hidden w-full flex flex-col gap-2 p-3 bg-amber-50 text-amber-900 text-xs sm:text-sm rounded-xl border border-amber-200 shadow-sm">
     <div class="flex items-center justify-between font-bold"><span>⚠️ 終局・死に石確認</span><span id="deadCount" class="text-xs font-semibold opacity-80">自動判定中…</span></div>
     <p class="text-xs text-amber-800/90 leading-relaxed">死んでいる可能性が高い石を自動で選択しました。盤面の×印を確認し、判定が違う連はタップして切り替えてください。確定後、死に石を取り除き「地＋盤上の石」で集計します。</p>
@@ -77,19 +70,38 @@
 </div>
 <div></div>
 
-<!-- game record modal -->
+<!-- unified board / kifu save & load modal -->
 <div id="recordModal" role="dialog" aria-modal="true" aria-labelledby="recordTitle" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
   <div class="bg-white text-neutral-900 p-5 sm:p-6 max-w-md w-full rounded-2xl shadow-2xl flex flex-col gap-4 border border-neutral-200 max-h-[90vh] overflow-y-auto">
     <div class="flex items-center justify-between border-b pb-3 border-neutral-200">
-      <h2 id="recordTitle" class="text-xl font-bold">棋譜の保存</h2>
-      <button id="btnCloseRecord" aria-label="棋譜を閉じる" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0">✕</button>
+      <h2 id="recordTitle" class="text-xl font-bold">盤面・棋譜</h2>
+      <button id="btnCloseRecord" aria-label="閉じる" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0">✕</button>
     </div>
-    <p id="recordSummary" class="text-base font-semibold"></p>
-    <p id="recordNotice" class="hidden text-sm leading-relaxed text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3"></p>
-    <p class="text-sm leading-relaxed text-neutral-600">現在の対局の着手・パス・投了を保存します。対局中でも終局後でも書き出せます。</p>
-    <button id="btnExportJson" class="w-full py-3 px-4 bg-neutral-900 hover:bg-neutral-800 text-white font-bold rounded-xl">JSONで保存<span class="block text-xs font-normal opacity-80 mt-1">盤面と手順を含む、解析・再利用向けの棋譜</span></button>
-    <button id="btnExportText" class="w-full py-3 px-4 border border-neutral-300 hover:bg-neutral-100 font-bold rounded-xl">テキストで保存<span class="block text-xs font-normal text-neutral-600 mt-1">手順を読みやすくまとめた棋譜</span></button>
-    <p id="recordExportStatus" role="status" class="text-sm text-neutral-600 min-h-5"></p>
+    <p id="recordSummary" class="text-sm font-semibold text-neutral-800"></p>
+    <p id="recordNotice" class="hidden text-xs leading-relaxed text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5"></p>
+
+    <div class="flex flex-col gap-2">
+      <span class="text-xs font-bold tracking-wider text-neutral-500">保存する</span>
+      <button id="btnSaveToLibrary" type="button" class="w-full py-2.5 px-4 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-xl">現在の盤面を端末に保存</button>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="btnExportJson" type="button" class="py-2.5 px-3 border border-neutral-300 hover:bg-neutral-100 text-xs font-bold rounded-xl">棋譜 JSON で保存</button>
+        <button id="btnExportText" type="button" class="py-2.5 px-3 border border-neutral-300 hover:bg-neutral-100 text-xs font-bold rounded-xl">テキストで保存</button>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-2 border-t border-neutral-200 pt-3">
+      <span class="text-xs font-bold tracking-wider text-neutral-500">読み込む</span>
+      <button id="btnOpenSavedLib" type="button" class="w-full py-2.5 px-4 border border-neutral-300 hover:bg-neutral-100 text-sm font-bold rounded-xl flex items-center justify-between">
+        <span>保存した盤面を開く</span>
+        <span class="text-xs font-mono px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700"><span id="recordLibCount">0</span>件</span>
+      </button>
+      <button id="btnImportRecord" type="button" class="w-full py-2.5 px-4 border border-neutral-300 hover:bg-neutral-100 text-sm font-bold rounded-xl">JSONファイルから読み込む<span class="block text-[11px] font-normal text-neutral-500 mt-0.5">棋譜JSON・保存盤面JSONに両対応</span></button>
+      <input id="recordFile" type="file" accept=".json,application/json" class="hidden">
+      <button id="btnOpenPhotoFromRecord" type="button" class="w-full py-2.5 px-4 border border-neutral-300 hover:bg-neutral-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2">
+        <span>📷</span><span>写真から盤面を復元</span>
+      </button>
+    </div>
+    <p id="recordExportStatus" role="status" class="text-xs text-neutral-600 min-h-4"></p>
   </div>
 </div>
 
@@ -148,13 +160,12 @@
     </div>
     <div id="aiModeConfig" class="flex flex-col gap-1.5">
       <label class="text-xs font-bold tracking-wider text-neutral-500">AI 思考時間</label>
-      <div class="grid grid-cols-4 gap-2" id="aiModeBtns">
+      <div class="grid grid-cols-3 gap-2" id="aiModeBtns">
         <button type="button" data-ai-time="1000" data-ai-mode="fast" class="opt">1秒</button>
         <button type="button" data-ai-time="3000" data-ai-mode="fast" class="opt">3秒</button>
-        <button type="button" data-ai-time="10000" data-ai-mode="deep" class="opt">10秒</button>
-        <button type="button" data-ai-time="30000" data-ai-mode="deep" class="opt">30秒</button>
+        <button type="button" data-ai-time="12000" data-ai-mode="deep" class="opt">長考</button>
       </div>
-      <p class="text-[11px] leading-relaxed text-neutral-500">1秒は軽快で実用的、長いほど深く読みます（1〜3秒は最大4並列、10〜30秒は最大8並列）。変更は次のAIの手番から反映されます。</p>
+      <p class="text-[11px] leading-relaxed text-neutral-500">最新AI（MCTS）を使用。1秒は軽快で実用的、3秒は標準（最大4並列）、長考は12〜15秒・最大8並列で深く読みます。</p>
     </div>
     <div id="aiStyleConfig" class="flex flex-col gap-1.5">
       <label class="text-xs font-bold tracking-wider text-neutral-500">AI 棋風（一括）</label>
@@ -164,6 +175,11 @@
         <button type="button" data-ai-style="aggressive" class="opt">攻撃的</button>
       </div>
       <p class="text-[11px] leading-relaxed text-neutral-500">全AIへ一括適用します。AIボタンを繰り返しタップすると席ごとに棋風を切り替えられます。</p>
+    </div>
+    <div id="autoPassConfig" class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col gap-2 hidden">
+      <span class="text-xs font-bold text-neutral-600">連続パス（自動パス）</span>
+      <div id="autoPassControls" class="seat-control-row" aria-label="連続パス"></div>
+      <p class="text-[11px] leading-relaxed text-neutral-500">ONにした席は、設定を閉じると自分の手番で自動的にパスし続けます（着手・投了で解除）。</p>
     </div>
     <div id="onlineBox" class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex flex-col gap-3 hidden text-xs">
       <div id="hostRoomSection" class="flex flex-col gap-1.5">
@@ -253,6 +269,9 @@
         <span>カメラでその場で撮影する</span>
         <input id="photoCamera" type="file" accept="image/*" capture="environment" class="hidden">
       </label>
+      <div class="border-t border-neutral-200 pt-2 flex items-center justify-end">
+        <button id="btnPhotoLibraryStep1" type="button" class="text-xs underline opacity-75 hover:opacity-100">保存した盤面を開く（<span id="photoLibCountStep1">0</span>件）</button>
+      </div>
       <p id="photoErr" class="text-xs text-red-600 hidden"></p>
     </div>
 
