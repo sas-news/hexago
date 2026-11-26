@@ -284,7 +284,11 @@
     if (!record) return;
     geo = R.buildGeometry(size);
     const positions = R.replayPositions(record, geo);
-    data = { positions, playerCount, names: names || {}, series: null, graphGeom: null };
+    data = { positions, playerCount, names: names || {}, fills: {}, strokes: {}, series: null, graphGeom: null, shareRecord: record };
+    for (let p = 1; p <= playerCount; p++) {
+      data.fills[p] = playerFill(p);
+      data.strokes[p] = playerStroke(p);
+    }
     data.series = R.advantageSeries(positions, geo, playerCount, names);
     stop();
     $('replaySlider').max = String(positions.length - 1);
@@ -300,6 +304,178 @@
     seek(positions.length - 1); // まず終局(最新)局面。再生ボタンで0手目から
     // CSS のレイアウト確定後にグラフ/盤面を測り直す
     requestAnimationFrame(() => { layoutReplayBar(true); seek(cur); });
+  }
+
+  // ===== 共有 (URL / 結果カード画像) =====
+  function shareBaseUrl() {
+    // 既存の #g=... を落として、現在のページURLを返す
+    const u = new URL(location.href);
+    u.hash = '';
+    return u.toString();
+  }
+
+  function buildShareUrl(record, size, playerCount, names) {
+    const code = R.encodeShare(record, size, playerCount, names);
+    return shareBaseUrl() + '#g=' + code;
+  }
+
+  function currentShareSource() {
+    if (data) {
+      return { record: data.shareRecord || null, size: geo.size, playerCount: data.playerCount, names: data.names };
+    }
+    if (typeof ensureGameRecord !== 'function') return null;
+    const record = ensureGameRecord();
+    if (!record) return null;
+    const pc = G.playerCount || playerCount;
+    const names = {};
+    for (let p = 1; p <= pc; p++) names[p] = playerDisplayName(p);
+    return { record, size: G.size, playerCount: pc, names };
+  }
+
+  function showShareModal(url, source) {
+    const sm = $('shareModal');
+    if (!sm) return openShareFallback(url);
+    $('shareUrl').value = url;
+    $('shareLen').textContent = `${url.length} 文字（この端末内で完結します。サーバーには送信されません）`;
+    const pc = source.playerCount;
+    const moves = source.record.events.filter(e => ['play', 'pass', 'resign'].includes(e.type)).length;
+    $('shareSummary').textContent = `${source.size}路盤・${pc}人戦・${moves}手の対局です。URLを開くとそのままリプレイできます。`;
+    $('shareStatus').textContent = '';
+    const nativeBtn = $('btnShareNative');
+    if (nativeBtn) nativeBtn.classList.toggle('hidden', !navigator.share);
+    sm.classList.remove('hidden');
+  }
+
+  function openShareFallback(url) {
+    try { window.prompt('このURLをコピーしてください', url); } catch (e) { }
+  }
+
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; }
+    } catch (e) { }
+    try {
+      const ta = $('shareUrl');
+      ta.select(); ta.setSelectionRange(0, 999999);
+      const ok = document.execCommand('copy');
+      ta.setSelectionRange(0, 0);
+      return ok;
+    } catch (e) { return false; }
+  }
+
+  function shareGame() {
+    const src = currentShareSource();
+    if (!src || !src.record) return;
+    const moves = src.record.events.filter(e => ['play', 'pass', 'resign'].includes(e.type)).length;
+    if (!moves) { alert('まだ手がありません。着手後に共有できます。'); return; }
+    const url = buildShareUrl(src.record, src.size, src.playerCount, src.names);
+    showShareModal(url, src);
+  }
+
+  // ===== 結果カード画像 =====
+  function drawShareCard(record, size, playerCount, names) {
+    const geo2 = R.buildGeometry(size);
+    const positions = R.replayPositions(record, geo2);
+    const series = R.advantageSeries(positions, geo2, playerCount, names);
+    const W = 720, H = 1080;
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    const g = cv.getContext('2d');
+    // 背景
+    const grad = g.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#f6efe3');
+    grad.addColorStop(1, '#e8d8bf');
+    g.fillStyle = grad; g.fillRect(0, 0, W, H);
+    // タイトル
+    g.fillStyle = '#3e2211';
+    g.font = 'bold 44px system-ui, -apple-system, "Hiragino Sans", sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'top';
+    g.fillText('HEXAGO', W / 2, 44);
+    g.font = '20px system-ui, sans-serif';
+    g.fillStyle = '#6b5442';
+    g.fillText(`${size}路盤・${playerCount}人戦・${series.rows[series.rows.length - 1].ply}手`, W / 2, 100);
+
+    // 盤面(終局)
+    const board = document.createElement('canvas');
+    const boardSize = 480;
+    const fills = {}, strokes = {};
+    for (let p = 1; p <= playerCount; p++) { fills[p] = playerFill(p); strokes[p] = playerStroke(p); }
+    R.drawBoard(board, geo2, positions[positions.length - 1], {
+      cssSize: boardSize, themeBoard: '#d9b382', themeLine: 'rgba(90,67,39,0.55)', fills, strokes
+    });
+    g.drawImage(board, (W - boardSize) / 2, 150);
+
+    // 優勢グラフ
+    const gx = 80, gy = 670, gw = W - 160, gh = 190;
+    g.fillStyle = '#fffaf2';
+    g.strokeStyle = '#d6c3a4'; g.lineWidth = 2;
+    g.beginPath(); g.roundRect ? g.roundRect(gx - 12, gy - 12, gw + 24, gh + 24, 14) : g.rect(gx - 12, gy - 12, gw + 24, gh + 24);
+    g.fill(); g.stroke();
+    let maxAbs = 1;
+    for (const row of series.rows) for (const k of Object.keys(row.leadPct)) maxAbs = Math.max(maxAbs, Math.abs(row.leadPct[k]));
+    const rows = series.rows;
+    const yy = v => gy + gh / 2 - (v / maxAbs) * (gh / 2);
+    const xx = i => gx + (rows.length <= 1 ? gw / 2 : (i / (rows.length - 1)) * gw);
+    g.strokeStyle = 'rgba(0,0,0,0.18)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(gx, yy(0)); g.lineTo(gx + gw, yy(0)); g.stroke();
+    const lines = playerCount === 2 ? [1] : Array.from({ length: playerCount }, (_, i) => i + 1);
+    lines.forEach(p => {
+      // カードも白い石の線が白地に埋もれないよう、画面と同じ可視色補正を使う
+      g.strokeStyle = graphLineColor(p, false); g.lineWidth = 2.5; g.lineJoin = 'round';
+      g.beginPath();
+      let started = false;
+      for (let k = 0; k < rows.length; k++) {
+        const v = rows[k].leadPct[p];
+        if (typeof v !== 'number' || !isFinite(v)) { started = false; continue; }
+        if (!started) { g.moveTo(xx(k), yy(v)); started = true; } else g.lineTo(xx(k), yy(v));
+      }
+      g.stroke();
+    });
+    g.fillStyle = '#6b5442'; g.font = '16px system-ui, sans-serif';
+    g.textAlign = 'left'; g.textBaseline = 'top';
+    g.fillText('優勢グラフ', gx, gy - 34);
+
+    // 凡例(順位順)
+    const last = series.rows[series.rows.length - 1];
+    const order = Array.from({ length: playerCount }, (_, i) => i + 1)
+      .sort((a, b) => (last.leadPct[b] ?? -999) - (last.leadPct[a] ?? -999));
+    g.textAlign = 'left'; g.textBaseline = 'middle';
+    order.forEach((p, idx) => {
+      const y = 900 + idx * 32;
+      g.fillStyle = playerFill(p);
+      g.beginPath(); g.arc(110, y, 10, 0, 7); g.fill();
+      g.strokeStyle = '#5b4227'; g.lineWidth = 2; g.stroke();
+      g.fillStyle = '#3e2211'; g.font = 'bold 18px system-ui, sans-serif';
+      const nm = (names && names[p]) || `${p}P`;
+      const lead = last.leadPct[p];
+      const leadTxt = (typeof lead === 'number') ? `${lead >= 0 ? '+' : '−'}${Math.abs(lead).toFixed(1)}%` : '投了';
+      g.fillText(`${nm} (${p}P)`, 132, y);
+      g.textAlign = 'right'; g.fillText(leadTxt, W - 110, y); g.textAlign = 'left';
+    });
+    // 結果
+    const scoreEvt = [...record.events].reverse().find(e => e.type === 'score');
+    if (scoreEvt && scoreEvt.result) {
+      g.textAlign = 'center'; g.fillStyle = '#3e2211';
+      g.font = 'bold 20px system-ui, sans-serif';
+      g.fillText(scoreEvt.result, W / 2, H - 34);
+    }
+    return cv;
+  }
+
+  function downloadShareCard() {
+    const src = currentShareSource();
+    if (!src || !src.record) return;
+    const cv = drawShareCard(src.record, src.size, src.playerCount, src.names);
+    cv.toBlob(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `hexago-${src.size}-${src.playerCount}p.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const st = $('shareStatus'); if (st) st.textContent = '結果カード画像を保存しました。';
+    }, 'image/png');
   }
 
   function openFromGame() {
@@ -363,11 +539,46 @@
       seek(cur);
     });
     window.addEventListener('orientationchange', () => { if (active()) { setTimeout(() => { layoutReplayBar(true); seek(cur); }, 120); } });
+    // 共有
+    if ($('replayShare')) $('replayShare').onclick = () => { snd.click(); shareGame(); };
+    if ($('replayCard')) $('replayCard').onclick = () => { snd.click(); downloadShareCard(); };
+    if ($('btnShareGame')) $('btnShareGame').onclick = () => { snd.click(); closeModal($('resModal')); shareGame(); };
+    if ($('btnCloseShare')) $('btnCloseShare').onclick = () => closeModal($('shareModal'));
+    if ($('btnShareCopy')) $('btnShareCopy').onclick = async () => {
+      const ok = await copyText($('shareUrl').value);
+      $('shareStatus').textContent = ok ? 'URLをコピーしました。' : 'コピーできませんでした。テキストを選択してコピーしてください。';
+      if (ok && snd.click) snd.click();
+    };
+    if ($('btnShareNative')) $('btnShareNative').onclick = async () => {
+      const url = $('shareUrl').value;
+      try { await navigator.share({ title: 'HEXAGO の対局', text: 'HEXAGO の対局リプレイ', url }); $('shareStatus').textContent = '共有しました。'; }
+      catch (e) { if (e && e.name !== 'AbortError') $('shareStatus').textContent = '共有できませんでした。URLをコピーして使ってください。'; }
+    };
+    if ($('btnShareOpenReplay')) $('btnShareOpenReplay').onclick = () => { closeModal($('shareModal')); openFromGame(); };
+    if ($('btnShareDownloadPng')) $('btnShareDownloadPng').onclick = () => { snd.click(); downloadShareCard(); };
+
     // 入口: 結果モーダル / 終局バナー / 盤面・棋譜モーダル
     $('btnReplayGame').onclick = () => { snd.click(); closeModal($('resModal')); openFromGame(); };
     $('btnShowReplay').onclick = () => { snd.click(); openFromGame(); };
     $('btnOpenReplay').onclick = () => { snd.click(); closeModal($('recordModal')); openFromGame(); };
   });
+
+  // ===== 共有URL(#g=...)から起動 =====
+  function openFromShareCode(code) {
+    const decoded = R.decodeShare(code);
+    return openFromRecord(decoded.record, decoded.size, decoded.playerCount, decoded.names || {});
+  }
+
+  function tryOpenFromLocation() {
+    const m = /[#&]g=([A-Za-z0-9_-]+)/.exec(location.hash || '');
+    if (!m) return false;
+    try { openFromShareCode(m[1]); return true; }
+    catch (e) {
+      const msg = e && e.message ? e.message : '共有URLを読み込めませんでした';
+      setTimeout(() => alert('共有された対局を開けませんでした: ' + msg), 300);
+      return false;
+    }
+  }
 
   // render() から参照される公開 API
   window.HexagoReplayView = {
@@ -376,5 +587,14 @@
     boardSize: () => (data ? geo.size : null),
     graphGeom: () => (data ? data.graphGeom : null)
   };
-  window.HexagoReplayUI = { open: openFromGame, openFromRecord, close };
+  window.HexagoReplayUI = {
+    open: openFromGame,
+    openFromRecord,
+    close,
+    share: shareGame,
+    shareUrl: () => { const src = currentShareSource(); return src && src.record ? buildShareUrl(src.record, src.size, src.playerCount, src.names) : ''; },
+    openFromShareCode,
+    tryOpenFromLocation
+  };
+  window.addEventListener('load', () => { setTimeout(tryOpenFromLocation, 80); });
 })();

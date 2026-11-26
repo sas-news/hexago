@@ -323,5 +323,78 @@
     }
   }
 
-  return { version: 1, buildGeometry, isMoveEvent, replayPositions, simulateOnBoard, emptyRegions, areaScores, contestedWeight, advantageOf, leadValues, weakStoneLoss, advantageSeries, drawBoard };
+  // ===== URL 共有 (hexago-share v1) =====
+  // 棋譜を URL フラグメントに詰められる最小形式へ変換する。
+  //   { v:1, s:盤サイズ, p:人数, n:[名前...], m:[[点, 手番], ...], x:{t:結果, sc:[点...]}, o:[投了席...] }
+  // フラグメント(#)に置くので、サーバーへは送られない。
+  const SHARE_VERSION = 1;
+
+  function toSharePayload(record, size, playerCount, names) {
+    const moves = [];
+    let resign = [], score = null;
+    for (const e of (record && record.events) || []) {
+      if (!e) continue;
+      if (e.type === 'play') moves.push([e.point, e.player]);
+      else if (e.type === 'pass') moves.push([-1, e.player]);
+      else if (e.type === 'resign') resign.push(e.player);
+      else if (e.type === 'score') score = { t: e.result || '', sc: e.scores ? e.scores.slice() : null };
+    }
+    const payload = { v: SHARE_VERSION, s: size, p: playerCount, m: moves };
+    const nm = [];
+    for (let p = 1; p <= playerCount; p++) nm.push((names && names[p]) || '');
+    if (nm.some(Boolean)) payload.n = nm;
+    if (resign.length) payload.o = resign;
+    if (score) payload.x = score;
+    return payload;
+  }
+
+  function utf8ToB64Url(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function b64UrlToUtf8(str) {
+    const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  function encodeShare(record, size, playerCount, names) {
+    return utf8ToB64Url(JSON.stringify(toSharePayload(record, size, playerCount, names)));
+  }
+
+  // 共有文字列 → 通常のヘルパーが扱える棋譜レコードに戻す。
+  function decodeShare(text, geo) {
+    const data = JSON.parse(b64UrlToUtf8(String(text)));
+    if (!data || data.v !== SHARE_VERSION) throw new Error('この共有データの形式には対応していません');
+    const size = Number(data.s);
+    if (![9, 13, 19, 25].includes(size)) throw new Error('盤サイズが不正です');
+    if (geo && geo.points.length !== buildGeometry(size).points.length) throw new Error('盤サイズが一致しません');
+    const playerCount = Math.max(2, Math.min(6, Number(data.p) || 2));
+    const points = buildGeometry(size).points.length;
+    const record = {
+      version: 1,
+      id: 'shared-' + Date.now().toString(36),
+      startedAt: null,
+      complete: true,
+      initial: { board: new Array(points).fill(0), turn: 1, passes: 0, out: Array(playerCount + 1).fill(false) },
+      events: []
+    };
+    for (const mv of data.m || []) {
+      if (!Array.isArray(mv)) continue;
+      const [pt, player] = mv;
+      if (pt === -1) record.events.push({ type: 'pass', player });
+      else record.events.push({ type: 'play', player, point: pt });
+    }
+    for (const player of data.o || []) record.events.push({ type: 'resign', player });
+    if (data.x) record.events.push({ type: 'score', removed: [], scores: data.x.sc, result: data.x.t });
+    const names = {};
+    (data.n || []).forEach((n, i) => { if (n) names[i + 1] = n; });
+    return { record, size, playerCount, names };
+  }
+
+  return { version: 1, buildGeometry, isMoveEvent, replayPositions, simulateOnBoard, emptyRegions, areaScores, contestedWeight, advantageOf, leadValues, weakStoneLoss, advantageSeries, drawBoard, SHARE_VERSION, toSharePayload, encodeShare, decodeShare };
 });

@@ -88,6 +88,40 @@ function buildScenario(record) {
     ok(isFinite(l3), '偏った局面でも有限値');
   }
 
+  // ---- URL 共有エンコード/デコードの往復 ----
+  {
+    const g = R.buildGeometry(9);
+    const s2 = { playerCount: 2, size: 9, board: new Array(g.points.length).fill(0), turn: 1, passes: 0, over: false, phase: 'playing', dead: [], seen: [], out: [false, false, false], damage: [0, 0, 0] };
+    s2.record = Features.createRecord(s2);
+    let n = 0;
+    for (let i = 0; i < g.points.length && n < 24; i++) {
+      const p = (n % 2) + 1;
+      const r = R.simulateOnBoard(s2.board, g, i, p);
+      if (!r) continue;
+      s2.board = r.a;
+      s2.record.events.push({ type: 'play', player: p, point: i, captured: r.cap });
+      n++;
+    }
+    s2.record.events.push({ type: 'resign', player: 2 });
+    s2.record.events.push({ type: 'score', removed: [], scores: [0, 33, 18], result: '1Pの勝ち' });
+    const code = R.encodeShare(s2.record, 9, 2, { 1: '先手', 2: '後手' });
+    ok(/^[A-Za-z0-9_-]+$/.test(code), '共有コードは URL セーフ文字のみ');
+    ok(code.length < 2000, '共有コードが実用サイズ (' + code.length + ' 文字)');
+    const dec = R.decodeShare(code);
+    ok(dec.size === 9 && dec.playerCount === 2, '盤サイズと人数が復元される');
+    ok(dec.names[1] === '先手' && dec.names[2] === '後手', 'プレイヤー名が復元される');
+    const p1 = R.replayPositions(s2.record, g), p2 = R.replayPositions(dec.record, g);
+    ok(p1.length === p2.length, '手数が一致 (' + p1.length + ')');
+    ok(JSON.stringify(p1.at(-1).board) === JSON.stringify(p2.at(-1).board), '終局盤面が完全一致');
+    ok(dec.record.events.some(e => e.type === 'resign'), '投了イベントが復元される');
+    const sc = dec.record.events.find(e => e.type === 'score');
+    ok(sc && sc.scores[1] === 33, '確定スコアが復元される');
+    // 壊れた入力は例外になる
+    let threw = false;
+    try { R.decodeShare('!!!invalid!!!'); } catch (e) { threw = true; }
+    ok(threw, '不正な共有コードは例外になる');
+  }
+
   function nextToZero(row) { return Math.abs(row.lead[1] ?? 0) < 1e-9 && Math.abs(row.lead[2] ?? 0) < 1e-9; }
 
   process.exit(failed ? 1 : 0);
