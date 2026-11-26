@@ -4,7 +4,7 @@
 
 ## ファビコン
 
-六角形の盤に3色の石を配したアイコンを用意しています（`favicon.svg` / `favicon-180.png` / `favicon-192.png` / `favicon-512.png` / `manifest.webmanifest`）。
+3路盤の格子と大きな3色の石（黒・白・赤）を配したアイコンを用意しています（`favicon.svg` / `favicon-180.png` / `favicon-192.png` / `favicon-512.png` / `manifest.webmanifest`）。
 ブラウザのタブ、iOS/Android のホーム画面追加（apple-touch-icon / manifest）で使われます。
 `index.html` は単一ファイル配信のため、ビルド時にこれらのアイコンは data URI として埋め込まれます。
 
