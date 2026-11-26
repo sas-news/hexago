@@ -65,7 +65,7 @@
   </div>
 
   <div id="bnResult" class="hidden w-full flex items-center justify-between py-2 px-3 bg-neutral-100 text-xs sm:text-sm rounded-lg text-neutral-800 border border-neutral-200">
-    <span class="font-medium">対局終了</span><button id="btnShowResult" class="font-bold underline hover:opacity-70">結果を見る</button>
+    <span class="font-medium">対局終了</span><span class="flex items-center gap-3"><button id="btnShowResult" class="font-bold underline hover:opacity-70">結果を見る</button><button id="btnShowReplay" class="font-bold underline hover:opacity-70">▶ リプレイ</button></span>
   </div>
 
   <p class="text-xs opacity-60 text-center leading-relaxed">PC: 交点のホバーでプレビュー・クリックで打つ / スマホ: 1タップ目プレビュー、同じ交点を2タップ目で確定<br>石は6方向の空点(呼吸点)がすべて無くなると取られます</p>
@@ -81,6 +81,7 @@
     </div>
     <p id="recordSummary" class="text-sm font-semibold text-neutral-800"></p>
     <p id="recordNotice" class="hidden text-xs leading-relaxed text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5"></p>
+    <button id="btnOpenReplay" type="button" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-xl disabled:opacity-40 disabled:pointer-events-none">▶ この対局をリプレイ</button>
 
     <div class="flex flex-col gap-2">
       <span class="text-xs font-bold tracking-wider text-neutral-500">保存する</span>
@@ -230,9 +231,46 @@
     <h2 id="resTitle" class="text-2xl font-extrabold">対局終了</h2>
     <div id="resDet" class="text-sm text-neutral-700 flex flex-col gap-2 py-3 border-y border-neutral-200 font-medium"></div>
     <div class="flex flex-col gap-2">
+      <button id="btnReplayGame" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-xl">▶ 対局をリプレイ</button>
       <button id="btnViewBoard" class="w-full py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-sm font-bold rounded-xl">盤面を確認する</button>
       <button id="btnAgain" class="w-full py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-xl">もう一度遊ぶ</button>
     </div>
+  </div>
+</div>
+
+<!-- replay modal -->
+<div id="replayModal" role="dialog" aria-modal="true" aria-labelledby="replayTitle" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 hidden">
+  <div id="replayCard" class="bg-white text-neutral-900 p-4 sm:p-5 max-w-md w-full rounded-2xl shadow-2xl flex flex-col gap-3 border border-neutral-200 max-h-[94vh] overflow-y-auto">
+    <div class="flex items-center justify-between border-b pb-2.5 border-neutral-200">
+      <h2 id="replayTitle" class="text-lg sm:text-xl font-bold">対局リプレイ</h2>
+      <button id="replayClose" type="button" aria-label="閉じる" class="w-10 h-10 -mr-2 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0">✕</button>
+    </div>
+    <div id="replayBoardCard" class="w-full flex justify-center">
+      <canvas id="replayBoard" class="rounded-lg" role="img" aria-label="リプレイの盤面"></canvas>
+    </div>
+    <p id="replayEvt" class="text-sm text-center min-h-5 font-medium" aria-live="polite"></p>
+    <p id="replayLegend" class="text-xs text-center flex flex-wrap justify-center gap-y-1"></p>
+    <div class="flex items-center gap-1.5">
+      <button id="replayFirst" type="button" title="最初へ（局面 1）" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-bold hover:bg-neutral-100 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none">⏮</button>
+      <button id="replayPrev" type="button" title="1手戻る" aria-label="1手戻る" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-bold hover:bg-neutral-100 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none">◀</button>
+      <button id="replayPlayBtn" type="button" class="flex-1 h-9 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-lg active:scale-[0.98] transition-all px-2">▶ 再生</button>
+      <button id="replayNext" type="button" title="1手進む" aria-label="1手進む" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-bold hover:bg-neutral-100 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none">▶</button>
+      <button id="replayLast" type="button" title="最後へ" aria-label="最後へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-bold hover:bg-neutral-100 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none">⏭</button>
+    </div>
+    <input id="replaySlider" type="range" min="0" max="0" value="0" step="1" class="w-full accent-neutral-900" aria-label="リプレイの再生位置">
+    <div class="flex items-center justify-between gap-2 text-xs">
+      <span id="replayPos" class="font-mono text-neutral-700"></span>
+      <label class="flex items-center gap-1 shrink-0"><span class="opacity-70">速度</span>
+        <select id="replaySpeed" class="border border-neutral-300 rounded-lg px-1.5 py-1 text-xs font-bold bg-white" aria-label="再生速度">
+          <option value="0.5">×0.5</option><option value="1" selected>×1</option><option value="2">×2</option><option value="4">×4</option>
+        </select>
+      </label>
+    </div>
+    <div class="border-t border-neutral-200 pt-2.5 flex flex-col gap-1.5">
+      <span class="text-xs font-bold tracking-wider text-neutral-500">優勢グラフ<span class="font-normal opacity-75">（タップ / ドラッグでその手へ移動）</span></span>
+      <canvas id="replayGraph" class="w-full touch-none cursor-pointer rounded-lg" role="img" aria-label="優勢グラフ"></canvas>
+    </div>
+    <p id="replaySwing" class="hidden text-xs text-neutral-800 bg-neutral-100 border border-neutral-200 rounded-lg p-2 leading-relaxed"></p>
   </div>
 </div>
 
@@ -340,6 +378,7 @@
 <script src="./js/core/geometry.js"></script>
 <script src="./js/core/state.js"></script>
 <script src="./js/core/rules.js"></script>
+<script src="./js/core/replay.js"></script>
 <script src="./js/ai/heuristic.js"></script>
 <script src="./js/ai/pool.js"></script>
 <script src="./js/ui/input.js"></script>
@@ -348,6 +387,7 @@
 <script src="./js/ui/modals.js"></script>
 <script src="./js/ui/settings.js"></script>
 <script src="./js/ui/online.js"></script>
+<script src="./js/ui/replay.js"></script>
 <script src="./js/photo/geom.js"></script>
 <script src="./js/photo/features.js"></script>
 <script src="./js/photo/model.js"></script>

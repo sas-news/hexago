@@ -57,6 +57,8 @@ function refreshRecordSummary() {
   $('recordNotice').classList.toggle('hidden', !record.note);
   const libBadge = $('recordLibCount');
   if (libBadge && window.HexagoPhotoStore) libBadge.textContent = String(window.HexagoPhotoStore.list().length);
+  const replayBtn = $('btnOpenReplay');
+  if (replayBtn) replayBtn.disabled = moves === 0;
 }
 function downloadRecord(kind) {
   if (!gameFeatures) return;

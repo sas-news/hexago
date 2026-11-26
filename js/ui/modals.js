@@ -1,5 +1,5 @@
 // ===== モーダル共通: 背景クリック / Esc / ✕ で閉じる =====
-const MODAL_IDS = ['recordModal', 'setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal'];
+const MODAL_IDS = ['recordModal', 'setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal', 'replayModal'];
 function modalEl(id) { return document.getElementById(id); }
 function visibleModals() {
   return MODAL_IDS.map(modalEl).filter(el => el && !el.classList.contains('hidden'));
