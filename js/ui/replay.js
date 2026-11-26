@@ -97,7 +97,7 @@
     const pc = data.playerCount;
     const parts = Array.from({ length: pc }, (_, i) => i + 1).map(p => {
       const v = row.leadPct[p];
-      const leadTxt = v === undefined ? '投了' : (Math.abs(v) < 0.1 ? '互角' : `${v > 0 ? '+' : '−'}${fmt(Math.abs(v))}% リード`);
+      const leadTxt = v === undefined ? '投了' : `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}%`;
       return `<span class="inline-flex items-center gap-1 whitespace-nowrap">${dotHtml(p)}<span>${esc(seatName(p))}</span><span class="font-normal opacity-70">${leadTxt}</span></span>`;
     });
     el.innerHTML = parts.join('<span class="opacity-40 mx-1">·</span>');
@@ -304,6 +304,7 @@
     seek(positions.length - 1); // まず終局(最新)局面。再生ボタンで0手目から
     // CSS のレイアウト確定後にグラフ/盤面を測り直す
     requestAnimationFrame(() => { layoutReplayBar(true); seek(cur); });
+    return { size, playerCount, moves: positions.length - 1 };
   }
 
   // ===== 共有 (URL / 結果カード画像) =====
@@ -332,35 +333,127 @@
     return { record, size: G.size, playerCount: pc, names };
   }
 
-  function showShareModal(url, source) {
+  // 短縮URL (spoo.me)。CORS 許可されているのでブラウザから直接呼べる。
+  // 共有URLの断片が長い場合は、見た目をすっきりさせるため短縮を使う。
+  // spoo.me の v1 API(CORS 許可・レート制限が緩いレガシーAPIより緩い)を使う
+  const SHORTENER = 'https://spoo.me/api/v1/shorten';
+  let shareCardCache = null;
+
+  async function shortenUrl(url) {
+    const res = await fetch(SHORTENER, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    if (!res.ok) throw new Error('短縮できませんでした (' + res.status + ')');
+    const data = await res.json();
+    if (!data || !data.short_url) throw new Error('短縮URLを取得できませんでした');
+    return String(data.short_url).replace(/^http:/, 'https:');
+  }
+
+  function setShareUrlField(value, kind) {
+    const field = $('shareUrl');
+    if (field) field.value = value;
+    const len = $('shareLen');
+    if (len) len.textContent = value.length + ' 文字';
+    const info = $('shareLenInfo');
+    if (info) {
+      info.textContent = kind === 'short'
+        ? '短縮URLです。開くと元のURLへリダイレクトされ、そのままリプレイが始まります。'
+        : 'この端末内で完結します（サーバーには送信されません）。';
+    }
+  }
+
+  function showShareModal(fullUrl, source) {
     const sm = $('shareModal');
-    if (!sm) return openShareFallback(url);
-    $('shareUrl').value = url;
-    $('shareLen').textContent = `${url.length} 文字（この端末内で完結します。サーバーには送信されません）`;
+    if (!sm) return openShareFallback(fullUrl);
     const pc = source.playerCount;
     const moves = source.record.events.filter(e => ['play', 'pass', 'resign'].includes(e.type)).length;
-    $('shareSummary').textContent = `${source.size}路盤・${pc}人戦・${moves}手の対局です。URLを開くとそのままリプレイできます。`;
+    $('shareSummary').textContent = `${source.size}路盤・${pc}人戦・${moves}手`;
     $('shareStatus').textContent = '';
+    shareCardCache = null;
+    $('shareCardPreview').classList.add('hidden');
+    $('shareCardPreview').innerHTML = '';
+    $('btnShareSavePng').disabled = true;
+    setShareUrlField(fullUrl, 'full');
+    sm.dataset.fullUrl = fullUrl;
     const nativeBtn = $('btnShareNative');
     if (nativeBtn) nativeBtn.classList.toggle('hidden', !navigator.share);
     sm.classList.remove('hidden');
+    syncShareUrl();
+  }
+
+  // 短縮チェックに応じて表示URLを決める(失敗時は元のURLのまま)
+  async function syncShareUrl() {
+    const sm = $('shareModal');
+    if (!sm) return;
+    const full = sm.dataset.fullUrl || '';
+    const shorten = $('shareShorten') && $('shareShorten').checked;
+    if (!shorten) { setShareUrlField(full, 'full'); return; }
+    const info = $('shareLenInfo');
+    if (info) info.textContent = '短縮URLを取得中...';
+    try {
+      const short = await shortenUrl(full);
+      setShareUrlField(short, 'short');
+      sm.dataset.shortUrl = short;
+    } catch (e) {
+      setShareUrlField(full, 'full');
+      if (info) info.textContent = '短縮できませんでした。元のURLを使用します（そのまま共有できます）。';
+    }
   }
 
   function openShareFallback(url) {
     try { window.prompt('このURLをコピーしてください', url); } catch (e) { }
   }
 
+  // クリップボードへコピー。iOS Safari はクリップボードAPIが制限されるため
+  // 選択状態を作って execCommand にフォールバックする。
   async function copyText(text) {
+    // 1) 非同期クリップボードAPI
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; }
-    } catch (e) { }
+      if (navigator.clipboard && window.isSecureContext && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (e) { /* fallthrough */ }
+    // 2) 選択 + execCommand(ユーザー操作内で同期実行する必要がある)
+    const field = $('shareUrl');
+    if (field) {
+      try {
+        field.removeAttribute('readonly');
+        const prevType = field.type;
+        field.focus();
+        field.select();
+        field.setSelectionRange(0, text.length);
+        const ok = document.execCommand('copy');
+        field.setAttribute('readonly', 'readonly');
+        field.blur();
+        if (ok) return true;
+      } catch (e) { /* fallthrough */ }
+    }
+    // 3) 一時 textarea
     try {
-      const ta = $('shareUrl');
-      ta.select(); ta.setSelectionRange(0, 999999);
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, text.length);
       const ok = document.execCommand('copy');
-      ta.setSelectionRange(0, 0);
+      document.body.removeChild(ta);
       return ok;
     } catch (e) { return false; }
+  }
+
+  function currentShareUrl() {
+    const sm = $('shareModal');
+    if (sm && !sm.classList.contains('hidden')) {
+      const field = $('shareUrl');
+      if (field && field.value) return field.value;
+    }
+    const src = currentShareSource();
+    return src && src.record ? buildShareUrl(src.record, src.size, src.playerCount, src.names) : '';
   }
 
   function shareGame() {
@@ -368,60 +461,82 @@
     if (!src || !src.record) return;
     const moves = src.record.events.filter(e => ['play', 'pass', 'resign'].includes(e.type)).length;
     if (!moves) { alert('まだ手がありません。着手後に共有できます。'); return; }
-    const url = buildShareUrl(src.record, src.size, src.playerCount, src.names);
-    showShareModal(url, src);
+    showShareModal(buildShareUrl(src.record, src.size, src.playerCount, src.names), src);
   }
 
   // ===== 結果カード画像 =====
+  // 現在のテーマ色に合わせて描く(盤・背景・文字)。グラフも同じテーマで。
+  function cardTheme() {
+    const id = theme.id || 'default';
+    const isDark = ['dark', 'cyber'].includes(id);
+    return {
+      dark: isDark,
+      bg1: theme.bg, bg2: theme.card,
+      board: theme.board, line: theme.line,
+      text: theme.tx, sub: isDark ? 'rgba(255,255,255,0.62)' : 'rgba(0,0,0,0.58)',
+      panel: theme.card, panelBorder: theme.bd
+    };
+  }
+
   function drawShareCard(record, size, playerCount, names) {
     const geo2 = R.buildGeometry(size);
     const positions = R.replayPositions(record, geo2);
     const series = R.advantageSeries(positions, geo2, playerCount, names);
-    const W = 720, H = 1080;
+    const t = cardTheme();
+    const W = 720, H = 1180;
     const cv = document.createElement('canvas');
     cv.width = W; cv.height = H;
     const g = cv.getContext('2d');
-    // 背景
-    const grad = g.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, '#f6efe3');
-    grad.addColorStop(1, '#e8d8bf');
-    g.fillStyle = grad; g.fillRect(0, 0, W, H);
+
+    // 背景(テーマ)
+    if (t.dark) { g.fillStyle = t.bg1; g.fillRect(0, 0, W, H); }
+    else {
+      const grad = g.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, t.bg1); grad.addColorStop(1, t.bg2);
+      g.fillStyle = grad; g.fillRect(0, 0, W, H);
+    }
+
     // タイトル
-    g.fillStyle = '#3e2211';
+    g.fillStyle = t.text;
     g.font = 'bold 44px system-ui, -apple-system, "Hiragino Sans", sans-serif';
     g.textAlign = 'center'; g.textBaseline = 'top';
-    g.fillText('HEXAGO', W / 2, 44);
+    g.fillText('HEXAGO', W / 2, 46);
     g.font = '20px system-ui, sans-serif';
-    g.fillStyle = '#6b5442';
-    g.fillText(`${size}路盤・${playerCount}人戦・${series.rows[series.rows.length - 1].ply}手`, W / 2, 100);
+    g.fillStyle = t.sub;
+    g.fillText(`${size}路盤・${playerCount}人戦・${series.rows[series.rows.length - 1].ply}手`, W / 2, 102);
 
-    // 盤面(終局)
+    // 盤面(dpr=1 で生成 → そのまま貼れる。はみ出さない)
+    const boardSize = 500;
     const board = document.createElement('canvas');
-    const boardSize = 480;
     const fills = {}, strokes = {};
     for (let p = 1; p <= playerCount; p++) { fills[p] = playerFill(p); strokes[p] = playerStroke(p); }
     R.drawBoard(board, geo2, positions[positions.length - 1], {
-      cssSize: boardSize, themeBoard: '#d9b382', themeLine: 'rgba(90,67,39,0.55)', fills, strokes
+      cssSize: boardSize, dpr: 1,
+      themeBoard: t.board, themeLine: t.line, fills, strokes
     });
-    g.drawImage(board, (W - boardSize) / 2, 150);
+    g.drawImage(board, (W - boardSize) / 2, 150, boardSize, boardSize);
 
     // 優勢グラフ
-    const gx = 80, gy = 670, gw = W - 160, gh = 190;
-    g.fillStyle = '#fffaf2';
-    g.strokeStyle = '#d6c3a4'; g.lineWidth = 2;
-    g.beginPath(); g.roundRect ? g.roundRect(gx - 12, gy - 12, gw + 24, gh + 24, 14) : g.rect(gx - 12, gy - 12, gw + 24, gh + 24);
-    g.fill(); g.stroke();
+    const gx = 80, gy = 700, gw = W - 160, gh = 190;
+    g.beginPath();
+    if (g.roundRect) g.roundRect(gx - 14, gy - 40, gw + 28, gh + 60, 16); else g.rect(gx - 14, gy - 40, gw + 28, gh + 60);
+    g.fillStyle = t.panel; g.fill();
+    g.strokeStyle = t.panelBorder; g.lineWidth = 2; g.stroke();
+
+    g.fillStyle = t.sub; g.font = 'bold 17px system-ui, sans-serif';
+    g.textAlign = 'left'; g.textBaseline = 'top';
+    g.fillText('優勢グラフ', gx, gy - 28);
+
     let maxAbs = 1;
     for (const row of series.rows) for (const k of Object.keys(row.leadPct)) maxAbs = Math.max(maxAbs, Math.abs(row.leadPct[k]));
     const rows = series.rows;
     const yy = v => gy + gh / 2 - (v / maxAbs) * (gh / 2);
     const xx = i => gx + (rows.length <= 1 ? gw / 2 : (i / (rows.length - 1)) * gw);
-    g.strokeStyle = 'rgba(0,0,0,0.18)'; g.lineWidth = 1;
+    g.strokeStyle = t.dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.16)'; g.lineWidth = 1;
     g.beginPath(); g.moveTo(gx, yy(0)); g.lineTo(gx + gw, yy(0)); g.stroke();
     const lines = playerCount === 2 ? [1] : Array.from({ length: playerCount }, (_, i) => i + 1);
     lines.forEach(p => {
-      // カードも白い石の線が白地に埋もれないよう、画面と同じ可視色補正を使う
-      g.strokeStyle = graphLineColor(p, false); g.lineWidth = 2.5; g.lineJoin = 'round';
+      g.strokeStyle = graphLineColor(p, t.dark); g.lineWidth = 2.5; g.lineJoin = 'round';
       g.beginPath();
       let started = false;
       for (let k = 0; k < rows.length; k++) {
@@ -431,47 +546,61 @@
       }
       g.stroke();
     });
-    g.fillStyle = '#6b5442'; g.font = '16px system-ui, sans-serif';
-    g.textAlign = 'left'; g.textBaseline = 'top';
-    g.fillText('優勢グラフ', gx, gy - 34);
 
-    // 凡例(順位順)
+    // 順位(数値のみ。ラベル文字は付けない)
     const last = series.rows[series.rows.length - 1];
     const order = Array.from({ length: playerCount }, (_, i) => i + 1)
       .sort((a, b) => (last.leadPct[b] ?? -999) - (last.leadPct[a] ?? -999));
-    g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.textBaseline = 'middle';
     order.forEach((p, idx) => {
-      const y = 900 + idx * 32;
+      const y = 950 + idx * 34;
       g.fillStyle = playerFill(p);
       g.beginPath(); g.arc(110, y, 10, 0, 7); g.fill();
-      g.strokeStyle = '#5b4227'; g.lineWidth = 2; g.stroke();
-      g.fillStyle = '#3e2211'; g.font = 'bold 18px system-ui, sans-serif';
+      g.strokeStyle = t.sub; g.lineWidth = 1.6; g.stroke();
+      g.fillStyle = t.text; g.font = 'bold 18px system-ui, sans-serif';
       const nm = (names && names[p]) || `${p}P`;
+      g.textAlign = 'left'; g.fillText(`${nm} (${p}P)`, 132, y);
       const lead = last.leadPct[p];
       const leadTxt = (typeof lead === 'number') ? `${lead >= 0 ? '+' : '−'}${Math.abs(lead).toFixed(1)}%` : '投了';
-      g.fillText(`${nm} (${p}P)`, 132, y);
-      g.textAlign = 'right'; g.fillText(leadTxt, W - 110, y); g.textAlign = 'left';
+      g.textAlign = 'right'; g.fillText(leadTxt, W - 110, y);
     });
+
     // 結果
     const scoreEvt = [...record.events].reverse().find(e => e.type === 'score');
     if (scoreEvt && scoreEvt.result) {
-      g.textAlign = 'center'; g.fillStyle = '#3e2211';
-      g.font = 'bold 20px system-ui, sans-serif';
-      g.fillText(scoreEvt.result, W / 2, H - 34);
+      g.textAlign = 'center'; g.textBaseline = 'top';
+      g.fillStyle = t.text; g.font = 'bold 22px system-ui, sans-serif';
+      g.fillText(scoreEvt.result, W / 2, H - 52);
     }
     return cv;
   }
 
-  function downloadShareCard() {
-    const src = currentShareSource();
-    if (!src || !src.record) return;
-    const cv = drawShareCard(src.record, src.size, src.playerCount, src.names);
+  // プレビュー用: 生成した canvas をモーダル内に表示する
+  function showCardPreview(cv) {
+    const host = $('shareCardPreview');
+    if (!host) return;
+    host.innerHTML = '';
+    const url = cv.toDataURL('image/png');
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = '結果カードのプレビュー';
+    img.className = 'w-full rounded-lg border border-neutral-200';
+    host.appendChild(img);
+    host.classList.remove('hidden');
+    const dl = $('btnShareSavePng');
+    if (dl) dl.disabled = false;
+    return url;
+  }
+
+  function downloadShareCard(cv) {
+    if (!cv) return;
     cv.toBlob(blob => {
       if (!blob) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `hexago-${src.size}-${src.playerCount}p.png`;
+      const src = currentShareSource();
+      a.download = `hexago-${src ? src.size : 9}-${src ? src.playerCount : 2}p.png`;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       const st = $('shareStatus'); if (st) st.textContent = '結果カード画像を保存しました。';
@@ -541,21 +670,49 @@
     window.addEventListener('orientationchange', () => { if (active()) { setTimeout(() => { layoutReplayBar(true); seek(cur); }, 120); } });
     // 共有
     if ($('replayShare')) $('replayShare').onclick = () => { snd.click(); shareGame(); };
-    if ($('replayCard')) $('replayCard').onclick = () => { snd.click(); downloadShareCard(); };
     if ($('btnShareGame')) $('btnShareGame').onclick = () => { snd.click(); closeModal($('resModal')); shareGame(); };
     if ($('btnCloseShare')) $('btnCloseShare').onclick = () => closeModal($('shareModal'));
+    if ($('shareShorten')) $('shareShorten').onchange = () => { syncShareUrl(); };
     if ($('btnShareCopy')) $('btnShareCopy').onclick = async () => {
-      const ok = await copyText($('shareUrl').value);
-      $('shareStatus').textContent = ok ? 'URLをコピーしました。' : 'コピーできませんでした。テキストを選択してコピーしてください。';
-      if (ok && snd.click) snd.click();
+      const url = currentShareUrl();
+      const label = $('shareCopyLabel');
+      const before = label ? label.textContent : '';
+      const ok = await copyText(url);
+      if (ok) {
+        if (snd.click) snd.click();
+        if (label) { label.textContent = 'コピー済み'; setTimeout(() => { label.textContent = before || 'コピー'; }, 1600); }
+        $('shareStatus').textContent = 'URLをコピーしました。';
+      } else {
+        $('shareStatus').textContent = 'コピーできませんでした。URL欄を選択してコピーしてください。';
+        const f = $('shareUrl'); if (f) { f.focus(); f.select(); }
+      }
     };
     if ($('btnShareNative')) $('btnShareNative').onclick = async () => {
-      const url = $('shareUrl').value;
-      try { await navigator.share({ title: 'HEXAGO の対局', text: 'HEXAGO の対局リプレイ', url }); $('shareStatus').textContent = '共有しました。'; }
-      catch (e) { if (e && e.name !== 'AbortError') $('shareStatus').textContent = '共有できませんでした。URLをコピーして使ってください。'; }
+      const url = currentShareUrl();
+      try {
+        await navigator.share({ title: 'HEXAGO の対局', text: 'HEXAGO の対局リプレイ', url });
+        $('shareStatus').textContent = '共有しました。';
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+        // 共有シートに対応していない環境ではURLをコピーしておく
+        const ok = await copyText(url);
+        $('shareStatus').textContent = ok ? '共有シートが使えないため、URLをコピーしました。' : '共有できませんでした。URLをコピーしてください。';
+      }
     };
     if ($('btnShareOpenReplay')) $('btnShareOpenReplay').onclick = () => { closeModal($('shareModal')); openFromGame(); };
-    if ($('btnShareDownloadPng')) $('btnShareDownloadPng').onclick = () => { snd.click(); downloadShareCard(); };
+    if ($('btnSharePreviewPng')) $('btnSharePreviewPng').onclick = () => {
+      const src = currentShareSource();
+      if (!src || !src.record) return;
+      if (snd.click) snd.click();
+      shareCardCache = drawShareCard(src.record, src.size, src.playerCount, src.names);
+      showCardPreview(shareCardCache);
+      $('shareStatus').textContent = 'プレビューを確認してから「保存」してください。';
+    };
+    if ($('btnShareSavePng')) $('btnShareSavePng').onclick = () => {
+      if (!shareCardCache) return;
+      if (snd.click) snd.click();
+      downloadShareCard(shareCardCache);
+    };
 
     // 入口: 結果モーダル / 終局バナー / 盤面・棋譜モーダル
     $('btnReplayGame').onclick = () => { snd.click(); closeModal($('resModal')); openFromGame(); };

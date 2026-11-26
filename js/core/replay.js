@@ -269,7 +269,10 @@
     const g = canvas.getContext && canvas.getContext('2d');
     if (!g) return;
     const cssW = Math.max(200, (options && options.cssSize) || Math.min(480, canvas.clientWidth || 480));
-    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+    // dpr=1 を明示すると、生成した canvas をそのまま drawImage で貼れる
+    // (画面表示用は devicePixelRatio、オフスクリーン生成時は 1 を渡す)
+    const dpr = (options && Number.isFinite(options.dpr)) ? options.dpr
+      : ((typeof window !== 'undefined' && window.devicePixelRatio) || 1);
     canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssW * dpr);
     canvas.style.width = cssW + 'px'; canvas.style.height = cssW + 'px';
     const size = geo.size, side = (size + 1) / 2, s = side - 1;

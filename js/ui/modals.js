@@ -21,7 +21,6 @@ window.addEventListener('keydown', e => {
 });
 
 function showResult() { $('resTitle').textContent = G.result.title; $('resDet').innerHTML = G.result.details; $('resModal').classList.remove('hidden'); }
-$('btnViewBoard').onclick = () => closeModal($('resModal'));
 $('btnShowResult').onclick = showResult;
 $('btnAgain').onclick = () => { closeModal($('resModal')); reset(); };
 $('btnPass').onclick = () => { if (!G.over && G.phase === 'playing' && mine()) { doPass(); after(); } };
