@@ -50,20 +50,20 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 @media (min-width:640px){
   .modal-card{max-height:calc(100vh - 2rem);max-height:calc(100dvh - 2rem)}
 }
-/* 小さい横画面(iPad横持ち・スマホ横)では余白を詰めて本文を広く取る */
+/* 小さい横画面(iPad横持ち・スマホ横)では余白を詰めて本文を広く取る
+   ※ padding を詰めるのは高さに余裕がない写真インポート画面だけに限定し、
+     設定やルールなど通常モーダルの内側レイアウトは変えない */
 @media (max-height:520px){
-  .modal-card{max-height:calc(100dvh - 0.5rem);padding:10px}
+  .modal-card{max-height:calc(100dvh - 0.5rem)}
   .modal-shell{padding:0.25rem!important}
+  #photoCard{padding:10px}
 }
 
-/* ===== タッチ端末: タップ領域を確保して押し間違い/押せないを防ぐ ===== */
+/* ===== タッチ端末: 写真インポート画面の操作だけ押しやすくする =====
+   ※ ゲーム設定など既存UIのボタンサイズは変えない(見た目を維持するため) */
 @media (pointer:coarse){
-  .opt{min-height:44px;display:flex;align-items:center;justify-content:center}
-  .modal-card button{min-height:40px}
-  .modal-card .opt{min-height:44px}
-  #photoResult,#photoBoardPreview,#photoAdjust{touch-action:manipulation}
-  /* ホバー前提の予覧はタッチでは不要なのでタップ反応を優先 */
-  #photoResult{cursor:pointer}
+  #photoModal .opt{min-height:44px;display:flex;align-items:center;justify-content:center}
+  #photoResult,#photoBoardPreview,#photoAdjust{touch-action:manipulation;cursor:pointer}
 }
 </style>
 </head>
