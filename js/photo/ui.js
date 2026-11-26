@@ -21,8 +21,11 @@
     result: null, labels: null, origLabels: null, activeSize: 13,
     drag: -1, hover: -1, turn: 1, modelTried: false,
     palette: null, playerCount: 2, allColors: false, pickPalette: null, outColors: {},
-    viewMode: 'ring', manual: {}, calibrated: false
+    viewMode: 'ring', manual: {}, calibrated: false,
+    // 結果画面のズーム(ピンチ/ホイール/ボタン)。photoResult と photoBoardPreview で共有
+    zoom: 1, panX: 0, panY: 0
   };
+  var ZOOM_MIN = 1, ZOOM_MAX = 6;
 
   // ---------------- 画面切り替え ----------------
   function view(name) {
@@ -318,6 +321,7 @@
         st.manual = {};
         st.calibrated = false;
         st.viewMode = 'ring';
+        st.zoom = 1; st.panX = 0; st.panY = 0;
         st.activeSize = st.size;
         st.turn = 1;
         st.allColors = false;
@@ -542,9 +546,21 @@
     var cv = $('photoResult');
     var W = res.layout.W;
     var isSplit = st.viewMode === 'split';
-    var fit = fitCanvas(cv, W, W, isSplit ? 320 : 560, isSplit ? 0.36 : 0.40);
+    // 拡大中はキャンバス自体を大きくして表示領域を活用する(等倍時は従来サイズ)
+    var zoomed = (st.zoom || 1) > 1.001;
+    var maxCss = isSplit ? 320 : (zoomed ? 900 : 560);
+    var heightFrac = isSplit ? 0.36 : (zoomed ? 0.62 : 0.40);
+    var fit = fitCanvas(cv, W, W, maxCss, heightFrac);
     var ctx = cv.getContext('2d');
+    // ズーム: 拡大しても canvas の CSS サイズは変えず、描画だけを拡大・移動する
+    var z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, st.zoom || 1));
+    st.zoom = z;
+    st.viewCssW = fit.cssW; st.viewCssH = fit.cssH;
+    clampPan();
     ctx.setTransform(fit.dpr, 0, 0, fit.dpr, 0, 0);
+    ctx.save();
+    ctx.translate(st.panX, st.panY);
+    ctx.scale(z, z);
     // canonical 画像
     var id = ctx.createImageData(W, W);
     var canon = res.canon;
@@ -557,6 +573,9 @@
     var tmp = document.createElement('canvas');
     tmp.width = W; tmp.height = W;
     tmp.getContext('2d').putImageData(id, 0, 0);
+    // 拡大時は写真の外側の余白を背景色で埋める
+    ctx.fillStyle = '#171717';
+    ctx.fillRect(-st.panX / z, -st.panY / z, fit.cssW / z, fit.cssH / z);
     ctx.drawImage(tmp, 0, 0, fit.cssW, fit.cssH);
 
     // オーバーレイ描画（写真上の実石を隠さないよう、デフォルトは中抜きのカラー枠）
@@ -619,11 +638,66 @@
         ctx.stroke();
       }
     }
+    ctx.restore();
     if (isSplit) renderBoardPreview();
     renderCounts();
     renderOutRow();
     renderTurnSelect();
+    syncZoomUi();
     if (resetScroll) cv.scrollIntoView({ block: 'nearest' });
+  }
+
+  // ---------------- ズーム ----------------
+  // 拡大した画像がキャンバスの外へ逃げないよう、移動量を制限する。
+  // (拡大率 1 のときは移動なし。等倍を下回らない)
+  function clampPan() {
+    st.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, st.zoom));
+    if (st.zoom <= 1.0001) { st.panX = 0; st.panY = 0; return; }
+    var cssW = st.viewCssW || 0, cssH = st.viewCssH || 0;
+    if (!cssW) return;
+    var maxX = cssW * (st.zoom - 1);
+    var maxY = cssH * (st.zoom - 1);
+    st.panX = Math.max(-maxX, Math.min(0, st.panX));
+    st.panY = Math.max(-maxY, Math.min(0, st.panY));
+  }
+  // 画面座標 → キャンバス内のCSS px
+  function canvasPoint(cv, clientX, clientY) {
+    var r = cv.getBoundingClientRect();
+    return { x: clientX - r.left, y: clientY - r.top, rect: r };
+  }
+  function zoomAt(cv, factor, clientX, clientY) {
+    var p = canvasPoint(cv, clientX, clientY);
+    var before = st.zoom;
+    var after = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, before * factor));
+    if (Math.abs(after - before) < 1e-4) return;
+    // 指/カーソルの位置を固定したまま拡大
+    st.panX = p.x - (p.x - st.panX) * (after / before);
+    st.panY = p.y - (p.y - st.panY) * (after / before);
+    st.zoom = after;
+    st.zoomAnchor = { x: p.x, y: p.y, rect: p.rect };
+    renderResult();
+  }
+  function zoomBy(factor) {
+    var cv = $('photoResult');
+    if (!cv) return;
+    var r = cv.getBoundingClientRect();
+    zoomAt(cv, factor, r.left + r.width / 2, r.top + r.height / 2);
+  }
+  function zoomReset() {
+    st.zoom = 1; st.panX = 0; st.panY = 0;
+    renderResult();
+  }
+  function syncZoomUi() {
+    var zoomed = st.zoom > 1.001;
+    var pct = Math.round(st.zoom * 100) + '%';
+    var label = $('photoZoomLabel');
+    if (label) label.textContent = pct;
+    var stat = $('photoZoomStatic');
+    if (stat) { stat.textContent = pct; stat.classList.toggle('hidden', zoomed); }
+    var outBtn = $('btnPhotoZoomOut');
+    if (outBtn) outBtn.disabled = !zoomed;
+    var resetBtn = $('btnPhotoZoomReset');
+    if (resetBtn) resetBtn.classList.toggle('hidden', !zoomed);
   }
 
   // 色の並び順（= 1P,2P,... の割り当て）を入れ替える。
@@ -947,9 +1021,14 @@
     if (!res || !cv) return -1;
     var rect = cv.getBoundingClientRect();
     var W = res.layout.W;
-    var x = (clientX - rect.left) / rect.width * W;
-    var y = (clientY - rect.top) / rect.height * W;
-    var best = -1, bd = res.layout.cell * 0.55;
+    // CSS px → ズーム前の画像座標(パンを戻してから拡大率で割る)
+    var z = st.zoom || 1;
+    var cx = (clientX - rect.left - st.panX) / z;
+    var cy = (clientY - rect.top - st.panY) / z;
+    var x = cx / rect.width * W;
+    var y = cy / rect.width * W;   // canvas は正方形なので width 基準
+    // 拡大するほど判定半径は画面上で同じに保つ
+    var best = -1, bd = res.layout.cell * 0.55 / z;
     for (var i = 0; i < res.points.length; i++) {
       var d = Math.hypot(res.points[i].x - x, res.points[i].y - y);
       if (d < bd) { bd = d; best = i; }
@@ -993,6 +1072,102 @@
     lastTouchCycleAt = Date.now();
   }
   var lastTouchCycleAt = 0;
+
+  // ---------------- ズーム操作(ピンチ / ホイール / ドラッグ) ----------------
+  // タッチ端末(iPad)は2本指ピンチ、マウスはホイール+ドラッグで拡大移動する。
+  // 1本指のタップは従来どおり色の切り替えに使う。
+  var gestures = new WeakMap();
+  function gestureState(cv) {
+    var g = gestures.get(cv);
+    if (!g) { g = { pointers: new Map(), pinchStart: null, panStart: null, lastTap: 0, lastTapPos: null, doubleTapTimer: null }; gestures.set(cv, g); }
+    return g;
+  }
+  function gestureDown(cv, e) {
+    var g = gestureState(cv);
+    g.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (g.pointers.size === 2) {
+      // 2本指 → ピンチ開始。1本指タップ処理は取り消す
+      var pts = [...g.pointers.values()];
+      g.pinchStart = {
+        dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1,
+        zoom: st.zoom,
+        panX: st.panX, panY: st.panY,
+        cx: (pts[0].x + pts[1].x) / 2,
+        cy: (pts[0].y + pts[1].y) / 2
+      };
+      tapState = null;
+      g.panStart = null;
+      e.preventDefault();
+      return;
+    }
+    if (g.pointers.size === 1 && st.zoom > 1.001) {
+      // 拡大中の1本指ドラッグ = 移動。タップは動かなければ色切替
+      g.panStart = { x: e.clientX, y: e.clientY, panX: st.panX, panY: st.panY, moved: false };
+    }
+  }
+  function gestureMove(cv, e) {
+    var g = gestureState(cv);
+    if (g.pointers.has(e.pointerId)) g.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    // ピンチ中
+    if (g.pinchStart && g.pointers.size >= 2) {
+      var pts = [...g.pointers.values()];
+      var dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+      var factor = dist / g.pinchStart.dist;
+      var target = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, g.pinchStart.zoom * factor));
+      var r = cv.getBoundingClientRect();
+      var ax = g.pinchStart.cx - r.left, ay = g.pinchStart.cy - r.top;
+      var ratio = target / g.pinchStart.zoom;
+      st.zoom = target;
+      st.panX = ax - (ax - g.pinchStart.panX) * ratio;
+      st.panY = ay - (ay - g.pinchStart.panY) * ratio;
+      // 2本指の移動ぶんも一緒にパン
+      st.panX += ((pts[0].x + pts[1].x) / 2) - g.pinchStart.cx;
+      st.panY += ((pts[0].y + pts[1].y) / 2) - g.pinchStart.cy;
+      if (st.zoom <= 1.0001) { st.panX = 0; st.panY = 0; }
+      e.preventDefault();
+      renderResult();
+      return;
+    }
+    // 拡大中の1本指/マウスドラッグ = パン
+    if (g.panStart) {
+      var dx = e.clientX - g.panStart.x, dy = e.clientY - g.panStart.y;
+      if (!g.panStart.moved && Math.hypot(dx, dy) > 5) { g.panStart.moved = true; tapState = null; }
+      if (g.panStart.moved) {
+        st.panX = g.panStart.panX + dx;
+        st.panY = g.panStart.panY + dy;
+        e.preventDefault();
+        renderResult();
+      }
+    }
+  }
+  function gestureUp(cv, e) {
+    var g = gestureState(cv);
+    g.pointers.delete(e.pointerId);
+    if (g.pointers.size < 2) g.pinchStart = null;
+    var ps = g.panStart;
+    if (ps && ps.moved) { g.panStart = null; tapState = null; }
+    else g.panStart = null;
+    // ダブルタップ/ダブルクリックで拡大↔戻す
+    if (!ps || !ps.moved) {
+      var now = Date.now();
+      var last = g.lastTapPos;
+      if (now - g.lastTap < 320 && last && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 30) {
+        g.lastTap = 0; g.lastTapPos = null;
+        tapState = null;
+        lastTouchCycleAt = now;   // 直後の click で色が変わるのを防ぐ
+        if (st.zoom > 1.001) zoomReset(); else zoomAt(cv, 2.2, e.clientX, e.clientY);
+        return;
+      }
+      g.lastTap = now; g.lastTapPos = { x: e.clientX, y: e.clientY };
+    }
+  }
+  function gestureWheel(cv, e) {
+    // マウスは Ctrl+ホイール / 通常ホイールどちらでも拡大(Zoom 中のみ通常ホイールで拡大)
+    var factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
+    if (st.zoom <= 1.001 && e.deltaY > 0) return;   // 等倍で縮小方向は無視(ページスクロール優先)
+    e.preventDefault();
+    zoomAt(cv, factor, e.clientX, e.clientY);
+  }
 
   // ---------------- 保存・対局・ライブラリ ----------------
   function buildEntry() {
@@ -1303,6 +1478,10 @@
     };
 
     var redetect = $('btnPhotoRedetect');
+    var zin = $('btnPhotoZoomIn'), zout = $('btnPhotoZoomOut'), zreset = $('btnPhotoZoomReset');
+    if (zin) zin.onclick = function () { if (snd && snd.click) snd.click(); zoomBy(1.5); };
+    if (zout) zout.onclick = function () { if (snd && snd.click) snd.click(); zoomBy(1 / 1.5); };
+    if (zreset) zreset.onclick = function () { if (snd && snd.click) snd.click(); zoomReset(); };
     if (redetect) redetect.onclick = function () { autoDetect(); renderAdjust(); updateDetectInfo(); autoFitBoard(); };
     var readBtn = $('btnPhotoRead');
     if (readBtn) readBtn.onclick = read;
@@ -1315,8 +1494,15 @@
     }
     [$('photoResult'), $('photoBoardPreview')].forEach(function (cvR) {
       if (!cvR) return;
-      cvR.style.touchAction = 'manipulation';   // ダブルタップ拡大によるタップ遅延/取りこぼしを防ぐ
+      // 拡大中はブラウザ標準のピンチ/スクロールに邪魔されないよう none、等倍では manipulation
+      cvR.style.touchAction = 'none';
       cvR.addEventListener('click', onResultPointer);
+      // ピンチ/パン/ダブルタップ拡大
+      cvR.addEventListener('pointerdown', function (e) { gestureDown(cvR, e); });
+      cvR.addEventListener('pointermove', function (e) { gestureMove(cvR, e); });
+      cvR.addEventListener('pointerup', function (e) { gestureUp(cvR, e); });
+      cvR.addEventListener('pointercancel', function (e) { gestureUp(cvR, e); });
+      cvR.addEventListener('wheel', function (e) { gestureWheel(cvR, e); }, { passive: false });
       // タッチ/ペン: 動かないタップで色を切り替える
       cvR.addEventListener('pointerdown', resultTapDown);
       cvR.addEventListener('pointerup', resultTapUp);
