@@ -52,7 +52,7 @@
   <div id="bnAutoPass" class="hidden w-full card rounded-xl px-3 py-2 text-xs sm:text-sm flex flex-col gap-2 shadow-sm" aria-live="polite"></div>
 
   <div id="bnDead" class="hidden w-full flex flex-col gap-2 p-3 bg-amber-50 text-amber-900 text-xs sm:text-sm rounded-xl border border-amber-200 shadow-sm">
-    <div class="flex items-center justify-between font-bold"><span>⚠️ 終局・死に石確認</span><span id="deadCount" class="text-xs font-semibold opacity-80">自動判定中…</span></div>
+    <div class="flex items-center justify-between font-bold"><span class="flex items-center gap-1.5"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9.5 17H2.5z"/><path d="M12 9v5"/><path d="M12 17.5h.01"/></svg><span>終局・死に石確認</span></span><span id="deadCount" class="text-xs font-semibold opacity-80">自動判定中…</span></div>
     <p class="text-xs text-amber-800/90 leading-relaxed">死んでいる可能性が高い石を自動で選択しました。盤面の×印を確認し、判定が違う連はタップして切り替えてください。確定後、死に石を取り除き「地＋盤上の石」で集計します。</p>
     <div class="flex gap-2 pt-1">
       <button id="btnDeadRecheck" class="flex-1 py-1.5 px-3 bg-white border border-amber-300 font-bold rounded-lg hover:bg-amber-100 text-amber-900">自動判定をやり直す</button>
@@ -65,7 +65,7 @@
   </div>
 
   <div id="bnResult" class="hidden w-full flex items-center justify-between py-2 px-3 bg-neutral-100 text-xs sm:text-sm rounded-lg text-neutral-800 border border-neutral-200">
-    <span class="font-medium">対局終了</span><span class="flex items-center gap-3"><button id="btnShowResult" class="font-bold underline hover:opacity-70">結果を見る</button><button id="btnShowReplay" class="font-bold underline hover:opacity-70">▶ リプレイ</button></span>
+    <span class="font-medium">対局終了</span><span class="flex items-center gap-3"><button id="btnShowResult" class="font-bold underline hover:opacity-70">結果を見る</button><button id="btnShowReplay" class="flex items-center gap-1 font-bold underline hover:opacity-70"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg><span>リプレイ</span></button></span>
   </div>
 
   <p class="text-xs opacity-60 text-center leading-relaxed">PC: 交点のホバーでプレビュー・クリックで打つ / スマホ: 1タップ目プレビュー、同じ交点を2タップ目で確定<br>石は6方向の空点(呼吸点)がすべて無くなると取られます</p>
@@ -77,11 +77,11 @@
   <div class="bg-white text-neutral-900 p-5 sm:p-6 max-w-md w-full rounded-2xl shadow-2xl flex flex-col gap-4 border border-neutral-200 max-h-[90vh] overflow-y-auto">
     <div class="flex items-center justify-between border-b pb-3 border-neutral-200">
       <h2 id="recordTitle" class="text-xl font-bold">盤面・棋譜</h2>
-      <button id="btnCloseRecord" aria-label="閉じる" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0">✕</button>
+      <button id="btnCloseRecord" aria-label="閉じる" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0"><svg aria-hidden="true" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <p id="recordSummary" class="text-sm font-semibold text-neutral-800"></p>
     <p id="recordNotice" class="hidden text-xs leading-relaxed text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5"></p>
-    <button id="btnOpenReplay" type="button" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-xl disabled:opacity-40 disabled:pointer-events-none">▶ この対局をリプレイ</button>
+    <button id="btnOpenReplay" type="button" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-xl disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-1.5"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg><span>この対局をリプレイ</span></button>
 
     <div class="flex flex-col gap-2">
       <span class="text-xs font-bold tracking-wider text-neutral-500">保存する</span>
@@ -126,7 +126,7 @@
   <div class="bg-white text-neutral-900 p-5 sm:p-6 max-w-md w-full rounded-2xl shadow-2xl flex flex-col gap-5 border border-neutral-200 max-h-[90vh] overflow-y-auto">
     <div class="flex items-center justify-between border-b pb-3 border-neutral-200">
       <h2 class="text-xl font-bold">ゲーム設定</h2>
-      <button id="btnCloseSettings" aria-label="閉じる" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0">✕</button>
+      <button id="btnCloseSettings" aria-label="閉じる" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0"><svg aria-hidden="true" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div id="modeConfig" class="flex flex-col gap-1.5">
       <label class="text-xs font-bold tracking-wider text-neutral-500">対戦モード</label>
@@ -213,7 +213,7 @@
 <!-- rules modal -->
 <div id="rulesModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
   <div class="bg-white text-neutral-900 p-5 sm:p-6 max-w-md w-full rounded-2xl shadow-2xl flex flex-col gap-4 border border-neutral-200 max-h-[88vh] overflow-y-auto">
-    <div class="flex items-center justify-between border-b pb-3 border-neutral-200"><h2 class="text-xl font-extrabold">HEXAGO ルール</h2><button id="btnCloseRules" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0" aria-label="閉じる">✕</button></div>
+    <div class="flex items-center justify-between border-b pb-3 border-neutral-200"><h2 class="text-xl font-extrabold">HEXAGO ルール</h2><button id="btnCloseRules" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0" aria-label="閉じる"><svg aria-hidden="true" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <section class="flex flex-col gap-1"><h3 class="font-bold">1. 基本</h3><p class="text-sm leading-relaxed">自分の手番に空いている交点へ1個打ちます。石は隣接する6方向の呼吸点がすべてなくなると取られます。自殺手や同一局面を繰り返す手は打てません。</p></section>
     <section class="flex flex-col gap-1"><h3 class="font-bold">2. 得点（エリア方式）</h3><p class="text-sm leading-relaxed">終局後の得点は「自分の地＋盤上に残った自分の石」です。地1マスも石1個も、それぞれ1点です。捕獲数は得点から差し引きません。</p></section>
     <section class="flex flex-col gap-1"><h3 class="font-bold">3. 地と中立地</h3><p class="text-sm leading-relaxed">空点の連結領域が1色の石だけに接している場合、その色の地として数えます。複数色に接する領域は中立地として数えません。</p></section>
@@ -227,51 +227,49 @@
 <!-- result modal -->
 <div id="resModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
   <div class="relative bg-white text-neutral-900 p-6 sm:p-8 max-w-sm w-full text-center flex flex-col gap-5 rounded-2xl shadow-2xl border border-neutral-200">
-    <button id="btnCloseResult" type="button" aria-label="閉じる" class="absolute top-2 right-2 w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold">✕</button>
+    <button id="btnCloseResult" type="button" aria-label="閉じる" class="absolute top-2 right-2 w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold"><svg aria-hidden="true" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <h2 id="resTitle" class="text-2xl font-extrabold">対局終了</h2>
     <div id="resDet" class="text-sm text-neutral-700 flex flex-col gap-2 py-3 border-y border-neutral-200 font-medium"></div>
     <div class="flex flex-col gap-2">
-      <button id="btnReplayGame" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-xl">▶ 対局をリプレイ</button>
+      <button id="btnReplayGame" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-1.5"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg><span>対局をリプレイ</span></button>
       <button id="btnViewBoard" class="w-full py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-sm font-bold rounded-xl">盤面を確認する</button>
       <button id="btnAgain" class="w-full py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-xl">もう一度遊ぶ</button>
     </div>
   </div>
 </div>
 
-<!-- replay modal -->
-<div id="replayModal" role="dialog" aria-modal="true" aria-labelledby="replayTitle" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 hidden">
-  <div id="replayCard" class="bg-white text-neutral-900 p-4 sm:p-5 max-w-md w-full rounded-2xl shadow-2xl flex flex-col gap-3 border border-neutral-200 max-h-[94vh] overflow-y-auto">
-    <div class="flex items-center justify-between border-b pb-2.5 border-neutral-200">
-      <h2 id="replayTitle" class="text-lg sm:text-xl font-bold">対局リプレイ</h2>
-      <button id="replayClose" type="button" aria-label="閉じる" class="w-10 h-10 -mr-2 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0">✕</button>
+<!-- replay bar (メイン画面で盤面をそのまま再生する) -->
+<div id="replayBar" class="hidden w-full flex flex-col gap-2.5 card rounded-xl p-3 shadow-sm">
+  <div class="flex items-center justify-between gap-2">
+    <div class="flex items-center gap-1.5 min-w-0">
+      <span class="text-xs font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-700 text-white shrink-0">リプレイ</span>
+      <span id="replayTitle" class="text-xs font-semibold opacity-80 truncate"></span>
     </div>
-    <div id="replayBoardCard" class="w-full flex justify-center">
-      <canvas id="replayBoard" class="rounded-lg" role="img" aria-label="リプレイの盤面"></canvas>
-    </div>
-    <p id="replayEvt" class="text-sm text-center min-h-5 font-medium" aria-live="polite"></p>
-    <p id="replayLegend" class="text-xs text-center flex flex-wrap justify-center gap-y-1"></p>
-    <div class="flex items-center gap-1.5">
-      <button id="replayFirst" type="button" title="最初へ（局面 1）" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-bold hover:bg-neutral-100 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none">⏮</button>
-      <button id="replayPrev" type="button" title="1手戻る" aria-label="1手戻る" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-bold hover:bg-neutral-100 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none">◀</button>
-      <button id="replayPlayBtn" type="button" class="flex-1 h-9 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-lg active:scale-[0.98] transition-all px-2">▶ 再生</button>
-      <button id="replayNext" type="button" title="1手進む" aria-label="1手進む" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-bold hover:bg-neutral-100 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none">▶</button>
-      <button id="replayLast" type="button" title="最後へ" aria-label="最後へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-bold hover:bg-neutral-100 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none">⏭</button>
-    </div>
-    <input id="replaySlider" type="range" min="0" max="0" value="0" step="1" class="w-full accent-neutral-900" aria-label="リプレイの再生位置">
-    <div class="flex items-center justify-between gap-2 text-xs">
-      <span id="replayPos" class="font-mono text-neutral-700"></span>
-      <label class="flex items-center gap-1 shrink-0"><span class="opacity-70">速度</span>
-        <select id="replaySpeed" class="border border-neutral-300 rounded-lg px-1.5 py-1 text-xs font-bold bg-white" aria-label="再生速度">
-          <option value="0.5">×0.5</option><option value="1" selected>×1</option><option value="2">×2</option><option value="4">×4</option>
-        </select>
-      </label>
-    </div>
-    <div class="border-t border-neutral-200 pt-2.5 flex flex-col gap-1.5">
-      <span class="text-xs font-bold tracking-wider text-neutral-500">優勢グラフ<span class="font-normal opacity-75">（タップ / ドラッグでその手へ移動）</span></span>
-      <canvas id="replayGraph" class="w-full touch-none cursor-pointer rounded-lg" role="img" aria-label="優勢グラフ"></canvas>
-    </div>
-    <p id="replaySwing" class="hidden text-xs text-neutral-800 bg-neutral-100 border border-neutral-200 rounded-lg p-2 leading-relaxed"></p>
+    <button id="replayExit" type="button" class="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all shrink-0"><svg aria-hidden="true" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg><span>終了</span></button>
   </div>
+  <p id="replayEvt" class="text-sm text-center min-h-5 font-medium" aria-live="polite"></p>
+  <p id="replayLegend" class="text-xs text-center flex flex-wrap justify-center gap-y-1"></p>
+  <div class="flex items-center gap-1.5">
+    <button id="replayFirst" type="button" title="最初へ" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5v14l-11-7z"/></svg></button>
+    <button id="replayPrev" type="button" title="1手戻る" aria-label="1手戻る" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5v14L5 12z"/></svg></button>
+    <button id="replayPlayBtn" type="button" class="flex-1 h-9 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-lg active:scale-[0.98] transition-all px-2 flex items-center justify-center gap-1.5"><span id="replayPlayIcon"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span><span id="replayPlayLabel">再生</span></button>
+    <button id="replayNext" type="button" title="1手進む" aria-label="1手進む" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l11 7-11 7z"/></svg></button>
+    <button id="replayLast" type="button" title="最後へ" aria-label="最後へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5l11 7-11 7z"/></svg></button>
+  </div>
+  <input id="replaySlider" type="range" min="0" max="0" value="0" step="1" class="w-full accent-neutral-900" aria-label="リプレイの再生位置">
+  <div class="flex items-center justify-between gap-2 text-xs">
+    <span id="replayPos" class="font-mono opacity-80"></span>
+    <span class="flex items-center gap-1 shrink-0"><label for="replaySpeed" class="opacity-70">速度</label>
+      <select id="replaySpeed" class="border border-current/20 rounded-lg px-1.5 py-1 text-xs font-bold bg-transparent" aria-label="再生速度">
+        <option value="0.5">×0.5</option><option value="1" selected>×1</option><option value="2">×2</option><option value="4">×4</option>
+      </select>
+    </span>
+  </div>
+  <div class="border-t border-current/10 pt-2 flex flex-col gap-1.5">
+    <span class="text-xs font-bold tracking-wider opacity-70">優勢グラフ<span class="font-normal opacity-80">（タップ / ドラッグでその手へ移動）</span></span>
+    <canvas id="replayGraph" class="w-full touch-none cursor-pointer rounded-lg" role="img" aria-label="優勢グラフ"></canvas>
+  </div>
+  <p id="replaySwing" class="hidden text-xs opacity-90 border border-current/20 rounded-lg p-2 leading-relaxed"></p>
 </div>
 
 <!-- photo import modal -->
@@ -279,7 +277,7 @@
   <div id="photoCard" class="bg-white text-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-neutral-200 max-h-[96svh] sm:max-h-[94vh] overflow-y-auto overscroll-contain">
     <div class="flex items-center justify-between border-b px-4 py-3 border-neutral-200 sticky top-0 bg-white z-10">
       <h2 id="photoModalTitle" class="text-lg font-extrabold">写真から盤面を復元</h2>
-      <button id="btnClosePhoto" aria-label="閉じる" class="w-9 h-9 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold">✕</button>
+      <button id="btnClosePhoto" aria-label="閉じる" class="w-9 h-9 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold"><svg aria-hidden="true" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
 
     <div id="photoStep2" class="p-4 flex flex-col gap-3 hidden">

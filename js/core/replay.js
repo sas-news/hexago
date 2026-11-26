@@ -79,13 +79,22 @@
     return regions;
   }
 
-  // その時点の面積スコア(地+石)。争点は接する石の数で按分して将来の取り込みを見積もる。
+  // その時点の「地+石」の絶対値。争点は接する石の数で按分して将来の取り込みを見積もる。
+  // (グラフの目盛り・ツールチップ用。優劣の判定には下の shareScores を使う)
   function areaScores(board, geo, playerCount) {
     const scores = Array(playerCount + 1).fill(0);
     board.forEach(v => { if (v) scores[v]++; });
     for (const reg of emptyRegions(board, geo)) {
       if (reg.cols.length === 1) {
-        scores[reg.cols[0]] += reg.size; // 一色に囲まれた空点はその色の地
+        // 一色に囲まれた空点はその色の地。ただし序盤の広い空間は
+        // まだ「囲まれた」とは言い切れないので、advantageOf と同じ信頼度で按分する
+        const c = reg.cols[0];
+        const filled = board.reduce((n, v) => n + (v ? 1 : 0), 0) / Math.max(1, board.length);
+        const evidence = Math.min(1, reg.points.reduce((n, i) => n + geo.NB[i].filter(x => board[x] === c).length, 0) / 4);
+        const trust = Math.min(1, (1 / (1 + Math.max(0, reg.size - 5) / 3)) * evidence * (0.35 + 0.65 * Math.min(1, filled * 3)));
+        scores[c] += reg.size * trust;
+        const rest = reg.size * (1 - trust) / Math.max(1, playerCount);
+        for (let p = 1; p <= playerCount; p++) scores[p] += rest;
       } else if (reg.cols.length > 1) {
         // 争点: 接する石の多い色が将来取り込むとみて按分する(模様・勢力の取り合い)
         const touch = reg.cols.map(() => 0);
@@ -106,6 +115,82 @@
       if (libertiesOfGroup(board, geo, g).size <= 1) loss.set(board[i], (loss.get(board[i]) || 0) + g.length);
     }
     return loss;
+  }
+
+  // 序盤なほど疑わしい「争点」の見積もりを鈍らせる重み。
+  //   1手目 ≒ 0.12 … 盤が埋まるほど 1.0 に近づく(終盤はほぼ確定地で見る)。
+  function contestedWeight(board, geo) {
+    const filled = board.reduce((n, v) => n + (v ? 1 : 0), 0) / Math.max(1, board.length);
+    return 0.12 + 0.88 * Math.pow(Math.min(1, Math.max(0, filled)), 0.75);
+  }
+
+  const EPS = 1e-9;
+  // 局面の「優劣」。0 = 互角、±1 = 完全に支配。
+  //
+  // 分母は「盤面の総点数」で固定する(試合の総取り=試合の総量は変わらない)。
+  //   未確定の空点(序盤の広い空間)は、まだ誰のものでもないので
+  //   「出場者の均等な持ち分」として扱う = 序盤は互角付近を淡々と動く。
+  //
+  //   持ち点(p) = 石 + 確定地(囲いが強く証拠もある領域) - 弱石(アタリ)
+  //             + 未確定領域 × (その記録の取り分)
+  //
+  // これにより、石を1つ置いても「総面積に対する1点」の重みしか動かない。
+  // 単純な得点計算との違い:
+  //   - 序盤の広い空点を「まだ誰のものでもない」として中立に扱う
+  //   - 争点(複数色が接する空間)は接する石の数で按分 = 模様・勢力の取り合い
+  //   - アタリの連は取られる可能性として減点
+  //   - 盤が埋まるほど、未確定分が減って確定分の差が効いてくる
+  function advantageOf(board, geo, playerCount, out) {
+    const active = Array.from({ length: playerCount }, (_, i) => i + 1).filter(p => !(out && out[p]));
+    const raw = Array(playerCount + 1).fill(0);
+    if (active.length <= 1) return { values: active.map(() => 1), raw, active };
+
+    const total = Math.max(1, board.length);
+    const w = contestedWeight(board, geo);
+    board.forEach(v => { if (v) raw[v]++; });
+
+    // 未確定の空点は出場者で等分した「持ち分」
+    const base = 1 / active.length;
+    active.forEach(p => { raw[p] += 0; });
+
+    for (const reg of emptyRegions(board, geo)) {
+      if (reg.cols.length === 1) {
+        const c = reg.cols[0];
+        const enclosed = 1 / (1 + Math.max(0, reg.size - 5) / 3);
+        // 囲いの証拠: 空点に接するその色の石が多いほど「囲っている」確度が高い
+        const borders = new Set();
+        for (const i of reg.points) for (const n of geo.NB[i]) if (board[n] === c) borders.add(n);
+        const evidence = Math.min(1, borders.size / 4);
+        const trust = Math.max(0, Math.min(1, enclosed * evidence * (0.35 + 0.65 * w)));
+        raw[c] += reg.size * trust;
+        const unclaimed = reg.size * (1 - trust);
+        active.forEach(p => { raw[p] += unclaimed * base; });
+      } else if (reg.cols.length > 1) {
+        const touch = reg.cols.map(() => 0);
+        for (const i of reg.points) for (const n of geo.NB[i]) if (board[n]) touch[reg.cols.indexOf(board[n])]++;
+        const sum = touch.reduce((a, b) => a + b, 0);
+        // 争点のうち「有利な側が将来取る」分だけ実勢力として加点し、
+        // 残りはまだ誰のものでもないので等分
+        const claimed = Math.min(1, w);
+        if (sum > 0) reg.cols.forEach((c, k) => { raw[c] += reg.size * claimed * (touch[k] / sum); });
+        active.forEach(p => { raw[p] += reg.size * (1 - claimed) * base; });
+      }
+    }
+
+    const weak = weakStoneLoss(board, geo);
+    const held = active.map(p => Math.max(0, raw[p] - (weak.get(p) || 0)));
+    // 総面積で正規化(0..1)。合計はおおよそ 1 になる
+    return { values: held.map(v => v / total), raw, active };
+  }
+
+  // 優勢度(2人戦は +x / -x の対称線、多人数は平均との差)。
+  // シェアの平均との差 = 0 を互角とした対称値。序盤は総面積に比べて小さい。
+  function leadValues(adv) {
+    const vals = adv.values;
+    if (vals.length <= 1) return { lead: vals.map(() => 0), leadPct: vals.map(() => 0) };
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const lead = vals.map(v => v - avg);
+    return { lead, leadPct: lead.map(v => v * 100) };
   }
 
   // 棋譜レコード → 手数ごとの局面リスト(先頭 = 初期局面)。
@@ -141,30 +226,38 @@
     return positions;
   }
 
-  // 優勢度系列。lead = 評価値 - 出場中プレイヤーの平均。score イベントで公式確定スコアに接続する。
+  // 優勢度系列(手ごと)。
+  //   lead     = 各プレイヤーの持ち点シェア - 出場者の平均(2人戦は対称、単位は「盤面比」)
+  //   leadPct  = 上記を百分率に(グラフの主役。序盤は数%で振り切れない)
+  //   evals    = 参考値(地+石の絶対数。終局の score イベントで公式確定スコアに接続)
   function advantageSeries(positions, geo, playerCount, names) {
     const rows = [];
     for (const pos of positions) {
       const finalScores = pos.note && pos.note.kind === 'score' && pos.note.scores ? pos.note.scores : null;
-      const evals = Array(playerCount + 1).fill(0);
-      if (finalScores) {
-        for (let p = 1; p <= playerCount; p++) evals[p] = Number(finalScores[p]) || 0;
-      } else {
-        const raw = areaScores(pos.board, geo, playerCount);
-        const weak = weakStoneLoss(pos.board, geo);
-        for (let p = 1; p <= playerCount; p++) if (!pos.out[p]) evals[p] = Math.max(0, raw[p] - (weak.get(p) || 0));
-      }
       const active = Array.from({ length: playerCount }, (_, i) => i + 1).filter(p => !pos.out[p]);
-      const mean = active.reduce((a, p) => a + evals[p], 0) / Math.max(1, active.length);
-      const lead = {};
-      for (const p of active) lead[p] = evals[p] - mean;
-      rows.push({ ply: pos.ply, kind: pos.note ? pos.note.kind : 'start', event: pos.note, evals, lead, out: pos.out.slice() });
+      const adv = advantageOf(pos.board, geo, playerCount, pos.out);
+      const evals = Array(playerCount + 1).fill(0);
+      let lead = {}, leadPct = {};
+      if (finalScores) {
+        // 終局は公式確定スコアのシェアで引き直す(死に石による入れ替わりを反映)
+        let total = 0;
+        for (let p = 1; p <= playerCount; p++) { evals[p] = Math.max(0, Number(finalScores[p]) || 0); if (!pos.out[p]) total += evals[p]; }
+        const shares = active.map(p => total > 0 ? evals[p] / total : 1 / active.length);
+        const avg = shares.reduce((a, b) => a + b, 0) / Math.max(1, shares.length);
+        active.forEach((p, k) => { lead[p] = shares[k] - avg; leadPct[p] = (shares[k] - avg) * 100; });
+      } else {
+        const area = areaScores(pos.board, geo, playerCount);
+        for (let p = 1; p <= playerCount; p++) if (!pos.out[p]) evals[p] = Math.round(area[p] * 10) / 10;
+        const lv = leadValues(adv);
+        active.forEach((p, k) => { lead[p] = lv.lead[k]; leadPct[p] = lv.leadPct[k]; });
+      }
+      rows.push({ ply: pos.ply, kind: pos.note ? pos.note.kind : 'start', event: pos.note, evals, lead, leadPct, out: pos.out.slice() });
     }
     let swing = null;
     for (let k = 1; k < rows.length; k++) {
-      for (const key of Object.keys(rows[k].lead)) {
+      for (const key of Object.keys(rows[k].leadPct)) {
         const p = +key;
-        const delta = (rows[k].lead[p] ?? 0) - (rows[k - 1].lead[p] ?? 0);
+        const delta = (rows[k].leadPct[p] ?? 0) - (rows[k - 1].leadPct[p] ?? 0);
         if (!swing || Math.abs(delta) > Math.abs(swing.delta)) swing = { ply: rows[k].ply, player: p, delta };
       }
     }
@@ -230,5 +323,5 @@
     }
   }
 
-  return { version: 1, buildGeometry, isMoveEvent, replayPositions, simulateOnBoard, emptyRegions, areaScores, weakStoneLoss, advantageSeries, drawBoard };
+  return { version: 1, buildGeometry, isMoveEvent, replayPositions, simulateOnBoard, emptyRegions, areaScores, contestedWeight, advantageOf, leadValues, weakStoneLoss, advantageSeries, drawBoard };
 });

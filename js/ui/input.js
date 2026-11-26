@@ -12,14 +12,17 @@ function hit(e) {
   for (let i = 0; i < P.length; i++) { const [px, py] = pos(i), d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; bi = i; } }
   return bi;
 }
-cv.addEventListener('pointerdown', e => ptype = e.pointerType || 'mouse');
-cv.addEventListener('pointermove', e => ptype = e.pointerType || 'mouse');
+// リプレイ中はメイン盤面をそのまま再生に使うので、着手入力は受け付けない
+const replayShown = () => typeof HexagoReplayView !== 'undefined' && HexagoReplayView.active();
+cv.addEventListener('pointerdown', e => { if (replayShown()) return; ptype = e.pointerType || 'mouse'; });
+cv.addEventListener('pointermove', e => { if (replayShown()) return; ptype = e.pointerType || 'mouse'; });
 cv.addEventListener('mousemove', e => {
-  if (ptype === 'touch' || G.over || G.phase !== 'playing' || !mine()) return;
+  if (replayShown() || ptype === 'touch' || G.over || G.phase !== 'playing' || !mine()) return;
   const i = hit(e); if (i !== prev) { prev = i; render(); }
 });
-cv.addEventListener('mouseleave', () => { if (ptype === 'touch') return; prev = -1; render(); });
+cv.addEventListener('mouseleave', () => { if (replayShown() || ptype === 'touch') return; prev = -1; render(); });
 cv.addEventListener('click', e => {
+  if (replayShown()) return;
   snd.init(); if (G.over) return;
   const i = hit(e); if (i < 0) return;
   if (G.phase === 'dead') {

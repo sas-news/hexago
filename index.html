@@ -61,7 +61,7 @@ canvas{display:block;touch-action:manipulation}
   <div id="bnAutoPass" class="hidden w-full card rounded-xl px-3 py-2 text-xs sm:text-sm flex flex-col gap-2 shadow-sm" aria-live="polite"></div>
 
   <div id="bnDead" class="hidden w-full flex flex-col gap-2 p-3 bg-amber-50 text-amber-900 text-xs sm:text-sm rounded-xl border border-amber-200 shadow-sm">
-    <div class="flex items-center justify-between font-bold"><span>⚠️ 終局・死に石確認</span><span id="deadCount" class="text-xs font-semibold opacity-80">自動判定中…</span></div>
+    <div class="flex items-center justify-between font-bold"><span class="flex items-center gap-1.5"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9.5 17H2.5z"/><path d="M12 9v5"/><path d="M12 17.5h.01"/></svg><span>終局・死に石確認</span></span><span id="deadCount" class="text-xs font-semibold opacity-80">自動判定中…</span></div>
     <p class="text-xs text-amber-800/90 leading-relaxed">死んでいる可能性が高い石を自動で選択しました。盤面の×印を確認し、判定が違う連はタップして切り替えてください。確定後、死に石を取り除き「地＋盤上の石」で集計します。</p>
     <div class="flex gap-2 pt-1">
       <button id="btnDeadRecheck" class="flex-1 py-1.5 px-3 bg-white border border-amber-300 font-bold rounded-lg hover:bg-amber-100 text-amber-900">自動判定をやり直す</button>
@@ -74,7 +74,7 @@ canvas{display:block;touch-action:manipulation}
   </div>
 
   <div id="bnResult" class="hidden w-full flex items-center justify-between py-2 px-3 bg-neutral-100 text-xs sm:text-sm rounded-lg text-neutral-800 border border-neutral-200">
-    <span class="font-medium">対局終了</span><span class="flex items-center gap-3"><button id="btnShowResult" class="font-bold underline hover:opacity-70">結果を見る</button><button id="btnShowReplay" class="font-bold underline hover:opacity-70">▶ リプレイ</button></span>
+    <span class="font-medium">対局終了</span><span class="flex items-center gap-3"><button id="btnShowResult" class="font-bold underline hover:opacity-70">結果を見る</button><button id="btnShowReplay" class="flex items-center gap-1 font-bold underline hover:opacity-70"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg><span>リプレイ</span></button></span>
   </div>
 
   <p class="text-xs opacity-60 text-center leading-relaxed">PC: 交点のホバーでプレビュー・クリックで打つ / スマホ: 1タップ目プレビュー、同じ交点を2タップ目で確定<br>石は6方向の空点(呼吸点)がすべて無くなると取られます</p>
@@ -86,11 +86,11 @@ canvas{display:block;touch-action:manipulation}
   <div class="bg-white text-neutral-900 p-5 sm:p-6 max-w-md w-full rounded-2xl shadow-2xl flex flex-col gap-4 border border-neutral-200 max-h-[90vh] overflow-y-auto">
     <div class="flex items-center justify-between border-b pb-3 border-neutral-200">
       <h2 id="recordTitle" class="text-xl font-bold">盤面・棋譜</h2>
-      <button id="btnCloseRecord" aria-label="閉じる" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0">✕</button>
+      <button id="btnCloseRecord" aria-label="閉じる" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0"><svg aria-hidden="true" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <p id="recordSummary" class="text-sm font-semibold text-neutral-800"></p>
     <p id="recordNotice" class="hidden text-xs leading-relaxed text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2.5"></p>
-    <button id="btnOpenReplay" type="button" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-xl disabled:opacity-40 disabled:pointer-events-none">▶ この対局をリプレイ</button>
+    <button id="btnOpenReplay" type="button" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-xl disabled:opacity-40 disabled:pointer-events-none flex items-center justify-center gap-1.5"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg><span>この対局をリプレイ</span></button>
 
     <div class="flex flex-col gap-2">
       <span class="text-xs font-bold tracking-wider text-neutral-500">保存する</span>
@@ -135,7 +135,7 @@ canvas{display:block;touch-action:manipulation}
   <div class="bg-white text-neutral-900 p-5 sm:p-6 max-w-md w-full rounded-2xl shadow-2xl flex flex-col gap-5 border border-neutral-200 max-h-[90vh] overflow-y-auto">
     <div class="flex items-center justify-between border-b pb-3 border-neutral-200">
       <h2 class="text-xl font-bold">ゲーム設定</h2>
-      <button id="btnCloseSettings" aria-label="閉じる" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0">✕</button>
+      <button id="btnCloseSettings" aria-label="閉じる" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0"><svg aria-hidden="true" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div id="modeConfig" class="flex flex-col gap-1.5">
       <label class="text-xs font-bold tracking-wider text-neutral-500">対戦モード</label>
@@ -222,7 +222,7 @@ canvas{display:block;touch-action:manipulation}
 <!-- rules modal -->
 <div id="rulesModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
   <div class="bg-white text-neutral-900 p-5 sm:p-6 max-w-md w-full rounded-2xl shadow-2xl flex flex-col gap-4 border border-neutral-200 max-h-[88vh] overflow-y-auto">
-    <div class="flex items-center justify-between border-b pb-3 border-neutral-200"><h2 class="text-xl font-extrabold">HEXAGO ルール</h2><button id="btnCloseRules" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0" aria-label="閉じる">✕</button></div>
+    <div class="flex items-center justify-between border-b pb-3 border-neutral-200"><h2 class="text-xl font-extrabold">HEXAGO ルール</h2><button id="btnCloseRules" class="w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0" aria-label="閉じる"><svg aria-hidden="true" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <section class="flex flex-col gap-1"><h3 class="font-bold">1. 基本</h3><p class="text-sm leading-relaxed">自分の手番に空いている交点へ1個打ちます。石は隣接する6方向の呼吸点がすべてなくなると取られます。自殺手や同一局面を繰り返す手は打てません。</p></section>
     <section class="flex flex-col gap-1"><h3 class="font-bold">2. 得点（エリア方式）</h3><p class="text-sm leading-relaxed">終局後の得点は「自分の地＋盤上に残った自分の石」です。地1マスも石1個も、それぞれ1点です。捕獲数は得点から差し引きません。</p></section>
     <section class="flex flex-col gap-1"><h3 class="font-bold">3. 地と中立地</h3><p class="text-sm leading-relaxed">空点の連結領域が1色の石だけに接している場合、その色の地として数えます。複数色に接する領域は中立地として数えません。</p></section>
@@ -236,51 +236,49 @@ canvas{display:block;touch-action:manipulation}
 <!-- result modal -->
 <div id="resModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
   <div class="relative bg-white text-neutral-900 p-6 sm:p-8 max-w-sm w-full text-center flex flex-col gap-5 rounded-2xl shadow-2xl border border-neutral-200">
-    <button id="btnCloseResult" type="button" aria-label="閉じる" class="absolute top-2 right-2 w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold">✕</button>
+    <button id="btnCloseResult" type="button" aria-label="閉じる" class="absolute top-2 right-2 w-10 h-10 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold"><svg aria-hidden="true" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <h2 id="resTitle" class="text-2xl font-extrabold">対局終了</h2>
     <div id="resDet" class="text-sm text-neutral-700 flex flex-col gap-2 py-3 border-y border-neutral-200 font-medium"></div>
     <div class="flex flex-col gap-2">
-      <button id="btnReplayGame" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-xl">▶ 対局をリプレイ</button>
+      <button id="btnReplayGame" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-1.5"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg><span>対局をリプレイ</span></button>
       <button id="btnViewBoard" class="w-full py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-sm font-bold rounded-xl">盤面を確認する</button>
       <button id="btnAgain" class="w-full py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-xl">もう一度遊ぶ</button>
     </div>
   </div>
 </div>
 
-<!-- replay modal -->
-<div id="replayModal" role="dialog" aria-modal="true" aria-labelledby="replayTitle" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 hidden">
-  <div id="replayCard" class="bg-white text-neutral-900 p-4 sm:p-5 max-w-md w-full rounded-2xl shadow-2xl flex flex-col gap-3 border border-neutral-200 max-h-[94vh] overflow-y-auto">
-    <div class="flex items-center justify-between border-b pb-2.5 border-neutral-200">
-      <h2 id="replayTitle" class="text-lg sm:text-xl font-bold">対局リプレイ</h2>
-      <button id="replayClose" type="button" aria-label="閉じる" class="w-10 h-10 -mr-2 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold shrink-0">✕</button>
+<!-- replay bar (メイン画面で盤面をそのまま再生する) -->
+<div id="replayBar" class="hidden w-full flex flex-col gap-2.5 card rounded-xl p-3 shadow-sm">
+  <div class="flex items-center justify-between gap-2">
+    <div class="flex items-center gap-1.5 min-w-0">
+      <span class="text-xs font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-700 text-white shrink-0">リプレイ</span>
+      <span id="replayTitle" class="text-xs font-semibold opacity-80 truncate"></span>
     </div>
-    <div id="replayBoardCard" class="w-full flex justify-center">
-      <canvas id="replayBoard" class="rounded-lg" role="img" aria-label="リプレイの盤面"></canvas>
-    </div>
-    <p id="replayEvt" class="text-sm text-center min-h-5 font-medium" aria-live="polite"></p>
-    <p id="replayLegend" class="text-xs text-center flex flex-wrap justify-center gap-y-1"></p>
-    <div class="flex items-center gap-1.5">
-      <button id="replayFirst" type="button" title="最初へ（局面 1）" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-bold hover:bg-neutral-100 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none">⏮</button>
-      <button id="replayPrev" type="button" title="1手戻る" aria-label="1手戻る" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-bold hover:bg-neutral-100 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none">◀</button>
-      <button id="replayPlayBtn" type="button" class="flex-1 h-9 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-lg active:scale-[0.98] transition-all px-2">▶ 再生</button>
-      <button id="replayNext" type="button" title="1手進む" aria-label="1手進む" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-bold hover:bg-neutral-100 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none">▶</button>
-      <button id="replayLast" type="button" title="最後へ" aria-label="最後へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-neutral-300 text-sm font-bold hover:bg-neutral-100 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none">⏭</button>
-    </div>
-    <input id="replaySlider" type="range" min="0" max="0" value="0" step="1" class="w-full accent-neutral-900" aria-label="リプレイの再生位置">
-    <div class="flex items-center justify-between gap-2 text-xs">
-      <span id="replayPos" class="font-mono text-neutral-700"></span>
-      <label class="flex items-center gap-1 shrink-0"><span class="opacity-70">速度</span>
-        <select id="replaySpeed" class="border border-neutral-300 rounded-lg px-1.5 py-1 text-xs font-bold bg-white" aria-label="再生速度">
-          <option value="0.5">×0.5</option><option value="1" selected>×1</option><option value="2">×2</option><option value="4">×4</option>
-        </select>
-      </label>
-    </div>
-    <div class="border-t border-neutral-200 pt-2.5 flex flex-col gap-1.5">
-      <span class="text-xs font-bold tracking-wider text-neutral-500">優勢グラフ<span class="font-normal opacity-75">（タップ / ドラッグでその手へ移動）</span></span>
-      <canvas id="replayGraph" class="w-full touch-none cursor-pointer rounded-lg" role="img" aria-label="優勢グラフ"></canvas>
-    </div>
-    <p id="replaySwing" class="hidden text-xs text-neutral-800 bg-neutral-100 border border-neutral-200 rounded-lg p-2 leading-relaxed"></p>
+    <button id="replayExit" type="button" class="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all shrink-0"><svg aria-hidden="true" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg><span>終了</span></button>
   </div>
+  <p id="replayEvt" class="text-sm text-center min-h-5 font-medium" aria-live="polite"></p>
+  <p id="replayLegend" class="text-xs text-center flex flex-wrap justify-center gap-y-1"></p>
+  <div class="flex items-center gap-1.5">
+    <button id="replayFirst" type="button" title="最初へ" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5v14l-11-7z"/></svg></button>
+    <button id="replayPrev" type="button" title="1手戻る" aria-label="1手戻る" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5v14L5 12z"/></svg></button>
+    <button id="replayPlayBtn" type="button" class="flex-1 h-9 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-lg active:scale-[0.98] transition-all px-2 flex items-center justify-center gap-1.5"><span id="replayPlayIcon"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span><span id="replayPlayLabel">再生</span></button>
+    <button id="replayNext" type="button" title="1手進む" aria-label="1手進む" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l11 7-11 7z"/></svg></button>
+    <button id="replayLast" type="button" title="最後へ" aria-label="最後へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5l11 7-11 7z"/></svg></button>
+  </div>
+  <input id="replaySlider" type="range" min="0" max="0" value="0" step="1" class="w-full accent-neutral-900" aria-label="リプレイの再生位置">
+  <div class="flex items-center justify-between gap-2 text-xs">
+    <span id="replayPos" class="font-mono opacity-80"></span>
+    <span class="flex items-center gap-1 shrink-0"><label for="replaySpeed" class="opacity-70">速度</label>
+      <select id="replaySpeed" class="border border-current/20 rounded-lg px-1.5 py-1 text-xs font-bold bg-transparent" aria-label="再生速度">
+        <option value="0.5">×0.5</option><option value="1" selected>×1</option><option value="2">×2</option><option value="4">×4</option>
+      </select>
+    </span>
+  </div>
+  <div class="border-t border-current/10 pt-2 flex flex-col gap-1.5">
+    <span class="text-xs font-bold tracking-wider opacity-70">優勢グラフ<span class="font-normal opacity-80">（タップ / ドラッグでその手へ移動）</span></span>
+    <canvas id="replayGraph" class="w-full touch-none cursor-pointer rounded-lg" role="img" aria-label="優勢グラフ"></canvas>
+  </div>
+  <p id="replaySwing" class="hidden text-xs opacity-90 border border-current/20 rounded-lg p-2 leading-relaxed"></p>
 </div>
 
 <!-- photo import modal -->
@@ -288,7 +286,7 @@ canvas{display:block;touch-action:manipulation}
   <div id="photoCard" class="bg-white text-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-neutral-200 max-h-[96svh] sm:max-h-[94vh] overflow-y-auto overscroll-contain">
     <div class="flex items-center justify-between border-b px-4 py-3 border-neutral-200 sticky top-0 bg-white z-10">
       <h2 id="photoModalTitle" class="text-lg font-extrabold">写真から盤面を復元</h2>
-      <button id="btnClosePhoto" aria-label="閉じる" class="w-9 h-9 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold">✕</button>
+      <button id="btnClosePhoto" aria-label="閉じる" class="w-9 h-9 flex items-center justify-center rounded-full text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 text-xl font-bold"><svg aria-hidden="true" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
 
     <div id="photoStep2" class="p-4 flex flex-col gap-3 hidden">
@@ -3854,13 +3852,22 @@ function resign() {
     return regions;
   }
 
-  // その時点の面積スコア(地+石)。争点は接する石の数で按分して将来の取り込みを見積もる。
+  // その時点の「地+石」の絶対値。争点は接する石の数で按分して将来の取り込みを見積もる。
+  // (グラフの目盛り・ツールチップ用。優劣の判定には下の shareScores を使う)
   function areaScores(board, geo, playerCount) {
     const scores = Array(playerCount + 1).fill(0);
     board.forEach(v => { if (v) scores[v]++; });
     for (const reg of emptyRegions(board, geo)) {
       if (reg.cols.length === 1) {
-        scores[reg.cols[0]] += reg.size; // 一色に囲まれた空点はその色の地
+        // 一色に囲まれた空点はその色の地。ただし序盤の広い空間は
+        // まだ「囲まれた」とは言い切れないので、advantageOf と同じ信頼度で按分する
+        const c = reg.cols[0];
+        const filled = board.reduce((n, v) => n + (v ? 1 : 0), 0) / Math.max(1, board.length);
+        const evidence = Math.min(1, reg.points.reduce((n, i) => n + geo.NB[i].filter(x => board[x] === c).length, 0) / 4);
+        const trust = Math.min(1, (1 / (1 + Math.max(0, reg.size - 5) / 3)) * evidence * (0.35 + 0.65 * Math.min(1, filled * 3)));
+        scores[c] += reg.size * trust;
+        const rest = reg.size * (1 - trust) / Math.max(1, playerCount);
+        for (let p = 1; p <= playerCount; p++) scores[p] += rest;
       } else if (reg.cols.length > 1) {
         // 争点: 接する石の多い色が将来取り込むとみて按分する(模様・勢力の取り合い)
         const touch = reg.cols.map(() => 0);
@@ -3881,6 +3888,82 @@ function resign() {
       if (libertiesOfGroup(board, geo, g).size <= 1) loss.set(board[i], (loss.get(board[i]) || 0) + g.length);
     }
     return loss;
+  }
+
+  // 序盤なほど疑わしい「争点」の見積もりを鈍らせる重み。
+  //   1手目 ≒ 0.12 … 盤が埋まるほど 1.0 に近づく(終盤はほぼ確定地で見る)。
+  function contestedWeight(board, geo) {
+    const filled = board.reduce((n, v) => n + (v ? 1 : 0), 0) / Math.max(1, board.length);
+    return 0.12 + 0.88 * Math.pow(Math.min(1, Math.max(0, filled)), 0.75);
+  }
+
+  const EPS = 1e-9;
+  // 局面の「優劣」。0 = 互角、±1 = 完全に支配。
+  //
+  // 分母は「盤面の総点数」で固定する(試合の総取り=試合の総量は変わらない)。
+  //   未確定の空点(序盤の広い空間)は、まだ誰のものでもないので
+  //   「出場者の均等な持ち分」として扱う = 序盤は互角付近を淡々と動く。
+  //
+  //   持ち点(p) = 石 + 確定地(囲いが強く証拠もある領域) - 弱石(アタリ)
+  //             + 未確定領域 × (その記録の取り分)
+  //
+  // これにより、石を1つ置いても「総面積に対する1点」の重みしか動かない。
+  // 単純な得点計算との違い:
+  //   - 序盤の広い空点を「まだ誰のものでもない」として中立に扱う
+  //   - 争点(複数色が接する空間)は接する石の数で按分 = 模様・勢力の取り合い
+  //   - アタリの連は取られる可能性として減点
+  //   - 盤が埋まるほど、未確定分が減って確定分の差が効いてくる
+  function advantageOf(board, geo, playerCount, out) {
+    const active = Array.from({ length: playerCount }, (_, i) => i + 1).filter(p => !(out && out[p]));
+    const raw = Array(playerCount + 1).fill(0);
+    if (active.length <= 1) return { values: active.map(() => 1), raw, active };
+
+    const total = Math.max(1, board.length);
+    const w = contestedWeight(board, geo);
+    board.forEach(v => { if (v) raw[v]++; });
+
+    // 未確定の空点は出場者で等分した「持ち分」
+    const base = 1 / active.length;
+    active.forEach(p => { raw[p] += 0; });
+
+    for (const reg of emptyRegions(board, geo)) {
+      if (reg.cols.length === 1) {
+        const c = reg.cols[0];
+        const enclosed = 1 / (1 + Math.max(0, reg.size - 5) / 3);
+        // 囲いの証拠: 空点に接するその色の石が多いほど「囲っている」確度が高い
+        const borders = new Set();
+        for (const i of reg.points) for (const n of geo.NB[i]) if (board[n] === c) borders.add(n);
+        const evidence = Math.min(1, borders.size / 4);
+        const trust = Math.max(0, Math.min(1, enclosed * evidence * (0.35 + 0.65 * w)));
+        raw[c] += reg.size * trust;
+        const unclaimed = reg.size * (1 - trust);
+        active.forEach(p => { raw[p] += unclaimed * base; });
+      } else if (reg.cols.length > 1) {
+        const touch = reg.cols.map(() => 0);
+        for (const i of reg.points) for (const n of geo.NB[i]) if (board[n]) touch[reg.cols.indexOf(board[n])]++;
+        const sum = touch.reduce((a, b) => a + b, 0);
+        // 争点のうち「有利な側が将来取る」分だけ実勢力として加点し、
+        // 残りはまだ誰のものでもないので等分
+        const claimed = Math.min(1, w);
+        if (sum > 0) reg.cols.forEach((c, k) => { raw[c] += reg.size * claimed * (touch[k] / sum); });
+        active.forEach(p => { raw[p] += reg.size * (1 - claimed) * base; });
+      }
+    }
+
+    const weak = weakStoneLoss(board, geo);
+    const held = active.map(p => Math.max(0, raw[p] - (weak.get(p) || 0)));
+    // 総面積で正規化(0..1)。合計はおおよそ 1 になる
+    return { values: held.map(v => v / total), raw, active };
+  }
+
+  // 優勢度(2人戦は +x / -x の対称線、多人数は平均との差)。
+  // シェアの平均との差 = 0 を互角とした対称値。序盤は総面積に比べて小さい。
+  function leadValues(adv) {
+    const vals = adv.values;
+    if (vals.length <= 1) return { lead: vals.map(() => 0), leadPct: vals.map(() => 0) };
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const lead = vals.map(v => v - avg);
+    return { lead, leadPct: lead.map(v => v * 100) };
   }
 
   // 棋譜レコード → 手数ごとの局面リスト(先頭 = 初期局面)。
@@ -3916,30 +3999,38 @@ function resign() {
     return positions;
   }
 
-  // 優勢度系列。lead = 評価値 - 出場中プレイヤーの平均。score イベントで公式確定スコアに接続する。
+  // 優勢度系列(手ごと)。
+  //   lead     = 各プレイヤーの持ち点シェア - 出場者の平均(2人戦は対称、単位は「盤面比」)
+  //   leadPct  = 上記を百分率に(グラフの主役。序盤は数%で振り切れない)
+  //   evals    = 参考値(地+石の絶対数。終局の score イベントで公式確定スコアに接続)
   function advantageSeries(positions, geo, playerCount, names) {
     const rows = [];
     for (const pos of positions) {
       const finalScores = pos.note && pos.note.kind === 'score' && pos.note.scores ? pos.note.scores : null;
-      const evals = Array(playerCount + 1).fill(0);
-      if (finalScores) {
-        for (let p = 1; p <= playerCount; p++) evals[p] = Number(finalScores[p]) || 0;
-      } else {
-        const raw = areaScores(pos.board, geo, playerCount);
-        const weak = weakStoneLoss(pos.board, geo);
-        for (let p = 1; p <= playerCount; p++) if (!pos.out[p]) evals[p] = Math.max(0, raw[p] - (weak.get(p) || 0));
-      }
       const active = Array.from({ length: playerCount }, (_, i) => i + 1).filter(p => !pos.out[p]);
-      const mean = active.reduce((a, p) => a + evals[p], 0) / Math.max(1, active.length);
-      const lead = {};
-      for (const p of active) lead[p] = evals[p] - mean;
-      rows.push({ ply: pos.ply, kind: pos.note ? pos.note.kind : 'start', event: pos.note, evals, lead, out: pos.out.slice() });
+      const adv = advantageOf(pos.board, geo, playerCount, pos.out);
+      const evals = Array(playerCount + 1).fill(0);
+      let lead = {}, leadPct = {};
+      if (finalScores) {
+        // 終局は公式確定スコアのシェアで引き直す(死に石による入れ替わりを反映)
+        let total = 0;
+        for (let p = 1; p <= playerCount; p++) { evals[p] = Math.max(0, Number(finalScores[p]) || 0); if (!pos.out[p]) total += evals[p]; }
+        const shares = active.map(p => total > 0 ? evals[p] / total : 1 / active.length);
+        const avg = shares.reduce((a, b) => a + b, 0) / Math.max(1, shares.length);
+        active.forEach((p, k) => { lead[p] = shares[k] - avg; leadPct[p] = (shares[k] - avg) * 100; });
+      } else {
+        const area = areaScores(pos.board, geo, playerCount);
+        for (let p = 1; p <= playerCount; p++) if (!pos.out[p]) evals[p] = Math.round(area[p] * 10) / 10;
+        const lv = leadValues(adv);
+        active.forEach((p, k) => { lead[p] = lv.lead[k]; leadPct[p] = lv.leadPct[k]; });
+      }
+      rows.push({ ply: pos.ply, kind: pos.note ? pos.note.kind : 'start', event: pos.note, evals, lead, leadPct, out: pos.out.slice() });
     }
     let swing = null;
     for (let k = 1; k < rows.length; k++) {
-      for (const key of Object.keys(rows[k].lead)) {
+      for (const key of Object.keys(rows[k].leadPct)) {
         const p = +key;
-        const delta = (rows[k].lead[p] ?? 0) - (rows[k - 1].lead[p] ?? 0);
+        const delta = (rows[k].leadPct[p] ?? 0) - (rows[k - 1].leadPct[p] ?? 0);
         if (!swing || Math.abs(delta) > Math.abs(swing.delta)) swing = { ply: rows[k].ply, player: p, delta };
       }
     }
@@ -4005,7 +4096,7 @@ function resign() {
     }
   }
 
-  return { version: 1, buildGeometry, isMoveEvent, replayPositions, simulateOnBoard, emptyRegions, areaScores, weakStoneLoss, advantageSeries, drawBoard };
+  return { version: 1, buildGeometry, isMoveEvent, replayPositions, simulateOnBoard, emptyRegions, areaScores, contestedWeight, advantageOf, leadValues, weakStoneLoss, advantageSeries, drawBoard };
 });
 
 // --- ./js/ai/heuristic.js ---
@@ -5051,14 +5142,17 @@ function hit(e) {
   for (let i = 0; i < P.length; i++) { const [px, py] = pos(i), d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; bi = i; } }
   return bi;
 }
-cv.addEventListener('pointerdown', e => ptype = e.pointerType || 'mouse');
-cv.addEventListener('pointermove', e => ptype = e.pointerType || 'mouse');
+// リプレイ中はメイン盤面をそのまま再生に使うので、着手入力は受け付けない
+const replayShown = () => typeof HexagoReplayView !== 'undefined' && HexagoReplayView.active();
+cv.addEventListener('pointerdown', e => { if (replayShown()) return; ptype = e.pointerType || 'mouse'; });
+cv.addEventListener('pointermove', e => { if (replayShown()) return; ptype = e.pointerType || 'mouse'; });
 cv.addEventListener('mousemove', e => {
-  if (ptype === 'touch' || G.over || G.phase !== 'playing' || !mine()) return;
+  if (replayShown() || ptype === 'touch' || G.over || G.phase !== 'playing' || !mine()) return;
   const i = hit(e); if (i !== prev) { prev = i; render(); }
 });
-cv.addEventListener('mouseleave', () => { if (ptype === 'touch') return; prev = -1; render(); });
+cv.addEventListener('mouseleave', () => { if (replayShown() || ptype === 'touch') return; prev = -1; render(); });
 cv.addEventListener('click', e => {
+  if (replayShown()) return;
   snd.init(); if (G.over) return;
   const i = hit(e); if (i < 0) return;
   if (G.phase === 'dead') {
@@ -5082,6 +5176,9 @@ function stone(x, y, r, p, alpha) {
   ctx.fillStyle = playerFill(p); ctx.fill(); ctx.strokeStyle = playerStroke(p); ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
 }
 function render() {
+  // リプレイ中はメイン盤面に「その手の局面」を描く(ポップアップしない)
+  const rp = (typeof HexagoReplayView !== 'undefined' && HexagoReplayView.active()) ? HexagoReplayView.position() : null;
+  if (rp) return renderReplay(rp);
   const { w, cell, pos } = metrics(), s = SIDE - 1, r0 = cell * 0.44;
   ctx.fillStyle = theme.board; ctx.fillRect(0, 0, w, w);
   ctx.strokeStyle = theme.line; ctx.lineWidth = 1; ctx.beginPath();
@@ -5164,6 +5261,33 @@ function makeBoardThumb(entry) {
     g.stroke();
   }
   try { return c.toDataURL('image/png'); } catch (e) { return ''; }
+}
+
+// リプレイ局面のメイン盤面描画。render() と同じ座標系で盤線はそのまま、
+// 石と最終手マーカーだけを再生中の局面で置き換える。
+function renderReplay(pos) {
+  const { w, cell, pos: point } = metrics(), s = SIDE - 1, r0 = cell * 0.44;
+  ctx.fillStyle = theme.board; ctx.fillRect(0, 0, w, w);
+  ctx.strokeStyle = theme.line; ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = 0; i < P.length; i++) { const [x, y] = point(i); for (const d of [0, 1, 2]) { const n = NB[i].find(k => P[k][0] === P[i][0] + DIRS[d][0] && P[k][1] === P[i][1] + DIRS[d][1]); if (n !== undefined) { const [x2, y2] = point(n); ctx.moveTo(x, y); ctx.lineTo(x2, y2); } } }
+  ctx.stroke();
+  ctx.lineWidth = 2; ctx.beginPath();
+  [[s, 0], [0, s], [-s, s], [-s, 0], [0, -s], [s, -s]].forEach(([q, r], k) => { const i = M[q + ',' + r], [x, y] = point(i); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.closePath(); ctx.stroke();
+  ctx.fillStyle = theme.line; const d = Math.round(s * 2 / 3);
+  [[0, 0], ...DIRS.map(([a, b]) => [a * d, b * d])].forEach(k => { const i = M[k[0] + ',' + k[1]]; if (i === undefined) return; const [x, y] = point(i); ctx.beginPath(); ctx.arc(x, y, 3.2, 0, 7); ctx.fill(); });
+  for (let i = 0; i < P.length; i++) {
+    const p = pos.board[i];
+    if (!p) continue;
+    const [x, y] = point(i);
+    stone(x, y, r0, p, 1);
+  }
+  if (Number.isInteger(pos.last) && pos.last >= 0 && pos.board[pos.last]) {
+    const [x, y] = point(pos.last);
+    ctx.beginPath(); ctx.arc(x, y, r0, 0, 7);
+    ctx.fillStyle = 'rgba(34,197,94,.38)'; ctx.fill();
+    ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 3; ctx.stroke();
+  }
 }
 
 // --- ./js/ui/ui.js ---
@@ -5410,7 +5534,7 @@ function renderAutoPassControls() {
         '<span class="min-w-0 truncate">' + dotHtml(offer) + '<strong>' + label + ' (' + offer + 'P)</strong> がパスしました</span>' +
         '<div class="flex items-center gap-1.5 shrink-0">' +
           '<button type="button" data-auto-pass-enable="' + offer + '" class="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold active:scale-95 transition-all">このまま連続パス</button>' +
-          '<button type="button" data-auto-pass-dismiss="1" aria-label="閉じる" title="閉じる" class="w-6 h-6 flex items-center justify-center rounded-full opacity-50 hover:opacity-90 hover:bg-black/5 text-sm font-bold">✕</button>' +
+          '<button type="button" data-auto-pass-dismiss="1" aria-label="閉じる" title="閉じる" class="w-6 h-6 flex items-center justify-center rounded-full opacity-50 hover:opacity-90 hover:bg-black/5 text-sm font-bold"><svg aria-hidden="true" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
         '</div>' +
       '</div>'
     );
@@ -5419,7 +5543,7 @@ function renderAutoPassControls() {
     const chips = enabled.map(p => {
       const label = escAutoPassHtml(playerDisplayName(p));
       return '<button type="button" data-auto-pass-disable="' + p + '" title="タップして連続パスを解除" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-700/15 border border-emerald-700/35 text-xs font-bold hover:bg-emerald-700/25 active:scale-95 transition-all">' +
-        dotHtml(p) + '<span>' + label + ' (' + p + 'P)</span><span aria-hidden="true" class="opacity-70 ml-0.5">✕</span>' +
+        dotHtml(p) + '<span>' + label + ' (' + p + 'P)</span><span aria-hidden="true" class="opacity-70 ml-0.5"><svg aria-hidden="true" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>' +
       '</button>';
     }).join('');
     parts.push(
@@ -5492,8 +5616,8 @@ if ($('recordFile')) $('recordFile').onchange = () => {
 };
 
 // --- ./js/ui/modals.js ---
-// ===== モーダル共通: 背景クリック / Esc / ✕ で閉じる =====
-const MODAL_IDS = ['recordModal', 'setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal', 'replayModal'];
+// ===== モーダル共通: 背景クリック / Esc / 閉じるボタンで閉じる =====
+const MODAL_IDS = ['recordModal', 'setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal'];
 function modalEl(id) { return document.getElementById(id); }
 function visibleModals() {
   return MODAL_IDS.map(modalEl).filter(el => el && !el.classList.contains('hidden'));
@@ -6401,8 +6525,8 @@ window.addEventListener('offline', () => {
 
 // --- ./js/ui/replay.js ---
 // ===== リプレイ UI =====
-// js/core/replay.js の計算結果を受け持ち、再生バー付きのリプレイモーダルと
-// 優勢度グラフを描く。結果モーダル・盤面/棋譜モーダル・終局バナーから開ける。
+// js/core/replay.js の計算結果を使い、メイン画面の盤面(cv)そのもので再生する。
+// ポップアップは出さず、対局中の情報バーと操作ボタンをリプレイバーへ差し替える。
 (function () {
   'use strict';
   if (!window.HexagoReplay) return;
@@ -6412,6 +6536,12 @@ window.addEventListener('offline', () => {
   const BASE_MS = 750;                 // ×1 で1手 750ms
   const SPEEDS = [0.5, 1, 2, 4];
 
+  // リプレイ中に隠しておく要素(対局用のUI)
+  const GAME_ONLY_IDS = ['dmg', 'turnInd', 'modeBadge', 'bnAutoPass', 'bnDead', 'bnResult'];
+
+  // ===== 状態 =====
+  function active() { return !!data; }
+
   function stop() {
     if (timer) { clearTimeout(timer); timer = null; }
     playing = false;
@@ -6419,13 +6549,22 @@ window.addEventListener('offline', () => {
   }
 
   function syncPlayButton() {
-    const b = $('replayPlayBtn');
-    if (b) b.textContent = playing ? '⏸ 一時停止' : '▶ 再生';
+    const icon = $('replayPlayIcon'), label = $('replayPlayLabel');
+    if (label) label.textContent = playing ? '一時停止' : '再生';
+    if (icon) icon.innerHTML = playing
+      ? '<svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>'
+      : '<svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
   }
 
   function dotHtml(p) { return `<span class="dot" style="background:${playerFill(p)};border-color:${playerStroke(p)}"></span>`; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); }
   const fmt = v => (Math.round(v * 10) / 10).toFixed(1);
+
+  // 表示名: ニックネームや色名に加えて席番号(nP)を併記して区別しやすくする
+  function seatName(p) {
+    const base = (data && data.names && data.names[p]) || playerDisplayName(p) || '';
+    return base ? `${base} ${p}P` : `${p}P`;
+  }
 
   function pointLabel(point) {
     if (!geo || !Number.isInteger(point) || point < 0 || !geo.points[point]) return '';
@@ -6435,18 +6574,12 @@ window.addEventListener('offline', () => {
 
   function eventText(note) {
     if (!note) return '初期局面';
-    const who = p => `${dotHtml(p)}<strong>${esc(playerDisplayName(p))}</strong>`;
+    const who = p => `${dotHtml(p)}<strong>${esc(seatName(p))}</strong>`;
     if (note.kind === 'play') return `${who(note.player)} が ${pointLabel(note.point)} に着手${note.captured ? `（取石 ${note.captured}）` : ''}`;
     if (note.kind === 'pass') return `${who(note.player)} がパス${note.automatic ? '（連続パス）' : ''}`;
     if (note.kind === 'resign') return `${who(note.player)} が投了`;
     if (note.kind === 'score') return `終局確定（死に石 ${note.removed} 個を除去）${note.result ? ' / ' + esc(note.result) : ''}`;
     return '初期局面';
-  }
-
-  function boardCssSize() {
-    const card = $('replayCard');
-    const w = card && card.clientWidth ? card.clientWidth : Math.min(440, window.innerWidth - 96);
-    return Math.max(200, Math.min(360, w - 48));
   }
 
   // ===== 表示 =====
@@ -6455,11 +6588,8 @@ window.addEventListener('offline', () => {
     const n = data.positions.length;
     cur = Math.max(0, Math.min(n - 1, Math.round(Number(index) || 0)));
     const pos = data.positions[cur], row = data.series.rows[cur];
-    R.drawBoard($('replayBoard'), geo, pos, {
-      cssSize: boardCssSize(),
-      themeBoard: theme.board, themeLine: theme.line,
-      fills: data.fills, strokes: data.strokes
-    });
+    // メイン盤面(cv)をリプレイ局面で描き直す
+    if (typeof render === 'function') render();
     drawGraph();
     const lastPly = data.series.rows[data.series.rows.length - 1].ply;
     $('replayPos').textContent = `${row.ply}手 / ${lastPly}手`;
@@ -6473,7 +6603,7 @@ window.addEventListener('offline', () => {
 
   function tick() {
     if (!playing) return;
-    if ($('replayModal').classList.contains('hidden')) { stop(); return; }
+    if (!active()) { stop(); return; }
     if (cur >= data.positions.length - 1) { stop(); return; }
     seek(cur + 1);
     timer = setTimeout(tick, BASE_MS / speed);
@@ -6492,46 +6622,65 @@ window.addEventListener('offline', () => {
     if (!el || !row) return;
     const pc = data.playerCount;
     const parts = Array.from({ length: pc }, (_, i) => i + 1).map(p => {
-      const v = row.lead[p];
-      const leadTxt = v === undefined ? '投了' : (Math.abs(v) < 0.05 ? '互角' : `${v > 0 ? '+' : '−'}${fmt(Math.abs(v))} リード`);
-      return `<span class="inline-flex items-center gap-1 whitespace-nowrap">${dotHtml(p)}<span>${esc((data.names && data.names[p]) || p + 'P')}</span><span class="font-normal opacity-70">${leadTxt}</span></span>`;
+      const v = row.leadPct[p];
+      const leadTxt = v === undefined ? '投了' : (Math.abs(v) < 0.1 ? '互角' : `${v > 0 ? '+' : '−'}${fmt(Math.abs(v))}% リード`);
+      return `<span class="inline-flex items-center gap-1 whitespace-nowrap">${dotHtml(p)}<span>${esc(seatName(p))}</span><span class="font-normal opacity-70">${leadTxt}</span></span>`;
     });
     el.innerHTML = parts.join('<span class="opacity-40 mx-1">·</span>');
   }
 
-  // ===== 優勢度グラフ =====
+  // ===== 優勢グラフ =====
   function niceStep(maxAbs) {
-    for (const s of [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500]) if (maxAbs / s <= 4) return s;
+    for (const s of [1, 2, 5, 10, 20, 25, 50, 100]) if (maxAbs / s <= 4) return s;
     return Math.ceil(maxAbs / 4);
   }
 
+  function graphSize() {
+    const cvEl = $('cv');
+    const w = cvEl ? cvEl.getBoundingClientRect().width : Math.min(520, window.innerWidth - 64);
+    return { cssW: Math.max(240, w), cssH: Math.max(140, Math.min(200, Math.round(w * 0.4))) };
+  }
+
+  // グラフの値。終局(score)の公式確定スコアは点スケールが桁違いなので
+  // リード%の系列としては使わず、最終局面は直前の形勢を引き継ぐ。
+  function graphValue(row, p) {
+    const v = row.leadPct[p];
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  }
+
   function drawGraph() {
-    const cv = $('replayGraph'), g = cv.getContext('2d');
+    const cvEl = $('replayGraph');
+    if (!cvEl) return;
+    const g = cvEl.getContext('2d');
     const rows = data.series.rows;
-    const cssW = boardCssSize() + 48, cssH = Math.max(130, Math.min(180, Math.round(cssW * 0.42)));
+    const { cssW, cssH } = graphSize();
     const dpr = window.devicePixelRatio || 1;
-    cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
-    cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+    cvEl.width = Math.round(cssW * dpr); cvEl.height = Math.round(cssH * dpr);
+    cvEl.style.width = cssW + 'px'; cvEl.style.height = cssH + 'px';
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const padL = 34, padR = 10, padT = 10, padB = 18;
+    const padL = 38, padR = 10, padT = 10, padB = 18;
     const iw = cssW - padL - padR, ih = cssH - padT - padB;
     let maxAbs = 0;
-    for (const row of rows) for (const k of Object.keys(row.lead)) maxAbs = Math.max(maxAbs, Math.abs(row.lead[k]));
-    const step = niceStep(Math.max(1, maxAbs));
-    maxAbs = Math.max(step, step * Math.ceil(maxAbs / step), 5);
-    const y = v => padT + ih / 2 - (v / maxAbs) * (ih / 2);
+    for (const row of rows) for (const k of Object.keys(row.leadPct)) {
+      const v = graphValue(row, +k);
+      if (v !== null) maxAbs = Math.max(maxAbs, Math.abs(v));
+    }
+    // 序盤は小さい値でも潰れないよう、最低スケールを確保しつつ数値に合わせる
+    const step = niceStep(Math.max(1, maxAbs || 1));
+    const range = Math.max(step, step * Math.ceil((maxAbs || 1) / step), 5);
+    const y = v => padT + ih / 2 - (v / range) * (ih / 2);
     const x = i => padL + (rows.length <= 1 ? iw / 2 : (i / (rows.length - 1)) * iw);
     const dark = ['dark', 'cyber'].includes(theme.id);
     g.clearRect(0, 0, cssW, cssH);
-    // ガイド線 + 目盛
+    // ガイド線 + 目盛(%)
     g.lineWidth = 1;
     g.fillStyle = dark ? 'rgba(255,255,255,.45)' : 'rgba(0,0,0,.45)';
     g.font = '10px system-ui, sans-serif'; g.textAlign = 'right'; g.textBaseline = 'middle';
-    for (let v = -maxAbs; v <= maxAbs + 1e-9; v += step) {
+    for (let v = -range; v <= range + 1e-9; v += step) {
       g.strokeStyle = Math.abs(v) < 1e-9 ? (dark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)') : (dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.1)');
       g.setLineDash(Math.abs(v) < 1e-9 ? [4, 3] : []);
       g.beginPath(); g.moveTo(padL, y(v)); g.lineTo(padL + iw, y(v)); g.stroke();
-      g.fillText(String(Math.round(v)), padL - 5, y(v));
+      g.fillText(Math.round(v) + '%', padL - 5, y(v));
     }
     g.setLineDash([]);
     // 各プレイヤーのリード線(2人戦は対称なので 1P の1本のみ)
@@ -6542,8 +6691,8 @@ window.addEventListener('offline', () => {
       g.beginPath();
       let started = false;
       for (let k = 0; k < rows.length; k++) {
-        const v = rows[k].lead[p];
-        if (v === undefined) { started = false; continue; } // 投了済みは線を切る
+        const v = graphValue(rows[k], p);
+        if (v === null) { started = false; continue; } // 投了・終局確定は線を切る
         if (!started) { g.moveTo(x(k), y(v)); started = true; } else g.lineTo(x(k), y(v));
       }
       g.stroke();
@@ -6561,8 +6710,8 @@ window.addEventListener('offline', () => {
     g.lineWidth = 1.4;
     g.beginPath(); g.moveTo(cx, padT); g.lineTo(cx, padT + ih); g.stroke();
     for (const p of lines) {
-      const v = rows[cur].lead[p];
-      if (v === undefined) continue;
+      const v = graphValue(rows[cur], p);
+      if (v === null) continue;
       g.beginPath(); g.arc(cx, y(v), 3.6, 0, 7);
       g.fillStyle = playerFill(p); g.fill();
       g.strokeStyle = dark ? '#fff' : '#000'; g.lineWidth = 1; g.stroke();
@@ -6570,13 +6719,83 @@ window.addEventListener('offline', () => {
     data.graphGeom = { x, y, padL, padR, cssW, rows };
   }
 
-  // ===== モーダル配線 =====
-  if (typeof MODAL_IDS !== 'undefined' && Array.isArray(MODAL_IDS) && !MODAL_IDS.includes('replayModal')) MODAL_IDS.push('replayModal');
+  // ===== 画面の切り替え =====
+  const HIDDEN_BEFORE = new Map();
+  function setGameUiHidden(hidden) {
+    // 隠す前の表示状態を覚えておき、終了時にそのまま戻す
+    const targets = [...GAME_ONLY_IDS];
+    if (hidden) {
+      targets.forEach(id => {
+        const el = $(id);
+        if (el) { HIDDEN_BEFORE.set(id, el.classList.contains('hidden')); el.classList.add('hidden'); }
+      });
+      // 操作ボタンは親の行ごと隠す
+      const row = $('btnUndo') && $('btnUndo').parentElement;
+      if (row) { HIDDEN_BEFORE.set('__actionRow', row.classList.contains('hidden')); row.classList.add('hidden'); }
+      const hint = document.querySelector('p.text-xs.opacity-60.text-center');
+      if (hint) { HIDDEN_BEFORE.set('__hint', hint.classList.contains('hidden')); hint.classList.add('hidden'); }
+    } else {
+      targets.forEach(id => {
+        const el = $(id);
+        if (el && HIDDEN_BEFORE.has(id)) el.classList.toggle('hidden', HIDDEN_BEFORE.get(id));
+      });
+      const row = $('btnUndo') && $('btnUndo').parentElement;
+      if (row && HIDDEN_BEFORE.has('__actionRow')) row.classList.toggle('hidden', HIDDEN_BEFORE.get('__actionRow'));
+      const hint = document.querySelector('p.text-xs.opacity-60.text-center');
+      if (hint && HIDDEN_BEFORE.has('__hint')) hint.classList.toggle('hidden', HIDDEN_BEFORE.get('__hint'));
+      HIDDEN_BEFORE.clear();
+    }
+    const bar = $('replayBar');
+    if (bar) bar.classList.toggle('hidden', !hidden);
+  }
 
+  // ===== 開く / 閉じる =====
+  function openFromRecord(record, size, playerCount, names) {
+    if (!record) return;
+    geo = R.buildGeometry(size);
+    const positions = R.replayPositions(record, geo);
+    data = { positions, playerCount, names: names || {}, series: null, graphGeom: null };
+    data.series = R.advantageSeries(positions, geo, playerCount, names);
+    stop();
+    $('replaySlider').max = String(positions.length - 1);
+    $('replaySlider').value = '0';
+    $('replaySpeed').value = String(speed);
+    $('replayTitle').textContent = `${size}路盤・${playerCount}人戦`;
+    const sw = data.series.swing, swEl = $('replaySwing');
+    if (sw && Math.abs(sw.delta) >= 1) {
+      swEl.classList.remove('hidden');
+      swEl.innerHTML = `最大の形勢変化: ${sw.ply}手目 ${dotHtml(sw.player)}<strong>${esc(seatName(sw.player))}</strong> ${sw.delta > 0 ? '+' : '−'}${fmt(Math.abs(sw.delta))}%`;
+    } else swEl.classList.add('hidden');
+    setGameUiHidden(true);
+    seek(positions.length - 1); // まず終局(最新)局面。再生ボタンで0手目から
+  }
+
+  function openFromGame() {
+    if (typeof ensureGameRecord !== 'function') return;
+    const record = ensureGameRecord();
+    if (!record || !record.events.length) {
+      const st = $('recordExportStatus');
+      if (st) st.textContent = 'まだ手がありません。着手後にリプレイできます。';
+      return;
+    }
+    const pc = G.playerCount || playerCount;
+    const names = {};
+    for (let p = 1; p <= pc; p++) names[p] = playerDisplayName(p);
+    openFromRecord(record, G.size, pc, names);
+  }
+
+  function close() {
+    if (!data) return;
+    stop();
+    data = null;
+    setGameUiHidden(false);
+    if (typeof updateUI === 'function') updateUI(); // 盤面を現在の対局局面に戻す
+  }
+
+  // ===== 配線 =====
   document.addEventListener('DOMContentLoaded', () => {
-    const modal = $('replayModal'); if (!modal) return;
-    modal.addEventListener('click', e => { if (e.target === modal) { stop(); closeModal(modal); } });
-    $('replayClose').onclick = () => { snd.click(); stop(); closeModal($('replayModal')); };
+    const bar = $('replayBar'); if (!bar) return;
+    $('replayExit').onclick = () => { snd.click(); close(); };
     $('replayPlayBtn').onclick = () => { snd.click(); togglePlay(); };
     $('replayFirst').onclick = () => { snd.click(); stop(); seek(0); };
     $('replayPrev').onclick = () => { snd.click(); stop(); seek(cur - 1); };
@@ -6586,70 +6805,41 @@ window.addEventListener('offline', () => {
     $('replaySlider').addEventListener('input', e => { stop(); seek(+e.target.value, { fromSlider: true }); });
     // 優勢グラフのタップ/ドラッグでその手へ移動
     const graph = $('replayGraph');
+    let dragging = false;
     const seekAt = e => {
       const geom = data && data.graphGeom; if (!geom) return;
       const rc = graph.getBoundingClientRect();
       const t = (e.clientX - rc.left - geom.padL) / Math.max(1, geom.cssW - geom.padL - geom.padR);
       stop(); seek(Math.round(t * (geom.rows.length - 1)));
     };
-    graph.addEventListener('pointerdown', e => { graph.setPointerCapture(e.pointerId); seekAt(e); });
-    graph.addEventListener('pointermove', e => { if (e.buttons & 1) seekAt(e); });
+    graph.addEventListener('pointerdown', e => { stop(); dragging = true; try { graph.setPointerCapture(e.pointerId); } catch (_) { } seekAt(e); });
+    graph.addEventListener('pointermove', e => { if (dragging) seekAt(e); });
+    graph.addEventListener('pointerup', () => { dragging = false; });
+    graph.addEventListener('pointercancel', () => { dragging = false; });
     // キーボード: ←/→ で1手移動、Space で再生/一時停止
     window.addEventListener('keydown', e => {
-      if ($('replayModal').classList.contains('hidden')) return;
+      if (!active()) return;
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement && document.activeElement.tagName)) return;
       if (e.key === 'ArrowLeft') { e.preventDefault(); stop(); seek(cur - 1); }
       else if (e.key === 'ArrowRight') { e.preventDefault(); stop(); seek(cur + 1); }
       else if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); togglePlay(); }
+      else if (e.key === 'Escape') { close(); }
     });
-    window.addEventListener('resize', () => {
-      if ($('replayModal').classList.contains('hidden') || !data) return;
-      seek(cur);
-    });
+    window.addEventListener('resize', () => { if (active()) seek(cur); });
     // 入口: 結果モーダル / 終局バナー / 盤面・棋譜モーダル
     $('btnReplayGame').onclick = () => { snd.click(); closeModal($('resModal')); openFromGame(); };
     $('btnShowReplay').onclick = () => { snd.click(); openFromGame(); };
     $('btnOpenReplay').onclick = () => { snd.click(); closeModal($('recordModal')); openFromGame(); };
   });
 
-  // ===== 開く =====
-  // record: hexago-kifu v1 互換 (initial/events)。省略時は現在の対局の棋譜。
-  function openFromRecord(record, size, playerCount, names) {
-    if (!record) return;
-    stop();
-    geo = R.buildGeometry(size);
-    const positions = R.replayPositions(record, geo);
-    data = { positions, playerCount, names: names || {}, fills: {}, strokes: {}, series: null, graphGeom: null };
-    for (let p = 1; p <= playerCount; p++) {
-      data.fills[p] = playerFill(p);
-      data.strokes[p] = playerStroke(p);
-    }
-    data.series = R.advantageSeries(positions, geo, playerCount, names);
-    $('replaySlider').max = String(positions.length - 1);
-    $('replaySlider').value = '0';
-    $('replaySpeed').value = String(speed);
-    $('replayTitle').textContent = `対局リプレイ（${size}路盤・${playerCount}人戦）`;
-    const sw = data.series.swing, swEl = $('replaySwing');
-    if (sw && Math.abs(sw.delta) >= 1) {
-      swEl.classList.remove('hidden');
-      const who = names && names[sw.player] ? names[sw.player] : sw.player + 'P';
-      swEl.innerHTML = `📊 最大の形勢変化: 手数 ${sw.ply} / ${dotHtml(sw.player)}<strong>${esc(who)}</strong> ${sw.delta > 0 ? '+' : '−'}${fmt(Math.abs(sw.delta))}`;
-    } else swEl.classList.add('hidden');
-    stop();
-    $('replayModal').classList.remove('hidden');
-    seek(positions.length - 1); // 開いた直後は最新(終局)局面。▶ で0手目から再生
-  }
-
-  function openFromGame() {
-    if (typeof ensureGameRecord !== 'function') return;
-    const record = ensureGameRecord();
-    if (!record || !record.events.length) { $('recordExportStatus').textContent = 'まだ手がありません。着手後にリプレイできます。'; return; }
-    const pc = G.playerCount || playerCount;
-    const names = {};
-    for (let p = 1; p <= pc; p++) names[p] = playerDisplayName(p);
-    openFromRecord(record, G.size, pc, names);
-  }
-
-  window.HexagoReplayUI = { open: openFromGame, openFromRecord, close: () => { stop(); const m = $('replayModal'); if (m) closeModal(m); } };
+  // render() から参照される公開 API
+  window.HexagoReplayView = {
+    active,
+    position: () => (data ? data.positions[cur] : null),
+    boardSize: () => (data ? geo.size : null),
+    graphGeom: () => (data ? data.graphGeom : null)
+  };
+  window.HexagoReplayUI = { open: openFromGame, openFromRecord, close };
 })();
 
 // --- ./js/photo/geom.js ---
