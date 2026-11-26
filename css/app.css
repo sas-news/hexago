@@ -6,3 +6,22 @@ canvas{display:block;touch-action:manipulation}
 .opt.on{background:#171717;color:#fff}
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;border:1.5px solid;vertical-align:-1px;margin-right:3px}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(150,150,150,.3);border-radius:3px}
+
+/* ===== リプレイ: 横画面では盤面の横にパネルを収める ===== */
+body.replaying #playArea{flex-direction:row;align-items:center;justify-content:center;gap:14px}
+body.replaying #boardWrap{width:auto;flex:0 0 auto}
+body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520px);aspect-ratio:1/1}
+/* 縦・狭い画面: 盤面は横幅いっぱい、パネルは下 */
+@media (max-width:899px){
+  body.replaying #playArea{flex-direction:column;align-items:stretch}
+  body.replaying #boardWrap{width:100%}
+  body.replaying #cv{width:100%;height:auto;max-width:min(520px,92vw);max-height:none;margin-left:auto;margin-right:auto}
+}
+/* 横画面: 盤面を縦に収め、パネルを右へ */
+@media (min-width:900px) and (orientation:landscape){
+  /* 盤面+パネルを1組のブロックとして中央に置く(盤面だけ左に寄らない) */
+  body.replaying #playArea{justify-content:center;align-items:center;margin-left:auto;margin-right:auto;max-width:calc(min(72vh,540px) + min(360px,34vw) + 14px)}
+  body.replaying #cv{width:min(72vh,540px);height:min(72vh,540px);flex:0 0 auto}
+  body.replaying #replaySide{display:flex;flex-direction:column;justify-content:center;flex:0 0 auto;width:min(360px,34vw);max-height:min(78vh,540px)}
+  body.replaying #replayBar{width:100%}
+}

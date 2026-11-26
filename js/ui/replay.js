@@ -11,7 +11,7 @@
   const SPEEDS = [0.5, 1, 2, 4];
 
   // リプレイ中に隠しておく要素(対局用のUI)
-  const GAME_ONLY_IDS = ['dmg', 'turnInd', 'modeBadge', 'bnAutoPass', 'bnDead', 'bnResult'];
+  const GAME_ONLY_IDS = ['dmg', 'turnInd', 'modeBadge', 'bnAutoPass', 'bnDead', 'bnResult', 'statusCard'];
 
   // ===== 状態 =====
   function active() { return !!data; }
@@ -110,9 +110,43 @@
   }
 
   function graphSize() {
-    const cvEl = $('cv');
-    const w = cvEl ? cvEl.getBoundingClientRect().width : Math.min(520, window.innerWidth - 64);
-    return { cssW: Math.max(240, w), cssH: Math.max(140, Math.min(200, Math.round(w * 0.4))) };
+    // グラフはリプレイバー内にあるので、バー(パネル)の実幅に合わせる。
+    // 横画面ではパネルが細いので、そちらに追従して幅・高さを決める。
+    const bar = $('replayBar');
+    const w = bar && bar.clientWidth ? bar.clientWidth : Math.min(520, window.innerWidth - 48);
+    const cssW = Math.max(200, Math.min(560, w));
+    const h = Math.max(120, Math.min(190, Math.round(cssW * 0.38)));
+    return { cssW, cssH: h };
+  }
+
+  // グラフ線の縁取り色。盤面の石と同じストローク色を使いつつ、
+  // 白背景テーマの「白い石」でも必ず視認できるよう最低限のコントラストを確保する。
+  function luminanceOf(c) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(c || '');
+    if (!m) return 0.5;
+    const n = parseInt(m[1], 16);
+    return (0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) / 255;
+  }
+  // グラフの線色。白い石(白背景テーマ)は盤上では縁取りで見えるが、
+  // 線上では「白い線」自体が見えないため、線専用の可視色に置き換える。
+  // 色見はテーマの石色に寄せたまま、背景とのコントラストを最低限確保する。
+  const GRAPH_WHITE_LINE = { light: '#8a8a8a', dark: '#f2f2f2' };
+  function graphLineColor(p, dark) {
+    const fill = playerFill(p);
+    const lum = luminanceOf(fill);
+    // 明るすぎる(白系)線は、淡いグレー(明テーマ)/ほぼ白(暗テーマ)へ
+    if (lum > 0.78) return dark ? GRAPH_WHITE_LINE.dark : GRAPH_WHITE_LINE.light;
+    // 背景と同化する極端に明るい/暗い線も補正
+    if (!dark && lum > 0.86) return '#7a7a7a';
+    // ダーク背景では黒い石の線が沈むので、明るいグレーへ持ち上げる
+    if (dark && lum < 0.22) return '#b9bec4';
+    return fill;
+  }
+  function edgeColorFor(p, dark) {
+    const fill = playerFill(p), stroke = playerStroke(p);
+    if (luminanceOf(fill) > 0.72) return dark ? '#1a1a1a' : '#2b2b2b';
+    if (luminanceOf(fill) < 0.22) return dark ? '#f0f0f0' : '#111111';
+    return stroke || (dark ? '#ffffff' : '#000000');
   }
 
   // グラフの値。終局(score)の公式確定スコアは点スケールが桁違いなので
@@ -157,11 +191,11 @@
       g.fillText(Math.round(v) + '%', padL - 5, y(v));
     }
     g.setLineDash([]);
-    // 各プレイヤーのリード線(2人戦は対称なので 1P の1本のみ)
+    // 各プレイヤーのリード線。白い石の色は白背景と同化して見えないので、
+    // 盤面と同じく「縁取り(ストローク色) + 本体(フィル色)」の二重線で描く。
     const pc = data.playerCount;
-    const lines = pc === 2 ? [1] : Array.from({ length: pc }, (_, i) => i + 1);
-    lines.forEach(p => {
-      g.strokeStyle = playerFill(p); g.lineWidth = 2; g.lineJoin = 'round';
+    const lines = Array.from({ length: pc }, (_, i) => i + 1);
+    const trace = (p) => {
       g.beginPath();
       let started = false;
       for (let k = 0; k < rows.length; k++) {
@@ -170,6 +204,11 @@
         if (!started) { g.moveTo(x(k), y(v)); started = true; } else g.lineTo(x(k), y(v));
       }
       g.stroke();
+    };
+    lines.forEach(p => {
+      g.lineJoin = 'round'; g.lineCap = 'round';
+      g.strokeStyle = graphLineColor(p, dark); g.lineWidth = 2.5;
+      trace(p);
     });
     // 手数ラベル
     g.fillStyle = dark ? 'rgba(255,255,255,.45)' : 'rgba(0,0,0,.45)';
@@ -186,9 +225,9 @@
     for (const p of lines) {
       const v = graphValue(rows[cur], p);
       if (v === null) continue;
-      g.beginPath(); g.arc(cx, y(v), 3.6, 0, 7);
-      g.fillStyle = playerFill(p); g.fill();
-      g.strokeStyle = dark ? '#fff' : '#000'; g.lineWidth = 1; g.stroke();
+      g.beginPath(); g.arc(cx, y(v), 4.2, 0, 7);
+      g.fillStyle = graphLineColor(p, dark); g.fill();
+      g.strokeStyle = dark ? '#111111' : '#ffffff'; g.lineWidth = 1.5; g.stroke();
     }
     data.graphGeom = { x, y, padL, padR, cssW, rows };
   }
@@ -221,6 +260,23 @@
     }
     const bar = $('replayBar');
     if (bar) bar.classList.toggle('hidden', !hidden);
+    document.body.classList.toggle('replaying', hidden);
+    layoutReplayBar(hidden);
+  }
+
+  // 横画面では盤面の右側パネルへ、縦画面では盤面の下へバーを置く
+  function layoutReplayBar(on) {
+    const bar = $('replayBar'), side = $('replaySide'), area = $('playArea');
+    if (!bar || !side || !area) return;
+    if (on) {
+      const wide = window.innerWidth >= 900 && window.matchMedia('(orientation: landscape)').matches;
+      if (wide) { side.appendChild(bar); side.classList.remove('hidden'); }
+      else { area.appendChild(bar); side.classList.add('hidden'); }
+    } else {
+      side.classList.add('hidden');
+      // 元の位置(playArea の最後)へ戻す
+      if (bar.parentElement !== area) area.appendChild(bar);
+    }
   }
 
   // ===== 開く / 閉じる =====
@@ -242,6 +298,8 @@
     } else swEl.classList.add('hidden');
     setGameUiHidden(true);
     seek(positions.length - 1); // まず終局(最新)局面。再生ボタンで0手目から
+    // CSS のレイアウト確定後にグラフ/盤面を測り直す
+    requestAnimationFrame(() => { layoutReplayBar(true); seek(cur); });
   }
 
   function openFromGame() {
@@ -299,7 +357,12 @@
       else if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); togglePlay(); }
       else if (e.key === 'Escape') { close(); }
     });
-    window.addEventListener('resize', () => { if (active()) seek(cur); });
+    window.addEventListener('resize', () => {
+      if (!active()) return;
+      layoutReplayBar(true);
+      seek(cur);
+    });
+    window.addEventListener('orientationchange', () => { if (active()) { setTimeout(() => { layoutReplayBar(true); seek(cur); }, 120); } });
     // 入口: 結果モーダル / 終局バナー / 盤面・棋譜モーダル
     $('btnReplayGame').onclick = () => { snd.click(); closeModal($('resModal')); openFromGame(); };
     $('btnShowReplay').onclick = () => { snd.click(); openFromGame(); };

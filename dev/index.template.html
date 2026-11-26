@@ -25,7 +25,7 @@
     </div>
   </header>
 
-  <div class="card w-full p-3.5 sm:p-4 rounded-xl flex flex-col gap-3 text-sm sm:text-base">
+  <div id="statusCard" class="card w-full p-3.5 sm:p-4 rounded-xl flex flex-col gap-3 text-sm sm:text-base">
     <div class="flex items-center justify-between font-medium">
       <div class="flex items-center gap-2"><span class="opacity-70">手番:</span><span id="turnInd" class="font-bold underline decoration-2 underline-offset-4" aria-live="polite"></span></div>
       <div id="modeBadge" class="text-xs px-2.5 py-1 rounded-full font-semibold border opacity-80"></div>
@@ -36,11 +36,15 @@
     </div>
   </div>
 
-  <div class="w-full flex justify-center items-center relative">
-    <canvas id="cv" class="w-full aspect-square cursor-pointer max-w-[520px] rounded-lg" role="img" aria-label="HEXAGO の盤面（交点をタップして着手）"></canvas>
-    <div id="aiOv" class="absolute top-2 left-2 z-10 flex items-start justify-start hidden pointer-events-none">
-      <div class="card px-3 py-2 rounded-full shadow-lg font-bold text-sm flex items-center gap-2" style="color:var(--tx);background:var(--card);border-color:var(--bd)"><div class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div><span id="aiOvText">AI 思考中...</span></div>
+  <!-- 盤面 + (リプレイ時のみ) 横パネル。横画面では左右に収まる -->
+  <div id="playArea" class="w-full flex flex-col items-center gap-3">
+    <div id="boardWrap" class="flex justify-center items-center relative w-full">
+      <canvas id="cv" class="w-full aspect-square cursor-pointer max-w-[520px] rounded-lg" role="img" aria-label="HEXAGO の盤面（交点をタップして着手）"></canvas>
+      <div id="aiOv" class="absolute top-2 left-2 z-10 flex items-start justify-start hidden pointer-events-none">
+        <div class="card px-3 py-2 rounded-full shadow-lg font-bold text-sm flex items-center gap-2" style="color:var(--tx);background:var(--card);border-color:var(--bd)"><div class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div><span id="aiOvText">AI 思考中...</span></div>
+      </div>
     </div>
+    <div id="replaySide" class="hidden w-full"></div>
   </div>
 
   <div class="w-full flex justify-between items-center gap-3">
