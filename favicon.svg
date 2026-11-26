@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="HEXAGO">
+  <rect width="200" height="200" rx="34" fill="#d9b382"/>
+  <path d="M100 18 L171.0 59 L171.0 141 L100 182 L29.0 141 L29.0 59 Z" fill="#ffffff" fill-opacity="0.55" stroke="#5b4227" stroke-width="9" stroke-linejoin="round"/>
+  <g stroke-linejoin="round">
+    <circle cx="100" cy="70" r="24" fill="#F4F4F4" stroke="#555555" stroke-width="6"/>
+    <circle cx="74.8" cy="111" r="24" fill="#E53935" stroke="#7f1d1d" stroke-width="6"/>
+    <circle cx="125.2" cy="111" r="24" fill="#111111" stroke="#333333" stroke-width="6"/>
+  </g>
+</svg>

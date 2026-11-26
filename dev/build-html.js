@@ -41,6 +41,21 @@ function buildHtml() {
     return '<style>\n' + css + '\n</style>';
   });
 
+  // 1.5. Inline favicon / manifest links as data URIs (single-file delivery).
+  //      <link rel="icon" href="./x.svg" type="image/svg+xml"> などは
+  //      相対パス先を data: URI に置き換えて index.html 単体で動くようにする。
+  const MIME = { '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
+  const toDataUri = (mime, buf) => 'data:' + mime + ';base64,' + buf.toString('base64');
+  html = html.replace(/<link\s+([^>]*?)href="(\.\/[^"]+)"([^>]*)>/g, (match, pre, rel, post) => {
+    const ext = path.extname(rel).toLowerCase();
+    const mime = MIME[ext];
+    if (!mime) return match; // CSS などはこの後で別処理
+    const full = path.resolve(repo, rel);
+    if (!full.startsWith(repo + path.sep)) throw new Error('Refusing to read outside repo: ' + rel);
+    if (!fs.existsSync(full)) throw new Error('Missing asset referenced from template: ' + rel);
+    return '<link ' + pre + 'href="' + toDataUri(mime, fs.readFileSync(full)) + '"' + post + '>';
+  });
+
   // 2. Inline JSON data blocks: <!-- INLINE_JSON:id:./path.json -->
   html = html.replace(/<!--\s*INLINE_JSON:([A-Za-z0-9_-]+):(\.\/[^\s]+)\s*-->/g, (_, id, rel) => {
     const raw = readRel(rel);
