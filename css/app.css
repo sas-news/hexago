@@ -1,6 +1,6 @@
 body{touch-action:manipulation;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Hiragino Sans",sans-serif;background:var(--bg);color:var(--tx);transition:background .3s,color .3s}
 canvas{display:block;touch-action:manipulation}
-.card{background:var(--card);border:1px solid var(--bd)}
+.card{background:var(--card);border:1px solid var(--bd);color:var(--tx)}
 .btn{background:var(--card);border:1px solid var(--bd)}
 .opt{border:1px solid #d4d4d4;border-radius:8px;padding:8px 4px;font-weight:700;font-size:13px}
 .opt.on{background:#171717;color:#fff}
@@ -24,4 +24,34 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
   body.replaying #cv{width:min(72vh,540px);height:min(72vh,540px);flex:0 0 auto}
   body.replaying #replaySide{display:flex;flex-direction:column;justify-content:center;flex:0 0 auto;width:min(360px,34vw);max-height:min(78vh,540px)}
   body.replaying #replayBar{width:100%}
+}
+
+/* ===== モーダル共通: スマホ/タブレットでも上下が切れない高さ制御 =====
+   .modal-shell は画面全体、.modal-card が実際の箱。
+   100vh はモバイルブラウザのUI(アドレスバー)を含むため切れるので dvh を優先し、
+   対応していない環境では svh → vh の順にフォールバックする。 */
+.modal-shell{height:100vh;height:100dvh;overscroll-behavior:contain}
+.modal-card{
+  max-height:100%;
+  max-height:calc(100vh - 1rem);
+  max-height:calc(100dvh - 1rem);
+  -webkit-overflow-scrolling:touch;
+}
+@media (min-width:640px){
+  .modal-card{max-height:calc(100vh - 2rem);max-height:calc(100dvh - 2rem)}
+}
+/* 小さい横画面(iPad横持ち・スマホ横)では余白を詰めて本文を広く取る */
+@media (max-height:520px){
+  .modal-card{max-height:calc(100dvh - 0.5rem);padding:10px}
+  .modal-shell{padding:0.25rem!important}
+}
+
+/* ===== タッチ端末: タップ領域を確保して押し間違い/押せないを防ぐ ===== */
+@media (pointer:coarse){
+  .opt{min-height:44px;display:flex;align-items:center;justify-content:center}
+  .modal-card button{min-height:40px}
+  .modal-card .opt{min-height:44px}
+  #photoResult,#photoBoardPreview,#photoAdjust{touch-action:manipulation}
+  /* ホバー前提の予覧はタッチでは不要なのでタップ反応を優先 */
+  #photoResult{cursor:pointer}
 }

@@ -960,9 +960,39 @@
   function onResultPointer(e) {
     var best = pickResultPoint(e.currentTarget, e.clientX, e.clientY);
     if (best < 0) return;
-    if (e.type === 'click') { cycleAt(best); snd && snd.click && snd.click(); }
-    else { st.hover = best; renderResult(); }
+    if (e.type === 'click') {
+      // タッチの pointerup で処理済みなら click では切り替えない(二重切替防止)
+      if (Date.now() - lastTouchCycleAt < 700) return;
+      cycleAt(best); snd && snd.click && snd.click();
+    }
+    return best;
   }
+
+  // タッチ端末(iPad/iPhone)向けの色切り替え。
+  // タッチでは click が発火しない/遅延する環境があり、また pointermove の
+  // ホバー処理がタップを打ち消してしまうため、pointerdown〜pointerup の
+  // 「動かなかったタップ」を自前で判定して色を切り替える。
+  var tapState = null;
+  function resultTapDown(e) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    tapState = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId, handled: false };
+    // タッチでは hover 表示を出さない(指の下の点がちらつくため)
+    if (e.pointerType !== 'mouse') { e.preventDefault(); }
+  }
+  function resultTapUp(e) {
+    var st0 = tapState; tapState = null;
+    if (!st0 || st0.id !== e.pointerId || st0.handled) return;
+    if (Math.hypot(e.clientX - st0.x, e.clientY - st0.y) > 12) return;  // スクロール/ドラッグ
+    if (Date.now() - st0.t > 900) return;
+    st0.handled = true;
+    var best = pickResultPoint(e.currentTarget, e.clientX, e.clientY);
+    if (best < 0) return;
+    cycleAt(best);
+    if (snd && snd.click) snd.click();
+    // タッチでは直後の click も発火しうるので二重切替を防ぐ
+    lastTouchCycleAt = Date.now();
+  }
+  var lastTouchCycleAt = 0;
 
   // ---------------- 保存・対局・ライブラリ ----------------
   function buildEntry() {
@@ -1285,12 +1315,22 @@
     }
     [$('photoResult'), $('photoBoardPreview')].forEach(function (cvR) {
       if (!cvR) return;
+      cvR.style.touchAction = 'manipulation';   // ダブルタップ拡大によるタップ遅延/取りこぼしを防ぐ
       cvR.addEventListener('click', onResultPointer);
+      // タッチ/ペン: 動かないタップで色を切り替える
+      cvR.addEventListener('pointerdown', resultTapDown);
+      cvR.addEventListener('pointerup', resultTapUp);
+      cvR.addEventListener('pointercancel', function (e) { tapState = null; });
+      // マウス: ホバー予覧(タッチでは発火させない)
       cvR.addEventListener('pointermove', function (e) {
+        if (e.pointerType !== 'mouse') return;
         var best = pickResultPoint(cvR, e.clientX, e.clientY);
         if (best !== st.hover) { st.hover = best; renderResult(); }
       });
-      cvR.addEventListener('pointerleave', function () { st.hover = -1; renderResult(); });
+      cvR.addEventListener('pointerleave', function (e) {
+        if (e.pointerType && e.pointerType !== 'mouse') return;
+        st.hover = -1; renderResult();
+      });
     });
     [].forEach.call(document.querySelectorAll('#photoViewBtns [data-photo-view]'), function (b) {
       b.onclick = function () {
