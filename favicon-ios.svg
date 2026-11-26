@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="HEXAGO">
+  <!-- iOS apple-touch-icon 用: 透過なし・角丸なし（iOS が自動で角丸にする） -->
+  <rect width="200" height="200" fill="#d9b382"/>
+  <g transform="translate(100 100) scale(0.94) translate(-100 -100)">
+<path d="M159.00 100.00 L125.00 158.89 L57.00 158.89 L23.00 100.00 L57.00 41.11 L125.00 41.11 Z" fill="#ffffff" fill-opacity="0.5" stroke="#5b4227" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M57.00 41.11L125.00 41.11 M57.00 41.11L91.00 100.00 M57.00 41.11L23.00 100.00 M125.00 41.11L159.00 100.00 M125.00 41.11L91.00 100.00 M23.00 100.00L91.00 100.00 M23.00 100.00L57.00 158.89 M91.00 100.00L159.00 100.00 M91.00 100.00L125.00 158.89 M91.00 100.00L57.00 158.89 M159.00 100.00L125.00 158.89 M57.00 158.89L125.00 158.89" stroke="#8a6a44" stroke-opacity="0.55" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+  <g stroke-linejoin="round"><circle cx="57.00" cy="41.11" r="28.56" fill="#F4F4F4" stroke="#555555" stroke-width="5.71"/><circle cx="159.00" cy="100.00" r="28.56" fill="#111111" stroke="#000000" stroke-width="5.71"/><circle cx="57.00" cy="158.89" r="28.56" fill="#E53935" stroke="#7f1d1d" stroke-width="5.71"/></g>
+  </g>
+</svg>

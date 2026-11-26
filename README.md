@@ -4,9 +4,25 @@
 
 ## ファビコン
 
-3路盤の格子と大きな3色の石（黒・白・赤）を配したアイコンを用意しています（`favicon.svg` / `favicon-180.png` / `favicon-192.png` / `favicon-512.png` / `manifest.webmanifest`）。
-ブラウザのタブ、iOS/Android のホーム画面追加（apple-touch-icon / manifest）で使われます。
-`index.html` は単一ファイル配信のため、ビルド時にこれらのアイコンは data URI として埋め込まれます。
+3路盤の格子と大きな3色の石（黒・白・赤）を配したアイコンです。
+
+| ファイル | 用途 |
+| --- | --- |
+| `favicon.ico` | 16/32/48px を内包。Safari や古いブラウザはこちらを優先 |
+| `favicon-192.png` / `favicon-512.png` | ブラウザタブ・PWA（角丸あり・透過あり） |
+| `favicon-180.png` | iOS ホーム画面用（`apple-touch-icon`）。**透過なし・角丸なし**で書き出す（iOS 側が角丸を付けるため二重になるのを防ぐ） |
+| `favicon.svg` | モダンブラウザ用ベクター |
+| `favicon-ios.svg` | iOS 用 PNG の元データ（不透過版） |
+| `manifest.webmanifest` | ホーム画面アプリ化（`any` / `maskable`） |
+
+`<link>` の順序は Safari 対策で **`.ico` → PNG → apple-touch-icon → SVG** としています（SVG を先頭に置くと Safari が PNG を無視することがあります）。
+`index.html` は単一ファイル配信のため、ビルド時にこれらは data URI として埋め込まれます。
+
+アイコンの再生成（要 `npm i -D playwright`）:
+
+```bash
+node dev/make-icon-png.js   # 各 PNG → favicon.ico まで一括生成
+```
 
 ## 遊び方
 

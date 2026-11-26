@@ -20,3 +20,5 @@ npm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+# アイコン生成の中間ファイル(.ico の元 PNG)
+.ico-*.png
