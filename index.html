@@ -3770,6 +3770,9 @@ const gameFeatures = (typeof window !== 'undefined' && window.HexagoGameFeatures
 let autoPassController = null, autoPassOfferSeat = 0;
 let G, seenSet = new Set();
 let onlineAI = false, pendingSize = 9, mode = 'local', playerCount = 3, seats = [0, 'human', 'human', 'human', 'human', 'human', 'human'];
+// 設定画面で「選択中」のモード。モードボタンを押しただけでは mode を変えず、
+// 新規対局を始めるときに確定する(選んだだけで盤面が消えないように)。
+let selectedMode = 'local';
 let aiMode = 'fast'; // 'fast'(高速・盤サイズ別自動最適) / 'deep'(長考・盤サイズ別自動最適)
 try {
   const savedMode = localStorage.getItem('hexago-ai-mode');
@@ -3814,7 +3817,7 @@ function load() {
     const allSameAsBulk = sm && sm.slice(1, 7).every(v => v === aiMode);
     seatAIModes = Array.from({length:7}, (_, i) => i === 0 ? 0 : (!allSameAsBulk && sm && (sm[i] === 'fast' || sm[i] === 'deep') ? sm[i] : null));
     seats = s.seats || seats; seats = Array.from({length:7}, (_, i) => i === 0 ? 0 : (seats[i] === 'ai' ? 'ai' : 'human'));
-    playerCount = Math.max(2, Math.min(6, G.playerCount || 3)); G.playerCount=playerCount; G.damage=Array.from({length:playerCount+1},(_,i)=>(G.damage||[])[i]||0); G.out=Array.from({length:playerCount+1},(_,i)=>!!((G.out||[])[i])); seats.length = 7; seatOwners = Array(7).fill(null); seatNicknames = ['', '', '', '', '', '', '']; roomPool = Object.create(null); disconnectedNicknames = Object.create(null); G.aiSeats = Array.from({length:playerCount+1},(_,i)=>i===0?false:(seats[i] !== 'human')); G.aiSeat = G.aiSeats.findIndex((v,i)=>i>0&&v); mode = 'local';
+    playerCount = Math.max(2, Math.min(6, G.playerCount || 3)); G.playerCount=playerCount; G.damage=Array.from({length:playerCount+1},(_,i)=>(G.damage||[])[i]||0); G.out=Array.from({length:playerCount+1},(_,i)=>!!((G.out||[])[i])); seats.length = 7; seatOwners = Array(7).fill(null); seatNicknames = ['', '', '', '', '', '', '']; roomPool = Object.create(null); disconnectedNicknames = Object.create(null); G.aiSeats = Array.from({length:playerCount+1},(_,i)=>i===0?false:(seats[i] !== 'human')); G.aiSeat = G.aiSeats.findIndex((v,i)=>i>0&&v); mode = 'local'; selectedMode = 'local';
     if (THEMES[s.theme]) theme = THEMES[s.theme]; if (s.sound === false) snd.on = false;
     setSeen(); return true;
   } catch (e) { return false; }
@@ -6231,10 +6234,10 @@ function syncSettings() {
     b.classList.toggle('on', +b.dataset.v === pendingSize);
     b.disabled = mode === 'online' && !!roomCode && !isHost;
   });
-  document.querySelectorAll('#modeBtns .opt').forEach(b => b.classList.toggle('on', b.dataset.v === mode));
-  $('onlineBox').classList.toggle('hidden', mode !== 'online');
+  document.querySelectorAll('#modeBtns .opt').forEach(b => b.classList.toggle('on', b.dataset.v === selectedMode));
+  $('onlineBox').classList.toggle('hidden', selectedMode !== 'online');
   const participantView = mode === 'online' && boardView === 'participant';
-  $('onlineRoleConfig').classList.toggle('hidden', mode !== 'online');
+  $('onlineRoleConfig').classList.toggle('hidden', selectedMode !== 'online');
   $('seatBox').classList.toggle('hidden', participantView);
   ['boardSizeConfig', 'playerCountConfig', 'aiModeConfig', 'soundConfig'].forEach(id => $(id).classList.toggle('hidden', participantView));
   const bulkMode = typeof currentAIMode === 'function' ? currentAIMode() : 'fast';
@@ -6300,20 +6303,15 @@ document.querySelectorAll('#sizeBtns .opt').forEach(b => b.onclick = () => {
   if (mode === 'online' && roomCode && !isHost) return;
   snd.click(); pendingSize = +b.dataset.v; syncSettings(); save(); if (mode === 'online' && isHost) sync();
 });
+// モードの選択は「予約」に留める。ここで対局や接続に手を出すと、
+// まだ何も決めていないのに盤面が消えたり切断されたりする。
+// 実際の切り替えは「ニューゲームスタート」(reset) のときに確定する。
 document.querySelectorAll('#modeBtns .opt').forEach(b => b.onclick = () => {
   snd.click();
-  if (mode === b.dataset.v) return;
-  // 対局途中での切り替えは「今の対局を捨ててやり直す」ことになるので、
-  // 禁止はせず確認してから通す(0から始めたい場面があるため)。
-  if (isMatchRunning()) {
-    const next = b.dataset.v === 'online' ? 'オンライン対戦' : 'ローカル対戦';
-    if (!window.confirm(`いまの対局を終了して、${next}を始めますか？\n（現在の対局の進行状況は失われます）`)) return;
-    if (typeof window.HexagoReplayUI !== 'undefined' && window.HexagoReplayUI && window.HexagoReplayUI.reset) window.HexagoReplayUI.reset();
-    if (typeof reset === 'function') { pendingSize = pendingSize || G.size; reset(); }
-  }
-  if (aiBusy) cancelAI();
-  if (mode === 'online') closePeer();
-  mode = b.dataset.v; syncSettings(); updateUI();
+  if (selectedMode === b.dataset.v) return;
+  selectedMode = b.dataset.v;
+  if (selectedMode !== 'online') boardView = 'host';
+  syncSettings();
 });
 document.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => setAllSeatModes(b.dataset.bulk));
 document.querySelectorAll('#aiModeBtns .opt').forEach(b => b.onclick = () => {
@@ -6361,6 +6359,13 @@ function buildThemes() {
 }
 function reset() {
   if (mode === 'online' && !isHost) { $('roomSt').textContent = '新規対局はホストが開始します'; return false; }
+  // 選択中のモードをここで確定する(モードを選んだだけでは対局に影響しない)
+  if (selectedMode !== mode) {
+    if (aiBusy) cancelAI();
+    if (mode === 'online') closePeer();
+    mode = (isHost || !roomCode) ? selectedMode : mode;
+    if (mode === 'local' && roomCode) { roomCode = null; isHost = false; }
+  }
   // リプレイ表示中なら先に解除する(盤面がリプレイのまま裏で対局が始まるのを防ぐ)
   if (typeof window.HexagoReplayUI !== 'undefined' && window.HexagoReplayUI.reset) window.HexagoReplayUI.reset();
   if (typeof clearAutoPass === 'function') clearAutoPass();
@@ -6481,7 +6486,7 @@ function startHostPeer(code, nickname, opts) {
   if (peer) { peer.__ignoreNet = true; try { peer.destroy(); } catch (e) { } peer = null; }
   conns.forEach(c => { c.__ignoreNet = true; try { c.close(); } catch (e) { } });
   conns = []; hostConn = null;
-  mode = 'online'; isHost = true; roomCode = String(code || '').toUpperCase(); myNickname = nickname || myNickname || '';
+  mode = 'online'; selectedMode = 'online'; isHost = true; roomCode = String(code || '').toUpperCase(); myNickname = nickname || myNickname || '';
   setNetStatus(opts.resume ? 'ホスト接続を復旧しています…' : '部屋を準備しています…');
   const candidate = new Peer(PFX + roomCode.toLowerCase(), { debug: 0 });
   peer = candidate;
@@ -6561,7 +6566,7 @@ function startGuestPeer(code, nickname) {
   if (hostConn) { hostConn.__ignoreNet = true; try { hostConn.close(); } catch (e) { } }
   if (peer) { peer.__ignoreNet = true; try { peer.destroy(); } catch (e) { } peer = null; }
   hostConn = null;
-  mode = 'online'; isHost = false; roomCode = String(code || '').toUpperCase(); myNickname = nickname || myNickname || ''; boardView = 'participant';
+  mode = 'online'; selectedMode = 'online'; isHost = false; roomCode = String(code || '').toUpperCase(); myNickname = nickname || myNickname || ''; boardView = 'participant';
   setNetStatus('接続しています…');
   const candidate = new Peer({ debug: 0 });
   peer = candidate;
@@ -6721,7 +6726,7 @@ function networkWake() {
 function resumeOnlineSession(sessionOverride) {
   const s = sessionOverride || readOnlineSession();
   if (!s || !s.roomCode || !G) return false;
-  mode = 'online'; isHost = !!s.isHost; roomCode = String(s.roomCode).toUpperCase();
+  mode = 'online'; selectedMode = 'online'; isHost = !!s.isHost; roomCode = String(s.roomCode).toUpperCase();
   myNickname = s.myNickname || ''; boardView = s.boardView || (isHost ? 'host' : 'participant');
   playerCount = Math.max(2, Math.min(6, s.playerCount || G.playerCount || 3));
   G.playerCount = playerCount;
@@ -7005,7 +7010,7 @@ $('btnCreate').onclick = () => {
     $('roomSt').textContent = 'このIDは現在の部屋で使用中です。別のIDを指定してください。'; return;
   }
   closePeer();
-  mode = 'online'; boardView = 'host'; isHost = true; roomCode = code; myNickname = checkedName.value;
+  mode = 'online'; selectedMode = 'online'; boardView = 'host'; isHost = true; roomCode = code; myNickname = checkedName.value;
   if (!G) { build(pendingSize); G = newG(pendingSize); G.phase = 'setup'; setSeen(); }
   if (G.phase !== 'setup') { playerCount = G.playerCount; pendingSize = G.size; }
   roomPool[LOCAL_HOST_ID] = { nickname: myNickname, seat: null };
@@ -7023,7 +7028,7 @@ $('btnJoin').onclick = () => {
   if (!checked.ok) { $('roomSt').textContent = checked.message; return; }
   const code = checkedId.value;
   closePeer();
-  mode = 'online'; boardView = 'participant'; myNickname = checked.value; roomCode = code;
+  mode = 'online'; selectedMode = 'online'; boardView = 'participant'; myNickname = checked.value; roomCode = code;
   $('roomSt').textContent = '接続中…';
   syncSettings(); updateUI();
   startGuestPeer(code, myNickname);

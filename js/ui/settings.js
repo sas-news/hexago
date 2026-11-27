@@ -59,10 +59,10 @@ function syncSettings() {
     b.classList.toggle('on', +b.dataset.v === pendingSize);
     b.disabled = mode === 'online' && !!roomCode && !isHost;
   });
-  document.querySelectorAll('#modeBtns .opt').forEach(b => b.classList.toggle('on', b.dataset.v === mode));
-  $('onlineBox').classList.toggle('hidden', mode !== 'online');
+  document.querySelectorAll('#modeBtns .opt').forEach(b => b.classList.toggle('on', b.dataset.v === selectedMode));
+  $('onlineBox').classList.toggle('hidden', selectedMode !== 'online');
   const participantView = mode === 'online' && boardView === 'participant';
-  $('onlineRoleConfig').classList.toggle('hidden', mode !== 'online');
+  $('onlineRoleConfig').classList.toggle('hidden', selectedMode !== 'online');
   $('seatBox').classList.toggle('hidden', participantView);
   ['boardSizeConfig', 'playerCountConfig', 'aiModeConfig', 'soundConfig'].forEach(id => $(id).classList.toggle('hidden', participantView));
   const bulkMode = typeof currentAIMode === 'function' ? currentAIMode() : 'fast';
@@ -128,20 +128,15 @@ document.querySelectorAll('#sizeBtns .opt').forEach(b => b.onclick = () => {
   if (mode === 'online' && roomCode && !isHost) return;
   snd.click(); pendingSize = +b.dataset.v; syncSettings(); save(); if (mode === 'online' && isHost) sync();
 });
+// モードの選択は「予約」に留める。ここで対局や接続に手を出すと、
+// まだ何も決めていないのに盤面が消えたり切断されたりする。
+// 実際の切り替えは「ニューゲームスタート」(reset) のときに確定する。
 document.querySelectorAll('#modeBtns .opt').forEach(b => b.onclick = () => {
   snd.click();
-  if (mode === b.dataset.v) return;
-  // 対局途中での切り替えは「今の対局を捨ててやり直す」ことになるので、
-  // 禁止はせず確認してから通す(0から始めたい場面があるため)。
-  if (isMatchRunning()) {
-    const next = b.dataset.v === 'online' ? 'オンライン対戦' : 'ローカル対戦';
-    if (!window.confirm(`いまの対局を終了して、${next}を始めますか？\n（現在の対局の進行状況は失われます）`)) return;
-    if (typeof window.HexagoReplayUI !== 'undefined' && window.HexagoReplayUI && window.HexagoReplayUI.reset) window.HexagoReplayUI.reset();
-    if (typeof reset === 'function') { pendingSize = pendingSize || G.size; reset(); }
-  }
-  if (aiBusy) cancelAI();
-  if (mode === 'online') closePeer();
-  mode = b.dataset.v; syncSettings(); updateUI();
+  if (selectedMode === b.dataset.v) return;
+  selectedMode = b.dataset.v;
+  if (selectedMode !== 'online') boardView = 'host';
+  syncSettings();
 });
 document.querySelectorAll('[data-bulk]').forEach(b => b.onclick = () => setAllSeatModes(b.dataset.bulk));
 document.querySelectorAll('#aiModeBtns .opt').forEach(b => b.onclick = () => {
@@ -189,6 +184,13 @@ function buildThemes() {
 }
 function reset() {
   if (mode === 'online' && !isHost) { $('roomSt').textContent = '新規対局はホストが開始します'; return false; }
+  // 選択中のモードをここで確定する(モードを選んだだけでは対局に影響しない)
+  if (selectedMode !== mode) {
+    if (aiBusy) cancelAI();
+    if (mode === 'online') closePeer();
+    mode = (isHost || !roomCode) ? selectedMode : mode;
+    if (mode === 'local' && roomCode) { roomCode = null; isHost = false; }
+  }
   // リプレイ表示中なら先に解除する(盤面がリプレイのまま裏で対局が始まるのを防ぐ)
   if (typeof window.HexagoReplayUI !== 'undefined' && window.HexagoReplayUI.reset) window.HexagoReplayUI.reset();
   if (typeof clearAutoPass === 'function') clearAutoPass();

@@ -104,7 +104,7 @@ function startHostPeer(code, nickname, opts) {
   if (peer) { peer.__ignoreNet = true; try { peer.destroy(); } catch (e) { } peer = null; }
   conns.forEach(c => { c.__ignoreNet = true; try { c.close(); } catch (e) { } });
   conns = []; hostConn = null;
-  mode = 'online'; isHost = true; roomCode = String(code || '').toUpperCase(); myNickname = nickname || myNickname || '';
+  mode = 'online'; selectedMode = 'online'; isHost = true; roomCode = String(code || '').toUpperCase(); myNickname = nickname || myNickname || '';
   setNetStatus(opts.resume ? 'ホスト接続を復旧しています…' : '部屋を準備しています…');
   const candidate = new Peer(PFX + roomCode.toLowerCase(), { debug: 0 });
   peer = candidate;
@@ -184,7 +184,7 @@ function startGuestPeer(code, nickname) {
   if (hostConn) { hostConn.__ignoreNet = true; try { hostConn.close(); } catch (e) { } }
   if (peer) { peer.__ignoreNet = true; try { peer.destroy(); } catch (e) { } peer = null; }
   hostConn = null;
-  mode = 'online'; isHost = false; roomCode = String(code || '').toUpperCase(); myNickname = nickname || myNickname || ''; boardView = 'participant';
+  mode = 'online'; selectedMode = 'online'; isHost = false; roomCode = String(code || '').toUpperCase(); myNickname = nickname || myNickname || ''; boardView = 'participant';
   setNetStatus('接続しています…');
   const candidate = new Peer({ debug: 0 });
   peer = candidate;
@@ -344,7 +344,7 @@ function networkWake() {
 function resumeOnlineSession(sessionOverride) {
   const s = sessionOverride || readOnlineSession();
   if (!s || !s.roomCode || !G) return false;
-  mode = 'online'; isHost = !!s.isHost; roomCode = String(s.roomCode).toUpperCase();
+  mode = 'online'; selectedMode = 'online'; isHost = !!s.isHost; roomCode = String(s.roomCode).toUpperCase();
   myNickname = s.myNickname || ''; boardView = s.boardView || (isHost ? 'host' : 'participant');
   playerCount = Math.max(2, Math.min(6, s.playerCount || G.playerCount || 3));
   G.playerCount = playerCount;
@@ -628,7 +628,7 @@ $('btnCreate').onclick = () => {
     $('roomSt').textContent = 'このIDは現在の部屋で使用中です。別のIDを指定してください。'; return;
   }
   closePeer();
-  mode = 'online'; boardView = 'host'; isHost = true; roomCode = code; myNickname = checkedName.value;
+  mode = 'online'; selectedMode = 'online'; boardView = 'host'; isHost = true; roomCode = code; myNickname = checkedName.value;
   if (!G) { build(pendingSize); G = newG(pendingSize); G.phase = 'setup'; setSeen(); }
   if (G.phase !== 'setup') { playerCount = G.playerCount; pendingSize = G.size; }
   roomPool[LOCAL_HOST_ID] = { nickname: myNickname, seat: null };
@@ -646,7 +646,7 @@ $('btnJoin').onclick = () => {
   if (!checked.ok) { $('roomSt').textContent = checked.message; return; }
   const code = checkedId.value;
   closePeer();
-  mode = 'online'; boardView = 'participant'; myNickname = checked.value; roomCode = code;
+  mode = 'online'; selectedMode = 'online'; boardView = 'participant'; myNickname = checked.value; roomCode = code;
   $('roomSt').textContent = '接続中…';
   syncSettings(); updateUI();
   startGuestPeer(code, myNickname);

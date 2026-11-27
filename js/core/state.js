@@ -3,6 +3,9 @@ const gameFeatures = (typeof window !== 'undefined' && window.HexagoGameFeatures
 let autoPassController = null, autoPassOfferSeat = 0;
 let G, seenSet = new Set();
 let onlineAI = false, pendingSize = 9, mode = 'local', playerCount = 3, seats = [0, 'human', 'human', 'human', 'human', 'human', 'human'];
+// 設定画面で「選択中」のモード。モードボタンを押しただけでは mode を変えず、
+// 新規対局を始めるときに確定する(選んだだけで盤面が消えないように)。
+let selectedMode = 'local';
 let aiMode = 'fast'; // 'fast'(高速・盤サイズ別自動最適) / 'deep'(長考・盤サイズ別自動最適)
 try {
   const savedMode = localStorage.getItem('hexago-ai-mode');
@@ -47,7 +50,7 @@ function load() {
     const allSameAsBulk = sm && sm.slice(1, 7).every(v => v === aiMode);
     seatAIModes = Array.from({length:7}, (_, i) => i === 0 ? 0 : (!allSameAsBulk && sm && (sm[i] === 'fast' || sm[i] === 'deep') ? sm[i] : null));
     seats = s.seats || seats; seats = Array.from({length:7}, (_, i) => i === 0 ? 0 : (seats[i] === 'ai' ? 'ai' : 'human'));
-    playerCount = Math.max(2, Math.min(6, G.playerCount || 3)); G.playerCount=playerCount; G.damage=Array.from({length:playerCount+1},(_,i)=>(G.damage||[])[i]||0); G.out=Array.from({length:playerCount+1},(_,i)=>!!((G.out||[])[i])); seats.length = 7; seatOwners = Array(7).fill(null); seatNicknames = ['', '', '', '', '', '', '']; roomPool = Object.create(null); disconnectedNicknames = Object.create(null); G.aiSeats = Array.from({length:playerCount+1},(_,i)=>i===0?false:(seats[i] !== 'human')); G.aiSeat = G.aiSeats.findIndex((v,i)=>i>0&&v); mode = 'local';
+    playerCount = Math.max(2, Math.min(6, G.playerCount || 3)); G.playerCount=playerCount; G.damage=Array.from({length:playerCount+1},(_,i)=>(G.damage||[])[i]||0); G.out=Array.from({length:playerCount+1},(_,i)=>!!((G.out||[])[i])); seats.length = 7; seatOwners = Array(7).fill(null); seatNicknames = ['', '', '', '', '', '', '']; roomPool = Object.create(null); disconnectedNicknames = Object.create(null); G.aiSeats = Array.from({length:playerCount+1},(_,i)=>i===0?false:(seats[i] !== 'human')); G.aiSeat = G.aiSeats.findIndex((v,i)=>i>0&&v); mode = 'local'; selectedMode = 'local';
     if (THEMES[s.theme]) theme = THEMES[s.theme]; if (s.sound === false) snd.on = false;
     setSeen(); return true;
   } catch (e) { return false; }
