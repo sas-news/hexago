@@ -55,3 +55,18 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
   #photoModal .opt{min-height:44px;display:flex;align-items:center;justify-content:center}
   #photoResult,#photoBoardPreview,#photoAdjust{touch-action:manipulation;cursor:pointer}
 }
+
+/* ===== リプレイへの切り替えアニメーション =====
+   終局と同時に盤面が左へ寄り、リプレイパネルが右から現れる。
+   prefers-reduced-motion では無効化する。 */
+#playArea { transition: gap 260ms ease; }
+#boardWrap { transition: transform 280ms cubic-bezier(.22,.61,.36,1), max-width 280ms ease; }
+#replayBar, #replaySide { transition: opacity 240ms ease, transform 260ms cubic-bezier(.22,.61,.36,1); }
+@media (min-width: 900px) and (orientation: landscape) {
+  body.replaying #boardWrap { transform: translateX(-8px); }
+  body:not(.replaying) #replaySide { opacity: 0; transform: translateX(18px); }
+  body.replaying #replaySide { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #playArea, #boardWrap, #replayBar, #replaySide { transition: none !important; }
+}

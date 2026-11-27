@@ -1,5 +1,5 @@
 // ===== モーダル共通: 背景クリック / Esc / 閉じるボタンで閉じる =====
-const MODAL_IDS = ['recordModal', 'setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal'];
+const MODAL_IDS = ['recordModal', 'setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal', 'shareModal'];
 function modalEl(id) { return document.getElementById(id); }
 function visibleModals() {
   return MODAL_IDS.map(modalEl).filter(el => el && !el.classList.contains('hidden'));
@@ -20,15 +20,16 @@ window.addEventListener('keydown', e => {
   if (open.length) { e.preventDefault(); closeModal(open[open.length - 1]); }
 });
 
-function showResult() {
+// 結果モーダルを表示する。リプレイへの遷移は終局時(onGameEnd)に一度だけ行い、
+// ここからは呼ばない(「結果を見る」を押すたびにリプレイへ飛ぶのを防ぐ)。
+function showResult(options) {
   $('resTitle').textContent = G.result.title;
   $('resDet').innerHTML = G.result.details;
   $('resModal').classList.remove('hidden');
-  // 対局が終わったら、そのままリプレイ画面へ切り替える(結果はヘッダで確認可能)
-  autoOpenReplayOnEnd();
+  if (options && options.autoReplay) autoOpenReplayOnEnd();
 }
 
-// 終局直後にリプレイ画面へ自動で切り替える。
+// 終局直後にリプレイ画面へ切り替える(終局画面はリプレイそのものとする)。
 // 結果モーダルは閉じない(結果を見ながら直後にリプレイへ移れるようにする)。
 let autoReplayTimer = null;
 function autoOpenReplayOnEnd() {
@@ -39,9 +40,9 @@ function autoOpenReplayOnEnd() {
     if (typeof window.HexagoReplayUI === 'undefined' || !window.HexagoReplayUI.open) return;
     if (typeof window.HexagoReplayView !== 'undefined' && window.HexagoReplayView.active()) return;
     window.HexagoReplayUI.open({ keepResultModal: true });
-  }, 900);
+  }, 220);
 }
-$('btnShowResult').onclick = showResult;
+$('btnShowResult').onclick = () => showResult();
 $('btnAgain').onclick = () => { closeModal($('resModal')); reset(); };
 $('btnPass').onclick = () => { if (!G.over && G.phase === 'playing' && mine()) { doPass(); after(); } };
 let resignArmed = false, resignTimer = null;

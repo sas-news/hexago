@@ -316,6 +316,8 @@
   }
 
   function buildShareUrl(record, size, playerCount, names) {
+    // 共有リンクから来たなら、そのリンクをそのまま引き継ぐ
+    if (inheritedShareUrl) return inheritedShareUrl;
     const code = R.encodeShare(record, size, playerCount, names);
     return shareBaseUrl() + '#g=' + code;
   }
@@ -357,11 +359,7 @@
     const len = $('shareLen');
     if (len) len.textContent = value.length + ' 文字';
     const info = $('shareLenInfo');
-    if (info) {
-      info.textContent = kind === 'short'
-        ? '開くとこのサイト上で読み込まれ、そのままリプレイが始まります。'
-        : '開くとこのサイト上で読み込まれ、そのままリプレイが始まります。';
-    }
+    if (info && kind !== 'keep') info.textContent = '';
   }
 
   // 共有URL: 自前ドメインの ?s=短縮コード 形式に変換する。
@@ -430,20 +428,37 @@
   }
 
   // 短縮URLを取得し、自前ドメインの ?s=形式にする(失敗時は元URLのまま)
+  // 同じ対局の短縮URLは一度作ったら使い回す(開くたびに新規生成しない)
+  const shortCache = new Map();
+
   async function syncShareUrl() {
     const sm = $('shareModal');
     if (!sm) return;
     const full = sm.dataset.fullUrl || '';
     const info = $('shareLenInfo');
-    if (info) info.textContent = '短縮URLを取得中...';
+    const cached = shortCache.get(full);
+    if (cached !== undefined) {
+      // 失敗(null)もキャッシュし、開くたびに再試行しない
+      if (cached) {
+        sm.dataset.shortUrl = cached;
+        const code = shortCodeFromUrl(cached) || cached.split('/').pop();
+        setShareUrlField(selfShareUrl(code), 'short');
+      } else {
+        setShareUrlField(full, 'full');
+      }
+      return;
+    }
+    if (info) info.textContent = '';
     try {
       const short = await shortenUrl(full);
+      shortCache.set(full, short);
       sm.dataset.shortUrl = short;
       const code = shortCodeFromUrl(short) || short.split('/').pop();
       setShareUrlField(selfShareUrl(code), 'short');
     } catch (e) {
+      shortCache.set(full, null);
       setShareUrlField(full, 'full');
-      if (info) info.textContent = '短縮できませんでした。元のURLを使用します（そのまま共有できます）。';
+      if (info) info.textContent = '短縮できませんでした';
     }
   }
 
@@ -528,12 +543,14 @@
     const positions = R.replayPositions(record, geo2);
     const series = R.advantageSeries(positions, geo2, playerCount, names);
     const t = cardTheme();
-    const W = 720, H = 1180;
+    // 横長(4:3)にして PC でも見やすく。余白は詰める。
+    const W = 960, H = 720;
+    const PAD = 36;
     const cv = document.createElement('canvas');
     cv.width = W; cv.height = H;
     const g = cv.getContext('2d');
 
-    // 背景(テーマ)
+    // 背景
     if (t.dark) { g.fillStyle = t.bg1; g.fillRect(0, 0, W, H); }
     else {
       const grad = g.createLinearGradient(0, 0, 0, H);
@@ -541,17 +558,33 @@
       g.fillStyle = grad; g.fillRect(0, 0, W, H);
     }
 
-    // タイトル
-    g.fillStyle = t.text;
-    g.font = 'bold 44px system-ui, -apple-system, "Hiragino Sans", sans-serif';
-    g.textAlign = 'center'; g.textBaseline = 'top';
-    g.fillText('HEXAGO', W / 2, 46);
-    g.font = '20px system-ui, sans-serif';
-    g.fillStyle = t.sub;
-    g.fillText(`${size}路盤・${playerCount}人戦・${series.rows[series.rows.length - 1].ply}手`, W / 2, 102);
+    const scoreEvt = [...record.events].reverse().find(e => e.type === 'score');
+    const last = series.rows[series.rows.length - 1];
+    const order = Array.from({ length: playerCount }, (_, i) => i + 1)
+      .sort((a, b) => (last.leadPct[b] ?? -999) - (last.leadPct[a] ?? -999));
 
-    // 盤面(dpr=1 で生成 → そのまま貼れる。はみ出さない)
-    const boardSize = 500;
+    // ---- ヘッダ: タイトルと勝者 ----
+    g.textBaseline = 'top';
+    g.textAlign = 'left';
+    g.fillStyle = t.text;
+    g.font = 'bold 26px system-ui, -apple-system, "Hiragino Sans", sans-serif';
+    g.fillText('HEXAGO', PAD, PAD);
+    g.font = '15px system-ui, sans-serif';
+    g.fillStyle = t.sub;
+    g.fillText(`${size}路盤・${playerCount}人戦・${last.ply}手`, PAD + 108, PAD + 6);
+
+    // 勝者(右上)。サイト名と紛れないよう大きく
+    if (scoreEvt && scoreEvt.result) {
+      g.textAlign = 'right';
+      g.fillStyle = t.text;
+      g.font = 'bold 22px system-ui, sans-serif';
+      g.fillText(scoreEvt.result, W - PAD, PAD + 2);
+      g.textAlign = 'left';
+    }
+
+    // ---- 盤面(左) ----
+    const boardSize = 380;
+    const boardX = PAD, boardY = 92;
     const board = document.createElement('canvas');
     const fills = {}, strokes = {};
     for (let p = 1; p <= playerCount; p++) { fills[p] = playerFill(p); strokes[p] = playerStroke(p); }
@@ -559,29 +592,26 @@
       cssSize: boardSize, dpr: 1,
       themeBoard: t.board, themeLine: t.line, fills, strokes
     });
-    g.drawImage(board, (W - boardSize) / 2, 150, boardSize, boardSize);
+    g.drawImage(board, boardX, boardY, boardSize, boardSize);
 
-    // 優勢グラフ
-    const gx = 80, gy = 700, gw = W - 160, gh = 190;
-    g.beginPath();
-    if (g.roundRect) g.roundRect(gx - 14, gy - 40, gw + 28, gh + 60, 16); else g.rect(gx - 14, gy - 40, gw + 28, gh + 60);
-    g.fillStyle = t.panel; g.fill();
-    g.strokeStyle = t.panelBorder; g.lineWidth = 2; g.stroke();
-
-    g.fillStyle = t.sub; g.font = 'bold 17px system-ui, sans-serif';
-    g.textAlign = 'left'; g.textBaseline = 'top';
-    g.fillText('優勢グラフ', gx, gy - 28);
+    // ---- 右カラム: グラフ ----
+    const colX = boardX + boardSize + 32;
+    const colW = W - colX - PAD;
+    const gy = boardY + 12, gh = 150;
+    g.fillStyle = t.sub;
+    g.font = 'bold 15px system-ui, sans-serif';
+    g.fillText('優勢グラフ', colX, boardY - 2);
 
     let maxAbs = 1;
     for (const row of series.rows) for (const k of Object.keys(row.leadPct)) maxAbs = Math.max(maxAbs, Math.abs(row.leadPct[k]));
     const rows = series.rows;
     const yy = v => gy + gh / 2 - (v / maxAbs) * (gh / 2);
-    const xx = i => gx + (rows.length <= 1 ? gw / 2 : (i / (rows.length - 1)) * gw);
+    const xx = i => colX + (rows.length <= 1 ? colW / 2 : (i / (rows.length - 1)) * colW);
     g.strokeStyle = t.dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.16)'; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(gx, yy(0)); g.lineTo(gx + gw, yy(0)); g.stroke();
+    g.beginPath(); g.moveTo(colX, yy(0)); g.lineTo(colX + colW, yy(0)); g.stroke();
     const lines = playerCount === 2 ? [1] : Array.from({ length: playerCount }, (_, i) => i + 1);
     lines.forEach(p => {
-      g.strokeStyle = graphLineColor(p, t.dark); g.lineWidth = 2.5; g.lineJoin = 'round';
+      g.strokeStyle = graphLineColor(p, t.dark); g.lineWidth = 2.2; g.lineJoin = 'round';
       g.beginPath();
       let started = false;
       for (let k = 0; k < rows.length; k++) {
@@ -592,34 +622,26 @@
       g.stroke();
     });
 
-    // 順位(数値のみ。ラベル文字は付けない)
-    const last = series.rows[series.rows.length - 1];
-    const order = Array.from({ length: playerCount }, (_, i) => i + 1)
-      .sort((a, b) => (last.leadPct[b] ?? -999) - (last.leadPct[a] ?? -999));
+    // ---- 右カラム: 順位 ----
+    const rankY = gy + gh + 34;
     g.textBaseline = 'middle';
     order.forEach((p, idx) => {
-      const y = 950 + idx * 34;
+      const y = rankY + idx * 34;
       g.fillStyle = playerFill(p);
-      g.beginPath(); g.arc(110, y, 10, 0, 7); g.fill();
-      g.strokeStyle = t.sub; g.lineWidth = 1.6; g.stroke();
-      g.fillStyle = t.text; g.font = 'bold 18px system-ui, sans-serif';
+      g.beginPath(); g.arc(colX + 9, y, 9, 0, 7); g.fill();
+      g.strokeStyle = t.sub; g.lineWidth = 1.5; g.stroke();
+      g.fillStyle = t.text; g.font = 'bold 16px system-ui, sans-serif';
+      g.textAlign = 'left';
       const nm = (names && names[p]) || `${p}P`;
-      g.textAlign = 'left'; g.fillText(`${nm} (${p}P)`, 132, y);
+      g.fillText(`${nm} (${p}P)`, colX + 28, y);
       const lead = last.leadPct[p];
       const leadTxt = (typeof lead === 'number') ? `${lead >= 0 ? '+' : '−'}${Math.abs(lead).toFixed(1)}%` : '投了';
-      g.textAlign = 'right'; g.fillText(leadTxt, W - 110, y);
+      g.textAlign = 'right'; g.fillText(leadTxt, W - PAD, y);
     });
 
-    // 結果
-    const scoreEvt = [...record.events].reverse().find(e => e.type === 'score');
-    if (scoreEvt && scoreEvt.result) {
-      g.textAlign = 'center'; g.textBaseline = 'top';
-      g.fillStyle = t.text; g.font = 'bold 22px system-ui, sans-serif';
-      g.fillText(scoreEvt.result, W / 2, H - 74);
-    }
-    // サイトURL(共有用)。共有URLが取得できていればそれを、無ければページのURLを出す。
-    g.textAlign = 'center'; g.textBaseline = 'top';
-    g.fillStyle = t.sub; g.font = '15px system-ui, sans-serif';
+    // ---- サイトURL(右下・控えめ)----
+    g.textAlign = 'right'; g.textBaseline = 'bottom';
+    g.fillStyle = t.sub; g.font = '14px system-ui, sans-serif';
     const siteUrl = (function () {
       const sm = $('shareModal');
       const short = sm && sm.dataset && sm.dataset.shortUrl;
@@ -628,7 +650,8 @@
       u.hash = ''; u.search = '';
       return u.toString();
     })();
-    g.fillText(siteUrl, W / 2, H - 34);
+    g.fillText(siteUrl, W - PAD, H - PAD + 8);
+
     return cv;
   }
 
@@ -663,6 +686,8 @@
 
   // リプレイ状態を完全に解除する(新規対局・ページ読み込み時にも呼ぶ)
   function close() {
+    inheritedShareUrl = null;
+    try { sessionStorage.removeItem('hexago-share-origin'); } catch (e) { }
     stop();
     timer = null;
     playing = false;
@@ -759,8 +784,13 @@
   // ===== 共有URLからの起動 =====
   //   #g=<データ>     : データ直接埋め込み(フォールバック用)
   //   ?s=<短縮コード> : 自前ドメインの共有URL → spoo.me へ一度リダイレクトして戻る
-  function openFromShareCode(code) {
+  // 共有リンクから開いた場合の元URL(?s= または #g=)を覚えておき、
+  // その画面から再共有するときは同じリンクを引き継ぐ。
+  let inheritedShareUrl = null;
+
+  function openFromShareCode(code, sourceUrl) {
     const decoded = R.decodeShare(code);
+    inheritedShareUrl = sourceUrl || null;
     return openFromRecord(decoded.record, decoded.size, decoded.playerCount, decoded.names || {});
   }
 
@@ -774,6 +804,12 @@
       return false;
     }
     sessionStorage.setItem(key, code);
+    // リダイレクトで戻ってきたときに元の共有リンクを復元できるよう保存する
+    try {
+      const u = new URL(location.href);
+      u.search = '?s=' + code; u.hash = '';
+      sessionStorage.setItem('hexago-share-origin', u.toString());
+    } catch (e) { /* ignore */ }
     const target = 'https://spoo.me/' + encodeURIComponent(code);
     location.replace(target);
     return true;
@@ -783,7 +819,16 @@
     const hash = location.hash || '';
     const m = /[#&]g=([A-Za-z0-9_-]+)/.exec(hash);
     if (m) {
-      try { openFromShareCode(m[1]); return true; }
+      try {
+        let origin = null;
+        try { origin = sessionStorage.getItem('hexago-share-origin'); } catch (e) { }
+        if (!origin) {
+          const u = new URL(location.href); u.hash = ''; u.search = '';
+          origin = u.toString() + '#g=' + m[1];
+        }
+        openFromShareCode(m[1], origin);
+        return true;
+      }
       catch (e) {
         const msg = e && e.message ? e.message : '共有URLを読み込めませんでした';
         setTimeout(() => alert('共有された対局を開けませんでした: ' + msg), 300);

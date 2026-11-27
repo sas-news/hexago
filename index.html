@@ -71,6 +71,21 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
   #photoModal .opt{min-height:44px;display:flex;align-items:center;justify-content:center}
   #photoResult,#photoBoardPreview,#photoAdjust{touch-action:manipulation;cursor:pointer}
 }
+
+/* ===== リプレイへの切り替えアニメーション =====
+   終局と同時に盤面が左へ寄り、リプレイパネルが右から現れる。
+   prefers-reduced-motion では無効化する。 */
+#playArea { transition: gap 260ms ease; }
+#boardWrap { transition: transform 280ms cubic-bezier(.22,.61,.36,1), max-width 280ms ease; }
+#replayBar, #replaySide { transition: opacity 240ms ease, transform 260ms cubic-bezier(.22,.61,.36,1); }
+@media (min-width: 900px) and (orientation: landscape) {
+  body.replaying #boardWrap { transform: translateX(-8px); }
+  body:not(.replaying) #replaySide { opacity: 0; transform: translateX(18px); }
+  body.replaying #replaySide { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #playArea, #boardWrap, #replayBar, #replaySide { transition: none !important; }
+}
 </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-6 select-none">
@@ -341,7 +356,7 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
     </span>
   </div>
   <div class="border-t border-current/10 pt-2 flex flex-col gap-1.5">
-    <span class="text-xs font-bold tracking-wider opacity-70">優勢グラフ<span class="font-normal opacity-80">（タップ / ドラッグでその手へ移動）</span></span>
+    <span class="text-xs font-bold tracking-wider opacity-70">優勢グラフ</span>
     <canvas id="replayGraph" class="w-full touch-none cursor-pointer rounded-lg" role="img" aria-label="優勢グラフ"></canvas>
   </div>
   <p id="replaySwing" class="hidden text-xs opacity-90 border border-current/20 rounded-lg p-2 leading-relaxed"></p>
@@ -379,7 +394,7 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 
     <div class="border-t border-neutral-200 pt-3 flex flex-col gap-2">
       <div class="flex items-center justify-between">
-        <span class="text-xs font-bold tracking-wider text-neutral-500">結果カード画像</span>
+        <span class="text-xs font-bold tracking-wider text-neutral-500">結果カード</span>
         <button id="btnShareSavePng" type="button" class="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-lg active:scale-95 transition-all">保存</button>
       </div>
       <div id="shareCardPreview"></div>
@@ -3873,7 +3888,7 @@ function finishScore() {
   const row = p => `<div class="flex justify-between items-center gap-3"><span class="whitespace-nowrap"><span class="dot" style="background:${playerFill(p)};border-color:${playerStroke(p)}"></span>${playerName(p)}${G.out[p] ? ' (投了)' : ''}</span><span class="text-right">地 ${t[p]} ＋ 石 ${stones[p]} ＝ <strong>${sc[p]}点</strong></span></div>`;
   G.result = { title, details: Array.from({length:G.playerCount||3},(_,i)=>i+1).map(row).join('') };
   if (typeof recordGameEvent === 'function') recordGameEvent({ type: 'score', removed: removedForRecord, scores: sc, result: title });
-  snd.win(); showResult();
+  snd.win(); showResult({ autoReplay: true });
 }
 function resign() {
   if (typeof ensureGameRecord === 'function') ensureGameRecord();
@@ -3884,7 +3899,7 @@ function resign() {
   if (activeCount() <= 1) {
     const w = Array.from({length:G.playerCount||3},(_,i)=>i+1).find(x => !G.out[x]); G.over = true;
     G.result = { title: `${playerName(w)}の勝ち`, details: `${playerName(p)} が投了し、残りは ${playerName(w)} のみとなりました。` };
-    snd.win(); showResult();
+    snd.win(); showResult({ autoReplay: true });
   } else { G.passes = 0; nextTurn(); }
   if (typeof recordGameEvent === 'function') recordGameEvent({ type: 'resign', player: p });
 }
@@ -5813,7 +5828,7 @@ if ($('recordFile')) $('recordFile').onchange = () => {
 
 // --- ./js/ui/modals.js ---
 // ===== モーダル共通: 背景クリック / Esc / 閉じるボタンで閉じる =====
-const MODAL_IDS = ['recordModal', 'setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal'];
+const MODAL_IDS = ['recordModal', 'setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal', 'shareModal'];
 function modalEl(id) { return document.getElementById(id); }
 function visibleModals() {
   return MODAL_IDS.map(modalEl).filter(el => el && !el.classList.contains('hidden'));
@@ -5834,15 +5849,16 @@ window.addEventListener('keydown', e => {
   if (open.length) { e.preventDefault(); closeModal(open[open.length - 1]); }
 });
 
-function showResult() {
+// 結果モーダルを表示する。リプレイへの遷移は終局時(onGameEnd)に一度だけ行い、
+// ここからは呼ばない(「結果を見る」を押すたびにリプレイへ飛ぶのを防ぐ)。
+function showResult(options) {
   $('resTitle').textContent = G.result.title;
   $('resDet').innerHTML = G.result.details;
   $('resModal').classList.remove('hidden');
-  // 対局が終わったら、そのままリプレイ画面へ切り替える(結果はヘッダで確認可能)
-  autoOpenReplayOnEnd();
+  if (options && options.autoReplay) autoOpenReplayOnEnd();
 }
 
-// 終局直後にリプレイ画面へ自動で切り替える。
+// 終局直後にリプレイ画面へ切り替える(終局画面はリプレイそのものとする)。
 // 結果モーダルは閉じない(結果を見ながら直後にリプレイへ移れるようにする)。
 let autoReplayTimer = null;
 function autoOpenReplayOnEnd() {
@@ -5853,9 +5869,9 @@ function autoOpenReplayOnEnd() {
     if (typeof window.HexagoReplayUI === 'undefined' || !window.HexagoReplayUI.open) return;
     if (typeof window.HexagoReplayView !== 'undefined' && window.HexagoReplayView.active()) return;
     window.HexagoReplayUI.open({ keepResultModal: true });
-  }, 900);
+  }, 220);
 }
-$('btnShowResult').onclick = showResult;
+$('btnShowResult').onclick = () => showResult();
 $('btnAgain').onclick = () => { closeModal($('resModal')); reset(); };
 $('btnPass').onclick = () => { if (!G.over && G.phase === 'playing' && mine()) { doPass(); after(); } };
 let resignArmed = false, resignTimer = null;
@@ -7059,6 +7075,8 @@ window.addEventListener('offline', () => {
   }
 
   function buildShareUrl(record, size, playerCount, names) {
+    // 共有リンクから来たなら、そのリンクをそのまま引き継ぐ
+    if (inheritedShareUrl) return inheritedShareUrl;
     const code = R.encodeShare(record, size, playerCount, names);
     return shareBaseUrl() + '#g=' + code;
   }
@@ -7100,11 +7118,7 @@ window.addEventListener('offline', () => {
     const len = $('shareLen');
     if (len) len.textContent = value.length + ' 文字';
     const info = $('shareLenInfo');
-    if (info) {
-      info.textContent = kind === 'short'
-        ? '開くとこのサイト上で読み込まれ、そのままリプレイが始まります。'
-        : '開くとこのサイト上で読み込まれ、そのままリプレイが始まります。';
-    }
+    if (info && kind !== 'keep') info.textContent = '';
   }
 
   // 共有URL: 自前ドメインの ?s=短縮コード 形式に変換する。
@@ -7173,20 +7187,37 @@ window.addEventListener('offline', () => {
   }
 
   // 短縮URLを取得し、自前ドメインの ?s=形式にする(失敗時は元URLのまま)
+  // 同じ対局の短縮URLは一度作ったら使い回す(開くたびに新規生成しない)
+  const shortCache = new Map();
+
   async function syncShareUrl() {
     const sm = $('shareModal');
     if (!sm) return;
     const full = sm.dataset.fullUrl || '';
     const info = $('shareLenInfo');
-    if (info) info.textContent = '短縮URLを取得中...';
+    const cached = shortCache.get(full);
+    if (cached !== undefined) {
+      // 失敗(null)もキャッシュし、開くたびに再試行しない
+      if (cached) {
+        sm.dataset.shortUrl = cached;
+        const code = shortCodeFromUrl(cached) || cached.split('/').pop();
+        setShareUrlField(selfShareUrl(code), 'short');
+      } else {
+        setShareUrlField(full, 'full');
+      }
+      return;
+    }
+    if (info) info.textContent = '';
     try {
       const short = await shortenUrl(full);
+      shortCache.set(full, short);
       sm.dataset.shortUrl = short;
       const code = shortCodeFromUrl(short) || short.split('/').pop();
       setShareUrlField(selfShareUrl(code), 'short');
     } catch (e) {
+      shortCache.set(full, null);
       setShareUrlField(full, 'full');
-      if (info) info.textContent = '短縮できませんでした。元のURLを使用します（そのまま共有できます）。';
+      if (info) info.textContent = '短縮できませんでした';
     }
   }
 
@@ -7271,12 +7302,14 @@ window.addEventListener('offline', () => {
     const positions = R.replayPositions(record, geo2);
     const series = R.advantageSeries(positions, geo2, playerCount, names);
     const t = cardTheme();
-    const W = 720, H = 1180;
+    // 横長(4:3)にして PC でも見やすく。余白は詰める。
+    const W = 960, H = 720;
+    const PAD = 36;
     const cv = document.createElement('canvas');
     cv.width = W; cv.height = H;
     const g = cv.getContext('2d');
 
-    // 背景(テーマ)
+    // 背景
     if (t.dark) { g.fillStyle = t.bg1; g.fillRect(0, 0, W, H); }
     else {
       const grad = g.createLinearGradient(0, 0, 0, H);
@@ -7284,17 +7317,33 @@ window.addEventListener('offline', () => {
       g.fillStyle = grad; g.fillRect(0, 0, W, H);
     }
 
-    // タイトル
-    g.fillStyle = t.text;
-    g.font = 'bold 44px system-ui, -apple-system, "Hiragino Sans", sans-serif';
-    g.textAlign = 'center'; g.textBaseline = 'top';
-    g.fillText('HEXAGO', W / 2, 46);
-    g.font = '20px system-ui, sans-serif';
-    g.fillStyle = t.sub;
-    g.fillText(`${size}路盤・${playerCount}人戦・${series.rows[series.rows.length - 1].ply}手`, W / 2, 102);
+    const scoreEvt = [...record.events].reverse().find(e => e.type === 'score');
+    const last = series.rows[series.rows.length - 1];
+    const order = Array.from({ length: playerCount }, (_, i) => i + 1)
+      .sort((a, b) => (last.leadPct[b] ?? -999) - (last.leadPct[a] ?? -999));
 
-    // 盤面(dpr=1 で生成 → そのまま貼れる。はみ出さない)
-    const boardSize = 500;
+    // ---- ヘッダ: タイトルと勝者 ----
+    g.textBaseline = 'top';
+    g.textAlign = 'left';
+    g.fillStyle = t.text;
+    g.font = 'bold 26px system-ui, -apple-system, "Hiragino Sans", sans-serif';
+    g.fillText('HEXAGO', PAD, PAD);
+    g.font = '15px system-ui, sans-serif';
+    g.fillStyle = t.sub;
+    g.fillText(`${size}路盤・${playerCount}人戦・${last.ply}手`, PAD + 108, PAD + 6);
+
+    // 勝者(右上)。サイト名と紛れないよう大きく
+    if (scoreEvt && scoreEvt.result) {
+      g.textAlign = 'right';
+      g.fillStyle = t.text;
+      g.font = 'bold 22px system-ui, sans-serif';
+      g.fillText(scoreEvt.result, W - PAD, PAD + 2);
+      g.textAlign = 'left';
+    }
+
+    // ---- 盤面(左) ----
+    const boardSize = 380;
+    const boardX = PAD, boardY = 92;
     const board = document.createElement('canvas');
     const fills = {}, strokes = {};
     for (let p = 1; p <= playerCount; p++) { fills[p] = playerFill(p); strokes[p] = playerStroke(p); }
@@ -7302,29 +7351,26 @@ window.addEventListener('offline', () => {
       cssSize: boardSize, dpr: 1,
       themeBoard: t.board, themeLine: t.line, fills, strokes
     });
-    g.drawImage(board, (W - boardSize) / 2, 150, boardSize, boardSize);
+    g.drawImage(board, boardX, boardY, boardSize, boardSize);
 
-    // 優勢グラフ
-    const gx = 80, gy = 700, gw = W - 160, gh = 190;
-    g.beginPath();
-    if (g.roundRect) g.roundRect(gx - 14, gy - 40, gw + 28, gh + 60, 16); else g.rect(gx - 14, gy - 40, gw + 28, gh + 60);
-    g.fillStyle = t.panel; g.fill();
-    g.strokeStyle = t.panelBorder; g.lineWidth = 2; g.stroke();
-
-    g.fillStyle = t.sub; g.font = 'bold 17px system-ui, sans-serif';
-    g.textAlign = 'left'; g.textBaseline = 'top';
-    g.fillText('優勢グラフ', gx, gy - 28);
+    // ---- 右カラム: グラフ ----
+    const colX = boardX + boardSize + 32;
+    const colW = W - colX - PAD;
+    const gy = boardY + 12, gh = 150;
+    g.fillStyle = t.sub;
+    g.font = 'bold 15px system-ui, sans-serif';
+    g.fillText('優勢グラフ', colX, boardY - 2);
 
     let maxAbs = 1;
     for (const row of series.rows) for (const k of Object.keys(row.leadPct)) maxAbs = Math.max(maxAbs, Math.abs(row.leadPct[k]));
     const rows = series.rows;
     const yy = v => gy + gh / 2 - (v / maxAbs) * (gh / 2);
-    const xx = i => gx + (rows.length <= 1 ? gw / 2 : (i / (rows.length - 1)) * gw);
+    const xx = i => colX + (rows.length <= 1 ? colW / 2 : (i / (rows.length - 1)) * colW);
     g.strokeStyle = t.dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.16)'; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(gx, yy(0)); g.lineTo(gx + gw, yy(0)); g.stroke();
+    g.beginPath(); g.moveTo(colX, yy(0)); g.lineTo(colX + colW, yy(0)); g.stroke();
     const lines = playerCount === 2 ? [1] : Array.from({ length: playerCount }, (_, i) => i + 1);
     lines.forEach(p => {
-      g.strokeStyle = graphLineColor(p, t.dark); g.lineWidth = 2.5; g.lineJoin = 'round';
+      g.strokeStyle = graphLineColor(p, t.dark); g.lineWidth = 2.2; g.lineJoin = 'round';
       g.beginPath();
       let started = false;
       for (let k = 0; k < rows.length; k++) {
@@ -7335,34 +7381,26 @@ window.addEventListener('offline', () => {
       g.stroke();
     });
 
-    // 順位(数値のみ。ラベル文字は付けない)
-    const last = series.rows[series.rows.length - 1];
-    const order = Array.from({ length: playerCount }, (_, i) => i + 1)
-      .sort((a, b) => (last.leadPct[b] ?? -999) - (last.leadPct[a] ?? -999));
+    // ---- 右カラム: 順位 ----
+    const rankY = gy + gh + 34;
     g.textBaseline = 'middle';
     order.forEach((p, idx) => {
-      const y = 950 + idx * 34;
+      const y = rankY + idx * 34;
       g.fillStyle = playerFill(p);
-      g.beginPath(); g.arc(110, y, 10, 0, 7); g.fill();
-      g.strokeStyle = t.sub; g.lineWidth = 1.6; g.stroke();
-      g.fillStyle = t.text; g.font = 'bold 18px system-ui, sans-serif';
+      g.beginPath(); g.arc(colX + 9, y, 9, 0, 7); g.fill();
+      g.strokeStyle = t.sub; g.lineWidth = 1.5; g.stroke();
+      g.fillStyle = t.text; g.font = 'bold 16px system-ui, sans-serif';
+      g.textAlign = 'left';
       const nm = (names && names[p]) || `${p}P`;
-      g.textAlign = 'left'; g.fillText(`${nm} (${p}P)`, 132, y);
+      g.fillText(`${nm} (${p}P)`, colX + 28, y);
       const lead = last.leadPct[p];
       const leadTxt = (typeof lead === 'number') ? `${lead >= 0 ? '+' : '−'}${Math.abs(lead).toFixed(1)}%` : '投了';
-      g.textAlign = 'right'; g.fillText(leadTxt, W - 110, y);
+      g.textAlign = 'right'; g.fillText(leadTxt, W - PAD, y);
     });
 
-    // 結果
-    const scoreEvt = [...record.events].reverse().find(e => e.type === 'score');
-    if (scoreEvt && scoreEvt.result) {
-      g.textAlign = 'center'; g.textBaseline = 'top';
-      g.fillStyle = t.text; g.font = 'bold 22px system-ui, sans-serif';
-      g.fillText(scoreEvt.result, W / 2, H - 74);
-    }
-    // サイトURL(共有用)。共有URLが取得できていればそれを、無ければページのURLを出す。
-    g.textAlign = 'center'; g.textBaseline = 'top';
-    g.fillStyle = t.sub; g.font = '15px system-ui, sans-serif';
+    // ---- サイトURL(右下・控えめ)----
+    g.textAlign = 'right'; g.textBaseline = 'bottom';
+    g.fillStyle = t.sub; g.font = '14px system-ui, sans-serif';
     const siteUrl = (function () {
       const sm = $('shareModal');
       const short = sm && sm.dataset && sm.dataset.shortUrl;
@@ -7371,7 +7409,8 @@ window.addEventListener('offline', () => {
       u.hash = ''; u.search = '';
       return u.toString();
     })();
-    g.fillText(siteUrl, W / 2, H - 34);
+    g.fillText(siteUrl, W - PAD, H - PAD + 8);
+
     return cv;
   }
 
@@ -7406,6 +7445,8 @@ window.addEventListener('offline', () => {
 
   // リプレイ状態を完全に解除する(新規対局・ページ読み込み時にも呼ぶ)
   function close() {
+    inheritedShareUrl = null;
+    try { sessionStorage.removeItem('hexago-share-origin'); } catch (e) { }
     stop();
     timer = null;
     playing = false;
@@ -7502,8 +7543,13 @@ window.addEventListener('offline', () => {
   // ===== 共有URLからの起動 =====
   //   #g=<データ>     : データ直接埋め込み(フォールバック用)
   //   ?s=<短縮コード> : 自前ドメインの共有URL → spoo.me へ一度リダイレクトして戻る
-  function openFromShareCode(code) {
+  // 共有リンクから開いた場合の元URL(?s= または #g=)を覚えておき、
+  // その画面から再共有するときは同じリンクを引き継ぐ。
+  let inheritedShareUrl = null;
+
+  function openFromShareCode(code, sourceUrl) {
     const decoded = R.decodeShare(code);
+    inheritedShareUrl = sourceUrl || null;
     return openFromRecord(decoded.record, decoded.size, decoded.playerCount, decoded.names || {});
   }
 
@@ -7517,6 +7563,12 @@ window.addEventListener('offline', () => {
       return false;
     }
     sessionStorage.setItem(key, code);
+    // リダイレクトで戻ってきたときに元の共有リンクを復元できるよう保存する
+    try {
+      const u = new URL(location.href);
+      u.search = '?s=' + code; u.hash = '';
+      sessionStorage.setItem('hexago-share-origin', u.toString());
+    } catch (e) { /* ignore */ }
     const target = 'https://spoo.me/' + encodeURIComponent(code);
     location.replace(target);
     return true;
@@ -7526,7 +7578,16 @@ window.addEventListener('offline', () => {
     const hash = location.hash || '';
     const m = /[#&]g=([A-Za-z0-9_-]+)/.exec(hash);
     if (m) {
-      try { openFromShareCode(m[1]); return true; }
+      try {
+        let origin = null;
+        try { origin = sessionStorage.getItem('hexago-share-origin'); } catch (e) { }
+        if (!origin) {
+          const u = new URL(location.href); u.hash = ''; u.search = '';
+          origin = u.toString() + '#g=' + m[1];
+        }
+        openFromShareCode(m[1], origin);
+        return true;
+      }
       catch (e) {
         const msg = e && e.message ? e.message : '共有URLを読み込めませんでした';
         setTimeout(() => alert('共有された対局を開けませんでした: ' + msg), 300);
