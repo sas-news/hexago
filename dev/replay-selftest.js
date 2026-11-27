@@ -122,6 +122,31 @@ function buildScenario(record) {
     ok(threw, '不正な共有コードは例外になる');
   }
 
+  // ---- AI / 人間の席情報 ----
+  {
+    const g = R.buildGeometry(9);
+    const rec = {
+      initial: { board: new Array(g.points.length).fill(0), out: [false, false, false, false], aiSeats: [false, false, true, false] },
+      events: [
+        { type: 'play', player: 1, point: 30 },
+        { type: 'seat', player: 1, ai: true },
+        { type: 'play', player: 2, point: 31 }
+      ]
+    };
+    const pos = R.replayPositions(rec, g);
+    ok(pos[0].aiSeats[2] === true, '初期の AI 席が復元される');
+    ok(pos[1].aiSeats[1] === false, '切替前は人間');
+    ok(pos[2].aiSeats[1] === true, '切替後は AI');
+    ok(pos[2].ply === 1 && pos[3].ply === 2, '切替イベントは手数を増やさない');
+    const ser = R.advantageSeries(pos, g, 3);
+    ok(!!ser.rows[2].aiSeats && ser.rows[2].aiSeats[1] === true, '優勢度系列にも AI 状態が乗る');
+    // 共有の往復
+    const enc = R.encodeShare(rec, 9, 3, {});
+    const dec = R.decodeShare(enc);
+    ok(dec.record.initial.aiSeats[2] === true, '共有で AI 席が保たれる(make)');
+    ok(dec.record.events.filter(e => e.type === 'seat').length === 1, '共有で切替イベントが保たれる');
+  }
+
   function nextToZero(row) { return Math.abs(row.lead[1] ?? 0) < 1e-9 && Math.abs(row.lead[2] ?? 0) < 1e-9; }
 
   process.exit(failed ? 1 : 0);

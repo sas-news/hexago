@@ -3392,7 +3392,7 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
   const copy = value => JSON.parse(JSON.stringify(value));
   const isMove = event => ['play', 'pass', 'resign'].includes(event.type);
   const signature = state => JSON.stringify([state.size, state.playerCount, state.board, state.turn, state.passes, state.out]);
-  const position = state => ({ board: state.board.slice(), turn: state.turn, passes: state.passes || 0, out: (state.out || []).slice(), damage: (state.damage || []).slice(), seen: (state.seen || []).slice() });
+  const position = state => ({ board: state.board.slice(), turn: state.turn, passes: state.passes || 0, out: (state.out || []).slice(), damage: (state.damage || []).slice(), seen: (state.seen || []).slice(), aiSeats: (state.aiSeats || []).slice() });
 
   function createRecord(state) {
     const complete = state.turn === 1 && !state.passes && !state.board.some(Boolean) && !(state.out || []).some(Boolean) && !(state.seen || []).length;
@@ -4108,28 +4108,36 @@ function resign() {
   function replayPositions(record, geo) {
     const initial = record && record.initial && record.initial.board ? record.initial.board : new Array(geo.points.length).fill(0);
     if (initial.length !== geo.points.length) throw new Error('盤面サイズと初期局面の石配列が一致しません');
-    const events = (record && Array.isArray(record.events) ? record.events : []).filter(e => e && (isMoveEvent(e) || e.type === 'score'));
-    const positions = [{ board: initial.slice(), last: -1, passes: 0, out: (record && record.initial && record.initial.out) ? record.initial.out.slice() : [], note: null, ply: 0 }];
+    const events = (record && Array.isArray(record.events) ? record.events : []).filter(e => e && (isMoveEvent(e) || e.type === 'score' || e.type === 'seat'));
+    const initAi = (record && record.initial && Array.isArray(record.initial.aiSeats)) ? record.initial.aiSeats.slice() : [];
+    const positions = [{ board: initial.slice(), last: -1, passes: 0, out: (record && record.initial && record.initial.out) ? record.initial.out.slice() : [], note: null, ply: 0, aiSeats: initAi }];
     let ply = 0;
     for (const event of events) {
       const prev = positions[positions.length - 1];
       const board = prev.board.slice(), out = prev.out.slice();
+      const aiSeats = (prev.aiSeats || []).slice();
       let next = null;
       if (event.type === 'play') {
         const r = simulateOnBoard(board, geo, event.point, event.player);
         if (!r) continue; // 復元不能なイベント(旧形式)は読み飛ばして継続
         ply++;
-        next = { board: r.a, last: event.point, passes: 0, out, note: { kind: 'play', player: event.player, point: event.point, captured: r.cap.length }, ply };
+        next = { board: r.a, last: event.point, passes: 0, out, aiSeats, note: { kind: 'play', player: event.player, point: event.point, captured: r.cap.length }, ply };
       } else if (event.type === 'pass') {
         ply++;
-        next = { board, last: -1, passes: prev.passes + 1, out, note: { kind: 'pass', player: event.player, automatic: !!event.automatic }, ply };
+        next = { board, last: -1, passes: prev.passes + 1, out, aiSeats, note: { kind: 'pass', player: event.player, automatic: !!event.automatic }, ply };
       } else if (event.type === 'resign') {
         ply++;
         if (Number.isInteger(event.player) && event.player >= 1 && event.player < out.length) out[event.player] = true;
-        next = { board, last: prev.last, passes: 0, out, note: { kind: 'resign', player: event.player }, ply };
+        next = { board, last: prev.last, passes: 0, out, aiSeats, note: { kind: 'resign', player: event.player }, ply };
+      } else if (event.type === 'seat') {
+        // 途中で人間⇔AIを切り替えた記録。盤面と手数は変えない。
+        if (Number.isInteger(event.player) && event.player >= 1 && event.player < aiSeats.length) {
+          aiSeats[event.player] = !!event.ai;
+        }
+        next = { board, last: prev.last, passes: prev.passes, out, aiSeats, note: { kind: 'seat', player: event.player, ai: !!event.ai }, ply };
       } else if (event.type === 'score') {
         (event.removed || []).forEach(i => { if (board[i]) board[i] = 0; });
-        next = { board, last: prev.last, passes: 0, out, note: { kind: 'score', removed: (event.removed || []).length, scores: event.scores ? event.scores.slice() : null, result: event.result || null }, ply };
+        next = { board, last: prev.last, passes: 0, out, aiSeats, note: { kind: 'score', removed: (event.removed || []).length, scores: event.scores ? event.scores.slice() : null, result: event.result || null }, ply };
       }
       if (next) positions.push(next);
     }
@@ -4162,7 +4170,7 @@ function resign() {
         const lv = leadValues(adv);
         active.forEach((p, k) => { lead[p] = lv.lead[k]; leadPct[p] = lv.leadPct[k]; });
       }
-      rows.push({ ply: pos.ply, kind: pos.note ? pos.note.kind : 'start', event: pos.note, evals, lead, leadPct, out: pos.out.slice() });
+      rows.push({ ply: pos.ply, kind: pos.note ? pos.note.kind : 'start', event: pos.note, evals, lead, leadPct, out: pos.out.slice(), aiSeats: (pos.aiSeats || []).slice() });
     }
     let swing = null;
     for (let k = 1; k < rows.length; k++) {
@@ -4244,13 +4252,14 @@ function resign() {
   const SHARE_VERSION = 1;
 
   function toSharePayload(record, size, playerCount, names) {
-    const moves = [];
+    const moves = [], seatChanges = [];
     let resign = [], score = null;
     for (const e of (record && record.events) || []) {
       if (!e) continue;
       if (e.type === 'play') moves.push([e.point, e.player]);
       else if (e.type === 'pass') moves.push([-1, e.player]);
       else if (e.type === 'resign') resign.push(e.player);
+      else if (e.type === 'seat') seatChanges.push([e.player, e.ai ? 1 : 0]);
       else if (e.type === 'score') score = { t: e.result || '', sc: e.scores ? e.scores.slice() : null };
     }
     const payload = { v: SHARE_VERSION, s: size, p: playerCount, m: moves };
@@ -4258,6 +4267,10 @@ function resign() {
     for (let p = 1; p <= playerCount; p++) nm.push((names && names[p]) || '');
     if (nm.some(Boolean)) payload.n = nm;
     if (resign.length) payload.o = resign;
+    if (seatChanges.length) payload.seat = seatChanges;
+    const ai = [];
+    for (let p = 1; p <= playerCount; p++) ai[p] = !!(record && record.initial && record.initial.aiSeats && record.initial.aiSeats[p]);
+    if (ai.some((v, i) => i > 0 && v)) payload.ai = ai.map(v => v ? 1 : 0);
     if (score) payload.x = score;
     return payload;
   }
@@ -4294,7 +4307,7 @@ function resign() {
       id: 'shared-' + Date.now().toString(36),
       startedAt: null,
       complete: true,
-      initial: { board: new Array(points).fill(0), turn: 1, passes: 0, out: Array(playerCount + 1).fill(false) },
+      initial: { board: new Array(points).fill(0), turn: 1, passes: 0, out: Array(playerCount + 1).fill(false), aiSeats: (data.ai || []).map(v => !!v) },
       events: []
     };
     for (const mv of data.m || []) {
@@ -4304,6 +4317,7 @@ function resign() {
       else record.events.push({ type: 'play', player, point: pt });
     }
     for (const player of data.o || []) record.events.push({ type: 'resign', player });
+    for (const sc of data.seat || []) record.events.push({ type: 'seat', player: sc[0], ai: !!sc[1] });
     if (data.x) record.events.push({ type: 'score', removed: [], scores: data.x.sc, result: data.x.t });
     const names = {};
     (data.n || []).forEach((n, i) => { if (n) names[i + 1] = n; });
@@ -5939,6 +5953,10 @@ function setSeatMode(p, nextMode, quiet=false) {
   if (typeof setSeatAIMode === 'function') setSeatAIMode(p, null);
   seats[p] = nextMode;
   setSeatAIFlag(p);
+  // 途中で人間⇔AIを切り替えたことを棋譜に残す(リプレイで表示する)
+  if (typeof recordGameEvent === 'function' && typeof ensureGameRecord === 'function' && G && G.record) {
+    try { recordGameEvent({ type: 'seat', player: p, ai: seats[p] !== 'human' }); } catch (e) { }
+  }
   if (!quiet) {
     snd.click(); syncSettings();
     if (mode === 'online' && isHost) sync();
@@ -6815,6 +6833,10 @@ window.addEventListener('offline', () => {
     if (note.kind === 'pass') return `${who(note.player)} がパス${note.automatic ? '（連続パス）' : ''}`;
     if (note.kind === 'resign') return `${who(note.player)} が投了`;
     if (note.kind === 'score') return `終局確定（死に石 ${note.removed} 個を除去）${note.result ? ' / ' + esc(note.result) : ''}`;
+    if (note.kind === 'seat') {
+      const icon = note.ai ? ICON_AI : ICON_HUMAN;
+      return `<span class="inline-flex items-center gap-1">${who(note.player)} が ${note.ai ? 'AI' : '人間'} に切替${icon}</span>`;
+    }
     return '初期局面';
   }
 
@@ -6853,14 +6875,25 @@ window.addEventListener('offline', () => {
     timer = setTimeout(tick, BASE_MS / speed);
   }
 
+  // AI / 人間を表すアイコン(絵文字は使わない)
+  const ICON_AI = '<svg aria-label="AI" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4M9 13h.01M15 13h.01M9 17h6"/></svg>';
+  const ICON_HUMAN = '<svg aria-label="人" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5"/></svg>';
+
   function updateLegend() {
     const el = $('replayLegend'), row = data.series.rows[cur];
     if (!el || !row) return;
     const pc = data.playerCount;
+    // 直前の局面とAI状態が変わった席を強調する(途中の切替を視覚的に示す)
+    const prevRow = cur > 0 ? data.series.rows[cur - 1] : null;
     const parts = Array.from({ length: pc }, (_, i) => i + 1).map(p => {
+      const isAi = !!(row.aiSeats && row.aiSeats[p]);
+      const changed = prevRow && prevRow.aiSeats && !!prevRow.aiSeats[p] !== isAi;
       const v = row.leadPct[p];
       const leadTxt = v === undefined ? '投了' : `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}%`;
-      return `<span class="inline-flex items-center gap-1 whitespace-nowrap">${dotHtml(p)}<span>${esc(seatName(p))}</span><span class="font-normal opacity-70">${leadTxt}</span></span>`;
+      const mark = changed
+        ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>`
+        : '';
+      return `<span class="inline-flex items-center gap-1 whitespace-nowrap${changed ? ' font-bold' : ''}">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span><span>${esc(seatName(p))}</span><span class="font-normal opacity-70">${leadTxt}</span>${mark}</span>`;
     });
     el.innerHTML = parts.join('<span class="opacity-40 mx-1">·</span>');
   }
@@ -7044,6 +7077,12 @@ window.addEventListener('offline', () => {
   // ===== 開く / 閉じる =====
   function openFromRecord(record, size, playerCount, names) {
     if (!record) return;
+    // 古い棋譜には aiSeats が無いので、現在の席設定で補完する
+    if (!record.initial || !Array.isArray(record.initial.aiSeats) || !record.initial.aiSeats.length) {
+      const ai = [];
+      for (let p = 1; p <= playerCount; p++) ai[p] = typeof aiSeatOf === 'function' ? !!aiSeatOf(p) : false;
+      record = Object.assign({}, record, { initial: Object.assign({}, record.initial || {}, { aiSeats: ai }) });
+    }
     geo = R.buildGeometry(size);
     const positions = R.replayPositions(record, geo);
     data = { positions, playerCount, names: names || {}, fills: {}, strokes: {}, series: null, graphGeom: null, shareRecord: record };

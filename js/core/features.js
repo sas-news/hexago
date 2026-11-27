@@ -8,7 +8,7 @@
   const copy = value => JSON.parse(JSON.stringify(value));
   const isMove = event => ['play', 'pass', 'resign'].includes(event.type);
   const signature = state => JSON.stringify([state.size, state.playerCount, state.board, state.turn, state.passes, state.out]);
-  const position = state => ({ board: state.board.slice(), turn: state.turn, passes: state.passes || 0, out: (state.out || []).slice(), damage: (state.damage || []).slice(), seen: (state.seen || []).slice() });
+  const position = state => ({ board: state.board.slice(), turn: state.turn, passes: state.passes || 0, out: (state.out || []).slice(), damage: (state.damage || []).slice(), seen: (state.seen || []).slice(), aiSeats: (state.aiSeats || []).slice() });
 
   function createRecord(state) {
     const complete = state.turn === 1 && !state.passes && !state.board.some(Boolean) && !(state.out || []).some(Boolean) && !(state.seen || []).length;

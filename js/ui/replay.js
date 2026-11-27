@@ -53,6 +53,10 @@
     if (note.kind === 'pass') return `${who(note.player)} がパス${note.automatic ? '（連続パス）' : ''}`;
     if (note.kind === 'resign') return `${who(note.player)} が投了`;
     if (note.kind === 'score') return `終局確定（死に石 ${note.removed} 個を除去）${note.result ? ' / ' + esc(note.result) : ''}`;
+    if (note.kind === 'seat') {
+      const icon = note.ai ? ICON_AI : ICON_HUMAN;
+      return `<span class="inline-flex items-center gap-1">${who(note.player)} が ${note.ai ? 'AI' : '人間'} に切替${icon}</span>`;
+    }
     return '初期局面';
   }
 
@@ -91,14 +95,25 @@
     timer = setTimeout(tick, BASE_MS / speed);
   }
 
+  // AI / 人間を表すアイコン(絵文字は使わない)
+  const ICON_AI = '<svg aria-label="AI" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4M9 13h.01M15 13h.01M9 17h6"/></svg>';
+  const ICON_HUMAN = '<svg aria-label="人" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5"/></svg>';
+
   function updateLegend() {
     const el = $('replayLegend'), row = data.series.rows[cur];
     if (!el || !row) return;
     const pc = data.playerCount;
+    // 直前の局面とAI状態が変わった席を強調する(途中の切替を視覚的に示す)
+    const prevRow = cur > 0 ? data.series.rows[cur - 1] : null;
     const parts = Array.from({ length: pc }, (_, i) => i + 1).map(p => {
+      const isAi = !!(row.aiSeats && row.aiSeats[p]);
+      const changed = prevRow && prevRow.aiSeats && !!prevRow.aiSeats[p] !== isAi;
       const v = row.leadPct[p];
       const leadTxt = v === undefined ? '投了' : `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}%`;
-      return `<span class="inline-flex items-center gap-1 whitespace-nowrap">${dotHtml(p)}<span>${esc(seatName(p))}</span><span class="font-normal opacity-70">${leadTxt}</span></span>`;
+      const mark = changed
+        ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>`
+        : '';
+      return `<span class="inline-flex items-center gap-1 whitespace-nowrap${changed ? ' font-bold' : ''}">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span><span>${esc(seatName(p))}</span><span class="font-normal opacity-70">${leadTxt}</span>${mark}</span>`;
     });
     el.innerHTML = parts.join('<span class="opacity-40 mx-1">·</span>');
   }
@@ -282,6 +297,12 @@
   // ===== 開く / 閉じる =====
   function openFromRecord(record, size, playerCount, names) {
     if (!record) return;
+    // 古い棋譜には aiSeats が無いので、現在の席設定で補完する
+    if (!record.initial || !Array.isArray(record.initial.aiSeats) || !record.initial.aiSeats.length) {
+      const ai = [];
+      for (let p = 1; p <= playerCount; p++) ai[p] = typeof aiSeatOf === 'function' ? !!aiSeatOf(p) : false;
+      record = Object.assign({}, record, { initial: Object.assign({}, record.initial || {}, { aiSeats: ai }) });
+    }
     geo = R.buildGeometry(size);
     const positions = R.replayPositions(record, geo);
     data = { positions, playerCount, names: names || {}, fills: {}, strokes: {}, series: null, graphGeom: null, shareRecord: record };

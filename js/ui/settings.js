@@ -24,6 +24,10 @@ function setSeatMode(p, nextMode, quiet=false) {
   if (typeof setSeatAIMode === 'function') setSeatAIMode(p, null);
   seats[p] = nextMode;
   setSeatAIFlag(p);
+  // 途中で人間⇔AIを切り替えたことを棋譜に残す(リプレイで表示する)
+  if (typeof recordGameEvent === 'function' && typeof ensureGameRecord === 'function' && G && G.record) {
+    try { recordGameEvent({ type: 'seat', player: p, ai: seats[p] !== 'human' }); } catch (e) { }
+  }
   if (!quiet) {
     snd.click(); syncSettings();
     if (mode === 'online' && isHost) sync();
