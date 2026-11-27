@@ -365,40 +365,31 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
         <span class="text-xs font-bold tracking-wider text-neutral-500">共有URL</span>
         <span id="shareLen" class="text-[11px] text-neutral-500"></span>
       </div>
-      <div class="flex gap-2">
+      <div class="flex gap-1.5">
         <input id="shareUrl" readonly class="flex-1 min-w-0 text-xs font-mono px-3 py-2.5 border border-neutral-300 rounded-lg bg-neutral-50 text-neutral-800">
-        <button id="btnShareCopy" type="button" class="shrink-0 px-3.5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 active:scale-95 transition-all">
-          <svg aria-hidden="true" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>
-          <span id="shareCopyLabel">コピー</span>
+        <button id="btnShareCopy" type="button" title="コピー" aria-label="URLをコピー" class="shrink-0 w-11 h-11 flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg active:scale-95 transition-all">
+          <svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>
+        </button>
+        <button id="btnShareNative" type="button" title="共有" aria-label="他のアプリで共有" class="shrink-0 w-11 h-11 hidden items-center justify-center border border-neutral-300 hover:bg-neutral-100 rounded-lg active:scale-95 transition-all">
+          <svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-4M8.6 13.5l6.8 4"/></svg>
         </button>
       </div>
-      <label class="flex items-center gap-2 text-xs text-neutral-600 cursor-pointer">
-        <input id="shareShorten" type="checkbox" checked class="w-4 h-4 accent-neutral-900"> 短縮URLを使う（spoo.me）
-      </label>
       <p id="shareLenInfo" class="text-[11px] text-neutral-500"></p>
-    </div>
-
-    <div class="grid grid-cols-2 gap-2">
-      <button id="btnShareOpenReplay" type="button" class="py-2.5 border border-neutral-300 hover:bg-neutral-100 text-xs font-bold rounded-xl">リプレイで開く</button>
-      <button id="btnShareNative" type="button" class="py-2.5 border border-neutral-300 hover:bg-neutral-100 text-xs font-bold rounded-xl">共有シート</button>
     </div>
 
     <div class="border-t border-neutral-200 pt-3 flex flex-col gap-2">
       <div class="flex items-center justify-between">
         <span class="text-xs font-bold tracking-wider text-neutral-500">結果カード画像</span>
-        <div class="flex gap-2">
-          <button id="btnSharePreviewPng" type="button" class="px-3 py-1.5 border border-neutral-300 hover:bg-neutral-100 text-xs font-bold rounded-lg">プレビュー</button>
-          <button id="btnShareSavePng" type="button" disabled class="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-lg disabled:opacity-40 disabled:pointer-events-none">保存</button>
-        </div>
+        <button id="btnShareSavePng" type="button" class="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-lg active:scale-95 transition-all">保存</button>
       </div>
-      <div id="shareCardPreview" class="hidden"></div>
+      <div id="shareCardPreview"></div>
     </div>
 
     <p id="shareStatus" role="status" class="text-xs text-neutral-600 min-h-4"></p>
   </div>
 </div>
 
-<!-- photo import modal --><!-- photo import modal -->
+<!-- photo import modal --><!-- photo import modal --><!-- photo import modal -->
 <div id="photoModal" class="modal-shell fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50 hidden">
   <div id="photoCard" class="modal-card bg-white text-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-neutral-200 overflow-y-auto overscroll-contain">
     <div class="flex items-center justify-between border-b px-4 py-3 border-neutral-200 sticky top-0 bg-white z-10">
@@ -4048,11 +4039,10 @@ function resign() {
 
     const total = Math.max(1, board.length);
     const w = contestedWeight(board, geo);
-    board.forEach(v => { if (v) raw[v]++; });
-
-    // 未確定の空点は出場者で等分した「持ち分」
-    const base = 1 / active.length;
-    active.forEach(p => { raw[p] += 0; });
+    // 石そのものは持ち点に数えない(石は「領域の所有を示す印」)。
+    // 石を点として加算すると、終盤に自分の地を埋める「詰め」の手で
+    // 実質的な形勢が変わっていないのに持ち点が増えてリードが動いてしまう。
+    // 代わりに、各プレイヤーの「影響下にある空点 + 確定地」で評価する。
 
     for (const reg of emptyRegions(board, geo)) {
       if (reg.cols.length === 1) {
@@ -4065,21 +4055,55 @@ function resign() {
         const trust = Math.max(0, Math.min(1, enclosed * evidence * (0.35 + 0.65 * w)));
         raw[c] += reg.size * trust;
         const unclaimed = reg.size * (1 - trust);
+        const base = 1 / active.length;
         active.forEach(p => { raw[p] += unclaimed * base; });
       } else if (reg.cols.length > 1) {
-        const touch = reg.cols.map(() => 0);
-        for (const i of reg.points) for (const n of geo.NB[i]) if (board[n]) touch[reg.cols.indexOf(board[n])]++;
-        const sum = touch.reduce((a, b) => a + b, 0);
-        // 争点のうち「有利な側が将来取る」分だけ実勢力として加点し、
-        // 残りはまだ誰のものでもないので等分
+        // 争点の配分は「接している石からの距離」で減衰させる。
+        // 領域全体を touch 比で丸ごと配る方式だと、広い争点で1手打っただけで
+        // 大量の点の配分比率が動き、盤面がほとんど変わっていないのに
+        // 形勢が大きく動いてしまう(終盤の詰めで顕著)。
+        // 近傍だけを影響下とし、残りは「まだ誰のものでもない」として等分する。
         const claimed = Math.min(1, w);
-        if (sum > 0) reg.cols.forEach((c, k) => { raw[c] += reg.size * claimed * (touch[k] / sum); });
-        active.forEach(p => { raw[p] += reg.size * (1 - claimed) * base; });
+        const influence = new Array(active.length).fill(0);
+        // 各色の石に接する空点から BFS で距離2まで広げる
+        const seen = new Map();  // point -> {color, dist}
+        for (const i of reg.points) {
+          for (const n of geo.NB[i]) {
+            if (board[n]) {
+              const ci = active.indexOf(board[n]);
+              if (ci >= 0) { const cur = seen.get(i); if (!cur) seen.set(i, { ci, dist: 1 }); }
+            }
+          }
+        }
+        // 1ホップずつ広げる(最大2ホップ)
+        const inReg = new Set(reg.points);
+        for (let hop = 0; hop < 2; hop++) {
+          const adds = [];
+          for (const [pt, info] of seen) {
+            if (info.dist > hop + 1) continue;
+            for (const n of geo.NB[pt]) {
+              if (!inReg.has(n) || seen.has(n)) continue;
+              adds.push([n, info.ci, info.dist + 1]);
+            }
+          }
+          for (const [n, ci, d] of adds) if (!seen.has(n)) seen.set(n, { ci, dist: d });
+        }
+        for (const [, info] of seen) {
+          influence[info.ci] += (info.dist === 1 ? 0.5 : 0.2);
+        }
+        const inflSum = influence.reduce((a, b) => a + b, 0);
+        const claimedPts = Math.min(reg.size, seen.size);
+        if (inflSum > 0) {
+          active.forEach((p2, k) => { raw[p2] += claimedPts * claimed * (influence[k] / inflSum); });
+        }
+        const rest = (reg.size - claimedPts) + claimedPts * (1 - claimed);
+        active.forEach(p2 => { raw[p2] += rest / active.length; });
       }
     }
 
     const weak = weakStoneLoss(board, geo);
-    const held = active.map(p => Math.max(0, raw[p] - (weak.get(p) || 0)));
+    // 弱石(アタリ)は取られるリスクとして減点。石の単位に合わせて控えめにする
+    const held = active.map(p => Math.max(0, raw[p] - (weak.get(p) || 0) * 0.5));
     // 総面積で正規化(0..1)。合計はおおよそ 1 になる
     return { values: held.map(v => v / total), raw, active };
   }
@@ -4154,12 +4178,37 @@ function resign() {
       }
       rows.push({ ply: pos.ply, kind: pos.note ? pos.note.kind : 'start', event: pos.note, evals, lead, leadPct, out: pos.out.slice() });
     }
+    // ---- 最大の形勢変化 ----
+    // 単純に % の差分が最大の手を選ぶと、石が少ない序盤の小さな手が
+    // 「数値上は大きい」だけで選ばれてしまう(盤面はほぼ変わっていない)。
+    // 盤面の実際の変化量(取られた石・打たれた石・地の確定度)で重み付けする。
     let swing = null;
     for (let k = 1; k < rows.length; k++) {
+      const prevPos = positions[k - 1], curPos = positions[k];
+      // 盤面の変化: 石の増減 + 取られた石は大きく効く
+      let changed = 0, captured = 0;
+      if (prevPos && curPos && prevPos.board && curPos.board) {
+        for (let i = 0; i < prevPos.board.length; i++) {
+          const a = prevPos.board[i], b = curPos.board[i];
+          if (a !== b) {
+            if (a && !b) captured++;
+            else if (!a && b) changed++;
+            else changed++;
+          }
+        }
+      }
+      // その時点で盤に乗っている石の数(序盤ほど小さい)
+      const stones = curPos && curPos.board ? curPos.board.reduce((n, v) => n + (v ? 1 : 0), 0) : 0;
+      // 序盤補正: 石が少ないうちは同じ % でも重要度を下げる
+      const maturity = Math.min(1, stones / 12);
+      // 実際に盤面が動いた手だけを候補にする(取られた石は3倍の重み)
+      const boardWeight = (changed + captured * 3) * (0.25 + 0.75 * maturity);
       for (const key of Object.keys(rows[k].leadPct)) {
         const p = +key;
         const delta = (rows[k].leadPct[p] ?? 0) - (rows[k - 1].leadPct[p] ?? 0);
-        if (!swing || Math.abs(delta) > Math.abs(swing.delta)) swing = { ply: rows[k].ply, player: p, delta };
+        // 重要度 = %変化 × 盤面変化の重み。盤面がほとんど動いていない手は選ばれない
+        const score = Math.abs(delta) * boardWeight;
+        if (!swing || score > swing.score) swing = { ply: rows[k].ply, player: p, delta, score, changed, captured, stones };
       }
     }
     return { rows, swing, names: names || null };
@@ -5842,7 +5891,28 @@ window.addEventListener('keydown', e => {
   if (open.length) { e.preventDefault(); closeModal(open[open.length - 1]); }
 });
 
-function showResult() { $('resTitle').textContent = G.result.title; $('resDet').innerHTML = G.result.details; $('resModal').classList.remove('hidden'); }
+function showResult() {
+  $('resTitle').textContent = G.result.title;
+  $('resDet').innerHTML = G.result.details;
+  $('resModal').classList.remove('hidden');
+  // 対局が終わったら、そのままリプレイ画面へ切り替える(結果はヘッダで確認可能)
+  autoOpenReplayOnEnd();
+}
+
+// 終局直後にリプレイ画面へ自動で切り替える。
+// すぐに切り替わると結果を見逃すので少し待ち、モーダルを閉じてから開く。
+let autoReplayTimer = null;
+function autoOpenReplayOnEnd() {
+  if (autoReplayTimer) clearTimeout(autoReplayTimer);
+  autoReplayTimer = setTimeout(() => {
+    autoReplayTimer = null;
+    if (!G || !G.over) return;
+    if (typeof window.HexagoReplayUI === 'undefined' || !window.HexagoReplayUI.open) return;
+    if (typeof window.HexagoReplayView !== 'undefined' && window.HexagoReplayView.active()) return; // 既に表示中
+    closeModal($('resModal'));
+    window.HexagoReplayUI.open();
+  }, 1400);
+}
 $('btnShowResult').onclick = showResult;
 $('btnAgain').onclick = () => { closeModal($('resModal')); reset(); };
 $('btnPass').onclick = () => { if (!G.over && G.phase === 'playing' && mine()) { doPass(); after(); } };
@@ -7088,9 +7158,33 @@ window.addEventListener('offline', () => {
     const info = $('shareLenInfo');
     if (info) {
       info.textContent = kind === 'short'
-        ? '短縮URLです。開くと元のURLへリダイレクトされ、そのままリプレイが始まります。'
-        : 'この端末内で完結します（サーバーには送信されません）。';
+        ? '開くとこのサイト上で読み込まれ、そのままリプレイが始まります。'
+        : '開くとこのサイト上で読み込まれ、そのままリプレイが始まります。';
     }
+  }
+
+  // 共有URL: 自前ドメインの ?s=短縮コード 形式に変換する。
+  //   https://sas-news.github.io/hexago/?s=Ab3xYz
+  //   開くと spoo.me に一度リダイレクトされ、元の対局URLへ戻ってくる。
+  //   自前ドメインのまま見せつつ、外部サービスは裏で使う。
+  function shortCodeFromUrl(shortUrl) {
+    const m = /spoo\.me\/([A-Za-z0-9_-]+)/.exec(shortUrl);
+    return m ? m[1] : '';
+  }
+
+  // サイトのURL(共有用のディレクトリ)
+  function shareSiteUrl() {
+    const u = new URL(location.href);
+    u.hash = ''; u.search = '';
+    return u.toString();
+  }
+
+  function selfShareUrl(code) {
+    // 現在のページのディレクトリ + ?s=コード (既存のクエリ・ハッシュは落とす)
+    const u = new URL(location.href);
+    u.hash = '';
+    u.search = '?s=' + code;
+    return u.toString();
   }
 
   function showShareModal(fullUrl, source) {
@@ -7100,31 +7194,52 @@ window.addEventListener('offline', () => {
     const moves = source.record.events.filter(e => ['play', 'pass', 'resign'].includes(e.type)).length;
     $('shareSummary').textContent = `${source.size}路盤・${pc}人戦・${moves}手`;
     $('shareStatus').textContent = '';
-    shareCardCache = null;
-    $('shareCardPreview').classList.add('hidden');
-    $('shareCardPreview').innerHTML = '';
-    $('btnShareSavePng').disabled = true;
     setShareUrlField(fullUrl, 'full');
     sm.dataset.fullUrl = fullUrl;
+    sm.dataset.shortUrl = '';
     const nativeBtn = $('btnShareNative');
-    if (nativeBtn) nativeBtn.classList.toggle('hidden', !navigator.share);
+    if (nativeBtn) {
+      nativeBtn.classList.toggle('hidden', !navigator.share);
+      nativeBtn.classList.toggle('flex', !!navigator.share);
+    }
     sm.classList.remove('hidden');
-    syncShareUrl();
+    sm.dataset.sourceJson = JSON.stringify({ size: source.size, playerCount: source.playerCount, names: source.names });
+    renderShareCard();
+    // 短縮URLを裏で取得し、完了後にカードのサイトURL部分も描き直す
+    syncShareUrl().then(() => renderShareCard());
   }
 
-  // 短縮チェックに応じて表示URLを決める(失敗時は元のURLのまま)
+  // カード画像を生成してモーダル内に表示する(モーダルを開いた瞬間に実行)
+  function renderShareCard() {
+    const sm = $('shareModal');
+    if (!sm || sm.classList.contains('hidden')) return;
+    const src = currentShareSource();
+    if (!src || !src.record) return;
+    try {
+      shareCardCache = drawShareCard(src.record, src.size, src.playerCount, src.names);
+      const host = $('shareCardPreview');
+      if (!host) return;
+      host.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = shareCardCache.toDataURL('image/png');
+      img.alt = '結果カード';
+      img.className = 'w-full rounded-lg border border-neutral-200';
+      host.appendChild(img);
+    } catch (e) { /* 生成失敗時はプレビュー無しで続行 */ }
+  }
+
+  // 短縮URLを取得し、自前ドメインの ?s=形式にする(失敗時は元URLのまま)
   async function syncShareUrl() {
     const sm = $('shareModal');
     if (!sm) return;
     const full = sm.dataset.fullUrl || '';
-    const shorten = $('shareShorten') && $('shareShorten').checked;
-    if (!shorten) { setShareUrlField(full, 'full'); return; }
     const info = $('shareLenInfo');
     if (info) info.textContent = '短縮URLを取得中...';
     try {
       const short = await shortenUrl(full);
-      setShareUrlField(short, 'short');
       sm.dataset.shortUrl = short;
+      const code = shortCodeFromUrl(short) || short.split('/').pop();
+      setShareUrlField(selfShareUrl(code), 'short');
     } catch (e) {
       setShareUrlField(full, 'full');
       if (info) info.textContent = '短縮できませんでした。元のURLを使用します（そのまま共有できます）。';
@@ -7299,26 +7414,21 @@ window.addEventListener('offline', () => {
     if (scoreEvt && scoreEvt.result) {
       g.textAlign = 'center'; g.textBaseline = 'top';
       g.fillStyle = t.text; g.font = 'bold 22px system-ui, sans-serif';
-      g.fillText(scoreEvt.result, W / 2, H - 52);
+      g.fillText(scoreEvt.result, W / 2, H - 74);
     }
+    // サイトURL(共有用)。共有URLが取得できていればそれを、無ければページのURLを出す。
+    g.textAlign = 'center'; g.textBaseline = 'top';
+    g.fillStyle = t.sub; g.font = '15px system-ui, sans-serif';
+    const siteUrl = (function () {
+      const sm = $('shareModal');
+      const short = sm && sm.dataset && sm.dataset.shortUrl;
+      if (short) return shareSiteUrl();
+      const u = new URL(location.href);
+      u.hash = ''; u.search = '';
+      return u.toString();
+    })();
+    g.fillText(siteUrl, W / 2, H - 34);
     return cv;
-  }
-
-  // プレビュー用: 生成した canvas をモーダル内に表示する
-  function showCardPreview(cv) {
-    const host = $('shareCardPreview');
-    if (!host) return;
-    host.innerHTML = '';
-    const url = cv.toDataURL('image/png');
-    const img = document.createElement('img');
-    img.src = url;
-    img.alt = '結果カードのプレビュー';
-    img.className = 'w-full rounded-lg border border-neutral-200';
-    host.appendChild(img);
-    host.classList.remove('hidden');
-    const dl = $('btnShareSavePng');
-    if (dl) dl.disabled = false;
-    return url;
   }
 
   function downloadShareCard(cv) {
@@ -7401,16 +7511,14 @@ window.addEventListener('offline', () => {
     if ($('replayShare')) $('replayShare').onclick = () => { snd.click(); shareGame(); };
     if ($('btnShareGame')) $('btnShareGame').onclick = () => { snd.click(); closeModal($('resModal')); shareGame(); };
     if ($('btnCloseShare')) $('btnCloseShare').onclick = () => closeModal($('shareModal'));
-    if ($('shareShorten')) $('shareShorten').onchange = () => { syncShareUrl(); };
     if ($('btnShareCopy')) $('btnShareCopy').onclick = async () => {
       const url = currentShareUrl();
-      const label = $('shareCopyLabel');
-      const before = label ? label.textContent : '';
+      if (snd.click) snd.click();
       const ok = await copyText(url);
+      const btn = $('btnShareCopy');
       if (ok) {
-        if (snd.click) snd.click();
-        if (label) { label.textContent = 'コピー済み'; setTimeout(() => { label.textContent = before || 'コピー'; }, 1600); }
         $('shareStatus').textContent = 'URLをコピーしました。';
+        if (btn) { btn.classList.add('bg-emerald-700'); setTimeout(() => btn.classList.remove('bg-emerald-700'), 1200); }
       } else {
         $('shareStatus').textContent = 'コピーできませんでした。URL欄を選択してコピーしてください。';
         const f = $('shareUrl'); if (f) { f.focus(); f.select(); }
@@ -7419,27 +7527,20 @@ window.addEventListener('offline', () => {
     if ($('btnShareNative')) $('btnShareNative').onclick = async () => {
       const url = currentShareUrl();
       try {
-        await navigator.share({ title: 'HEXAGO の対局', text: 'HEXAGO の対局リプレイ', url });
+        await navigator.share({ title: 'HEXAGO の対局', url });
         $('shareStatus').textContent = '共有しました。';
       } catch (e) {
         if (e && e.name === 'AbortError') return;
-        // 共有シートに対応していない環境ではURLをコピーしておく
         const ok = await copyText(url);
-        $('shareStatus').textContent = ok ? '共有シートが使えないため、URLをコピーしました。' : '共有できませんでした。URLをコピーしてください。';
+        $('shareStatus').textContent = ok ? '共有できないため、URLをコピーしました。' : 'URLをコピーしてください。';
       }
     };
-    if ($('btnShareOpenReplay')) $('btnShareOpenReplay').onclick = () => { closeModal($('shareModal')); openFromGame(); };
-    if ($('btnSharePreviewPng')) $('btnSharePreviewPng').onclick = () => {
+    if ($('btnShareSavePng')) $('btnShareSavePng').onclick = () => {
       const src = currentShareSource();
       if (!src || !src.record) return;
       if (snd.click) snd.click();
-      shareCardCache = drawShareCard(src.record, src.size, src.playerCount, src.names);
-      showCardPreview(shareCardCache);
-      $('shareStatus').textContent = 'プレビューを確認してから「保存」してください。';
-    };
-    if ($('btnShareSavePng')) $('btnShareSavePng').onclick = () => {
-      if (!shareCardCache) return;
-      if (snd.click) snd.click();
+      // 開いた時点で生成済み。無ければここで生成する。
+      if (!shareCardCache) shareCardCache = drawShareCard(src.record, src.size, src.playerCount, src.names);
       downloadShareCard(shareCardCache);
     };
 
@@ -7449,21 +7550,44 @@ window.addEventListener('offline', () => {
     $('btnOpenReplay').onclick = () => { snd.click(); closeModal($('recordModal')); openFromGame(); };
   });
 
-  // ===== 共有URL(#g=...)から起動 =====
+  // ===== 共有URLからの起動 =====
+  //   #g=<データ>     : データ直接埋め込み(フォールバック用)
+  //   ?s=<短縮コード> : 自前ドメインの共有URL → spoo.me へ一度リダイレクトして戻る
   function openFromShareCode(code) {
     const decoded = R.decodeShare(code);
     return openFromRecord(decoded.record, decoded.size, decoded.playerCount, decoded.names || {});
   }
 
-  function tryOpenFromLocation() {
-    const m = /[#&]g=([A-Za-z0-9_-]+)/.exec(location.hash || '');
-    if (!m) return false;
-    try { openFromShareCode(m[1]); return true; }
-    catch (e) {
-      const msg = e && e.message ? e.message : '共有URLを読み込めませんでした';
-      setTimeout(() => alert('共有された対局を開けませんでした: ' + msg), 300);
+  // ?s=CODE を受けたら、spoo.me に遷移してリダイレクトで元URLへ戻す。
+  // ループ防止のため、一度リダイレクトしたことを sessionStorage に記録する。
+  function followShortCode(code) {
+    const key = 'hexago-short-followed';
+    if (sessionStorage.getItem(key) === code) {
+      // 戻ってきた(またはループ)のでこれ以上追わない
+      sessionStorage.removeItem(key);
       return false;
     }
+    sessionStorage.setItem(key, code);
+    const target = 'https://spoo.me/' + encodeURIComponent(code);
+    location.replace(target);
+    return true;
+  }
+
+  function tryOpenFromLocation() {
+    const hash = location.hash || '';
+    const m = /[#&]g=([A-Za-z0-9_-]+)/.exec(hash);
+    if (m) {
+      try { openFromShareCode(m[1]); return true; }
+      catch (e) {
+        const msg = e && e.message ? e.message : '共有URLを読み込めませんでした';
+        setTimeout(() => alert('共有された対局を開けませんでした: ' + msg), 300);
+        return false;
+      }
+    }
+    const q = new URLSearchParams(location.search || '');
+    const code = q.get('s');
+    if (code && /^[A-Za-z0-9_-]+$/.test(code)) return followShortCode(code);
+    return false;
   }
 
   // render() から参照される公開 API

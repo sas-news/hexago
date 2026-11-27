@@ -147,11 +147,10 @@
 
     const total = Math.max(1, board.length);
     const w = contestedWeight(board, geo);
-    board.forEach(v => { if (v) raw[v]++; });
-
-    // 未確定の空点は出場者で等分した「持ち分」
-    const base = 1 / active.length;
-    active.forEach(p => { raw[p] += 0; });
+    // 石そのものは持ち点に数えない(石は「領域の所有を示す印」)。
+    // 石を点として加算すると、終盤に自分の地を埋める「詰め」の手で
+    // 実質的な形勢が変わっていないのに持ち点が増えてリードが動いてしまう。
+    // 代わりに、各プレイヤーの「影響下にある空点 + 確定地」で評価する。
 
     for (const reg of emptyRegions(board, geo)) {
       if (reg.cols.length === 1) {
@@ -164,21 +163,55 @@
         const trust = Math.max(0, Math.min(1, enclosed * evidence * (0.35 + 0.65 * w)));
         raw[c] += reg.size * trust;
         const unclaimed = reg.size * (1 - trust);
+        const base = 1 / active.length;
         active.forEach(p => { raw[p] += unclaimed * base; });
       } else if (reg.cols.length > 1) {
-        const touch = reg.cols.map(() => 0);
-        for (const i of reg.points) for (const n of geo.NB[i]) if (board[n]) touch[reg.cols.indexOf(board[n])]++;
-        const sum = touch.reduce((a, b) => a + b, 0);
-        // 争点のうち「有利な側が将来取る」分だけ実勢力として加点し、
-        // 残りはまだ誰のものでもないので等分
+        // 争点の配分は「接している石からの距離」で減衰させる。
+        // 領域全体を touch 比で丸ごと配る方式だと、広い争点で1手打っただけで
+        // 大量の点の配分比率が動き、盤面がほとんど変わっていないのに
+        // 形勢が大きく動いてしまう(終盤の詰めで顕著)。
+        // 近傍だけを影響下とし、残りは「まだ誰のものでもない」として等分する。
         const claimed = Math.min(1, w);
-        if (sum > 0) reg.cols.forEach((c, k) => { raw[c] += reg.size * claimed * (touch[k] / sum); });
-        active.forEach(p => { raw[p] += reg.size * (1 - claimed) * base; });
+        const influence = new Array(active.length).fill(0);
+        // 各色の石に接する空点から BFS で距離2まで広げる
+        const seen = new Map();  // point -> {color, dist}
+        for (const i of reg.points) {
+          for (const n of geo.NB[i]) {
+            if (board[n]) {
+              const ci = active.indexOf(board[n]);
+              if (ci >= 0) { const cur = seen.get(i); if (!cur) seen.set(i, { ci, dist: 1 }); }
+            }
+          }
+        }
+        // 1ホップずつ広げる(最大2ホップ)
+        const inReg = new Set(reg.points);
+        for (let hop = 0; hop < 2; hop++) {
+          const adds = [];
+          for (const [pt, info] of seen) {
+            if (info.dist > hop + 1) continue;
+            for (const n of geo.NB[pt]) {
+              if (!inReg.has(n) || seen.has(n)) continue;
+              adds.push([n, info.ci, info.dist + 1]);
+            }
+          }
+          for (const [n, ci, d] of adds) if (!seen.has(n)) seen.set(n, { ci, dist: d });
+        }
+        for (const [, info] of seen) {
+          influence[info.ci] += (info.dist === 1 ? 0.5 : 0.2);
+        }
+        const inflSum = influence.reduce((a, b) => a + b, 0);
+        const claimedPts = Math.min(reg.size, seen.size);
+        if (inflSum > 0) {
+          active.forEach((p2, k) => { raw[p2] += claimedPts * claimed * (influence[k] / inflSum); });
+        }
+        const rest = (reg.size - claimedPts) + claimedPts * (1 - claimed);
+        active.forEach(p2 => { raw[p2] += rest / active.length; });
       }
     }
 
     const weak = weakStoneLoss(board, geo);
-    const held = active.map(p => Math.max(0, raw[p] - (weak.get(p) || 0)));
+    // 弱石(アタリ)は取られるリスクとして減点。石の単位に合わせて控えめにする
+    const held = active.map(p => Math.max(0, raw[p] - (weak.get(p) || 0) * 0.5));
     // 総面積で正規化(0..1)。合計はおおよそ 1 になる
     return { values: held.map(v => v / total), raw, active };
   }
@@ -253,12 +286,37 @@
       }
       rows.push({ ply: pos.ply, kind: pos.note ? pos.note.kind : 'start', event: pos.note, evals, lead, leadPct, out: pos.out.slice() });
     }
+    // ---- 最大の形勢変化 ----
+    // 単純に % の差分が最大の手を選ぶと、石が少ない序盤の小さな手が
+    // 「数値上は大きい」だけで選ばれてしまう(盤面はほぼ変わっていない)。
+    // 盤面の実際の変化量(取られた石・打たれた石・地の確定度)で重み付けする。
     let swing = null;
     for (let k = 1; k < rows.length; k++) {
+      const prevPos = positions[k - 1], curPos = positions[k];
+      // 盤面の変化: 石の増減 + 取られた石は大きく効く
+      let changed = 0, captured = 0;
+      if (prevPos && curPos && prevPos.board && curPos.board) {
+        for (let i = 0; i < prevPos.board.length; i++) {
+          const a = prevPos.board[i], b = curPos.board[i];
+          if (a !== b) {
+            if (a && !b) captured++;
+            else if (!a && b) changed++;
+            else changed++;
+          }
+        }
+      }
+      // その時点で盤に乗っている石の数(序盤ほど小さい)
+      const stones = curPos && curPos.board ? curPos.board.reduce((n, v) => n + (v ? 1 : 0), 0) : 0;
+      // 序盤補正: 石が少ないうちは同じ % でも重要度を下げる
+      const maturity = Math.min(1, stones / 12);
+      // 実際に盤面が動いた手だけを候補にする(取られた石は3倍の重み)
+      const boardWeight = (changed + captured * 3) * (0.25 + 0.75 * maturity);
       for (const key of Object.keys(rows[k].leadPct)) {
         const p = +key;
         const delta = (rows[k].leadPct[p] ?? 0) - (rows[k - 1].leadPct[p] ?? 0);
-        if (!swing || Math.abs(delta) > Math.abs(swing.delta)) swing = { ply: rows[k].ply, player: p, delta };
+        // 重要度 = %変化 × 盤面変化の重み。盤面がほとんど動いていない手は選ばれない
+        const score = Math.abs(delta) * boardWeight;
+        if (!swing || score > swing.score) swing = { ply: rows[k].ply, player: p, delta, score, changed, captured, stones };
       }
     }
     return { rows, swing, names: names || null };

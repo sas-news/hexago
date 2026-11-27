@@ -359,9 +359,33 @@
     const info = $('shareLenInfo');
     if (info) {
       info.textContent = kind === 'short'
-        ? '短縮URLです。開くと元のURLへリダイレクトされ、そのままリプレイが始まります。'
-        : 'この端末内で完結します（サーバーには送信されません）。';
+        ? '開くとこのサイト上で読み込まれ、そのままリプレイが始まります。'
+        : '開くとこのサイト上で読み込まれ、そのままリプレイが始まります。';
     }
+  }
+
+  // 共有URL: 自前ドメインの ?s=短縮コード 形式に変換する。
+  //   https://sas-news.github.io/hexago/?s=Ab3xYz
+  //   開くと spoo.me に一度リダイレクトされ、元の対局URLへ戻ってくる。
+  //   自前ドメインのまま見せつつ、外部サービスは裏で使う。
+  function shortCodeFromUrl(shortUrl) {
+    const m = /spoo\.me\/([A-Za-z0-9_-]+)/.exec(shortUrl);
+    return m ? m[1] : '';
+  }
+
+  // サイトのURL(共有用のディレクトリ)
+  function shareSiteUrl() {
+    const u = new URL(location.href);
+    u.hash = ''; u.search = '';
+    return u.toString();
+  }
+
+  function selfShareUrl(code) {
+    // 現在のページのディレクトリ + ?s=コード (既存のクエリ・ハッシュは落とす)
+    const u = new URL(location.href);
+    u.hash = '';
+    u.search = '?s=' + code;
+    return u.toString();
   }
 
   function showShareModal(fullUrl, source) {
@@ -371,31 +395,52 @@
     const moves = source.record.events.filter(e => ['play', 'pass', 'resign'].includes(e.type)).length;
     $('shareSummary').textContent = `${source.size}路盤・${pc}人戦・${moves}手`;
     $('shareStatus').textContent = '';
-    shareCardCache = null;
-    $('shareCardPreview').classList.add('hidden');
-    $('shareCardPreview').innerHTML = '';
-    $('btnShareSavePng').disabled = true;
     setShareUrlField(fullUrl, 'full');
     sm.dataset.fullUrl = fullUrl;
+    sm.dataset.shortUrl = '';
     const nativeBtn = $('btnShareNative');
-    if (nativeBtn) nativeBtn.classList.toggle('hidden', !navigator.share);
+    if (nativeBtn) {
+      nativeBtn.classList.toggle('hidden', !navigator.share);
+      nativeBtn.classList.toggle('flex', !!navigator.share);
+    }
     sm.classList.remove('hidden');
-    syncShareUrl();
+    sm.dataset.sourceJson = JSON.stringify({ size: source.size, playerCount: source.playerCount, names: source.names });
+    renderShareCard();
+    // 短縮URLを裏で取得し、完了後にカードのサイトURL部分も描き直す
+    syncShareUrl().then(() => renderShareCard());
   }
 
-  // 短縮チェックに応じて表示URLを決める(失敗時は元のURLのまま)
+  // カード画像を生成してモーダル内に表示する(モーダルを開いた瞬間に実行)
+  function renderShareCard() {
+    const sm = $('shareModal');
+    if (!sm || sm.classList.contains('hidden')) return;
+    const src = currentShareSource();
+    if (!src || !src.record) return;
+    try {
+      shareCardCache = drawShareCard(src.record, src.size, src.playerCount, src.names);
+      const host = $('shareCardPreview');
+      if (!host) return;
+      host.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = shareCardCache.toDataURL('image/png');
+      img.alt = '結果カード';
+      img.className = 'w-full rounded-lg border border-neutral-200';
+      host.appendChild(img);
+    } catch (e) { /* 生成失敗時はプレビュー無しで続行 */ }
+  }
+
+  // 短縮URLを取得し、自前ドメインの ?s=形式にする(失敗時は元URLのまま)
   async function syncShareUrl() {
     const sm = $('shareModal');
     if (!sm) return;
     const full = sm.dataset.fullUrl || '';
-    const shorten = $('shareShorten') && $('shareShorten').checked;
-    if (!shorten) { setShareUrlField(full, 'full'); return; }
     const info = $('shareLenInfo');
     if (info) info.textContent = '短縮URLを取得中...';
     try {
       const short = await shortenUrl(full);
-      setShareUrlField(short, 'short');
       sm.dataset.shortUrl = short;
+      const code = shortCodeFromUrl(short) || short.split('/').pop();
+      setShareUrlField(selfShareUrl(code), 'short');
     } catch (e) {
       setShareUrlField(full, 'full');
       if (info) info.textContent = '短縮できませんでした。元のURLを使用します（そのまま共有できます）。';
@@ -570,26 +615,21 @@
     if (scoreEvt && scoreEvt.result) {
       g.textAlign = 'center'; g.textBaseline = 'top';
       g.fillStyle = t.text; g.font = 'bold 22px system-ui, sans-serif';
-      g.fillText(scoreEvt.result, W / 2, H - 52);
+      g.fillText(scoreEvt.result, W / 2, H - 74);
     }
+    // サイトURL(共有用)。共有URLが取得できていればそれを、無ければページのURLを出す。
+    g.textAlign = 'center'; g.textBaseline = 'top';
+    g.fillStyle = t.sub; g.font = '15px system-ui, sans-serif';
+    const siteUrl = (function () {
+      const sm = $('shareModal');
+      const short = sm && sm.dataset && sm.dataset.shortUrl;
+      if (short) return shareSiteUrl();
+      const u = new URL(location.href);
+      u.hash = ''; u.search = '';
+      return u.toString();
+    })();
+    g.fillText(siteUrl, W / 2, H - 34);
     return cv;
-  }
-
-  // プレビュー用: 生成した canvas をモーダル内に表示する
-  function showCardPreview(cv) {
-    const host = $('shareCardPreview');
-    if (!host) return;
-    host.innerHTML = '';
-    const url = cv.toDataURL('image/png');
-    const img = document.createElement('img');
-    img.src = url;
-    img.alt = '結果カードのプレビュー';
-    img.className = 'w-full rounded-lg border border-neutral-200';
-    host.appendChild(img);
-    host.classList.remove('hidden');
-    const dl = $('btnShareSavePng');
-    if (dl) dl.disabled = false;
-    return url;
   }
 
   function downloadShareCard(cv) {
@@ -672,16 +712,14 @@
     if ($('replayShare')) $('replayShare').onclick = () => { snd.click(); shareGame(); };
     if ($('btnShareGame')) $('btnShareGame').onclick = () => { snd.click(); closeModal($('resModal')); shareGame(); };
     if ($('btnCloseShare')) $('btnCloseShare').onclick = () => closeModal($('shareModal'));
-    if ($('shareShorten')) $('shareShorten').onchange = () => { syncShareUrl(); };
     if ($('btnShareCopy')) $('btnShareCopy').onclick = async () => {
       const url = currentShareUrl();
-      const label = $('shareCopyLabel');
-      const before = label ? label.textContent : '';
+      if (snd.click) snd.click();
       const ok = await copyText(url);
+      const btn = $('btnShareCopy');
       if (ok) {
-        if (snd.click) snd.click();
-        if (label) { label.textContent = 'コピー済み'; setTimeout(() => { label.textContent = before || 'コピー'; }, 1600); }
         $('shareStatus').textContent = 'URLをコピーしました。';
+        if (btn) { btn.classList.add('bg-emerald-700'); setTimeout(() => btn.classList.remove('bg-emerald-700'), 1200); }
       } else {
         $('shareStatus').textContent = 'コピーできませんでした。URL欄を選択してコピーしてください。';
         const f = $('shareUrl'); if (f) { f.focus(); f.select(); }
@@ -690,27 +728,20 @@
     if ($('btnShareNative')) $('btnShareNative').onclick = async () => {
       const url = currentShareUrl();
       try {
-        await navigator.share({ title: 'HEXAGO の対局', text: 'HEXAGO の対局リプレイ', url });
+        await navigator.share({ title: 'HEXAGO の対局', url });
         $('shareStatus').textContent = '共有しました。';
       } catch (e) {
         if (e && e.name === 'AbortError') return;
-        // 共有シートに対応していない環境ではURLをコピーしておく
         const ok = await copyText(url);
-        $('shareStatus').textContent = ok ? '共有シートが使えないため、URLをコピーしました。' : '共有できませんでした。URLをコピーしてください。';
+        $('shareStatus').textContent = ok ? '共有できないため、URLをコピーしました。' : 'URLをコピーしてください。';
       }
     };
-    if ($('btnShareOpenReplay')) $('btnShareOpenReplay').onclick = () => { closeModal($('shareModal')); openFromGame(); };
-    if ($('btnSharePreviewPng')) $('btnSharePreviewPng').onclick = () => {
+    if ($('btnShareSavePng')) $('btnShareSavePng').onclick = () => {
       const src = currentShareSource();
       if (!src || !src.record) return;
       if (snd.click) snd.click();
-      shareCardCache = drawShareCard(src.record, src.size, src.playerCount, src.names);
-      showCardPreview(shareCardCache);
-      $('shareStatus').textContent = 'プレビューを確認してから「保存」してください。';
-    };
-    if ($('btnShareSavePng')) $('btnShareSavePng').onclick = () => {
-      if (!shareCardCache) return;
-      if (snd.click) snd.click();
+      // 開いた時点で生成済み。無ければここで生成する。
+      if (!shareCardCache) shareCardCache = drawShareCard(src.record, src.size, src.playerCount, src.names);
       downloadShareCard(shareCardCache);
     };
 
@@ -720,21 +751,44 @@
     $('btnOpenReplay').onclick = () => { snd.click(); closeModal($('recordModal')); openFromGame(); };
   });
 
-  // ===== 共有URL(#g=...)から起動 =====
+  // ===== 共有URLからの起動 =====
+  //   #g=<データ>     : データ直接埋め込み(フォールバック用)
+  //   ?s=<短縮コード> : 自前ドメインの共有URL → spoo.me へ一度リダイレクトして戻る
   function openFromShareCode(code) {
     const decoded = R.decodeShare(code);
     return openFromRecord(decoded.record, decoded.size, decoded.playerCount, decoded.names || {});
   }
 
-  function tryOpenFromLocation() {
-    const m = /[#&]g=([A-Za-z0-9_-]+)/.exec(location.hash || '');
-    if (!m) return false;
-    try { openFromShareCode(m[1]); return true; }
-    catch (e) {
-      const msg = e && e.message ? e.message : '共有URLを読み込めませんでした';
-      setTimeout(() => alert('共有された対局を開けませんでした: ' + msg), 300);
+  // ?s=CODE を受けたら、spoo.me に遷移してリダイレクトで元URLへ戻す。
+  // ループ防止のため、一度リダイレクトしたことを sessionStorage に記録する。
+  function followShortCode(code) {
+    const key = 'hexago-short-followed';
+    if (sessionStorage.getItem(key) === code) {
+      // 戻ってきた(またはループ)のでこれ以上追わない
+      sessionStorage.removeItem(key);
       return false;
     }
+    sessionStorage.setItem(key, code);
+    const target = 'https://spoo.me/' + encodeURIComponent(code);
+    location.replace(target);
+    return true;
+  }
+
+  function tryOpenFromLocation() {
+    const hash = location.hash || '';
+    const m = /[#&]g=([A-Za-z0-9_-]+)/.exec(hash);
+    if (m) {
+      try { openFromShareCode(m[1]); return true; }
+      catch (e) {
+        const msg = e && e.message ? e.message : '共有URLを読み込めませんでした';
+        setTimeout(() => alert('共有された対局を開けませんでした: ' + msg), 300);
+        return false;
+      }
+    }
+    const q = new URLSearchParams(location.search || '');
+    const code = q.get('s');
+    if (code && /^[A-Za-z0-9_-]+$/.test(code)) return followShortCode(code);
+    return false;
   }
 
   // render() から参照される公開 API

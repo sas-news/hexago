@@ -307,40 +307,31 @@
         <span class="text-xs font-bold tracking-wider text-neutral-500">共有URL</span>
         <span id="shareLen" class="text-[11px] text-neutral-500"></span>
       </div>
-      <div class="flex gap-2">
+      <div class="flex gap-1.5">
         <input id="shareUrl" readonly class="flex-1 min-w-0 text-xs font-mono px-3 py-2.5 border border-neutral-300 rounded-lg bg-neutral-50 text-neutral-800">
-        <button id="btnShareCopy" type="button" class="shrink-0 px-3.5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 active:scale-95 transition-all">
-          <svg aria-hidden="true" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>
-          <span id="shareCopyLabel">コピー</span>
+        <button id="btnShareCopy" type="button" title="コピー" aria-label="URLをコピー" class="shrink-0 w-11 h-11 flex items-center justify-center bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg active:scale-95 transition-all">
+          <svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>
+        </button>
+        <button id="btnShareNative" type="button" title="共有" aria-label="他のアプリで共有" class="shrink-0 w-11 h-11 hidden items-center justify-center border border-neutral-300 hover:bg-neutral-100 rounded-lg active:scale-95 transition-all">
+          <svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-4M8.6 13.5l6.8 4"/></svg>
         </button>
       </div>
-      <label class="flex items-center gap-2 text-xs text-neutral-600 cursor-pointer">
-        <input id="shareShorten" type="checkbox" checked class="w-4 h-4 accent-neutral-900"> 短縮URLを使う（spoo.me）
-      </label>
       <p id="shareLenInfo" class="text-[11px] text-neutral-500"></p>
-    </div>
-
-    <div class="grid grid-cols-2 gap-2">
-      <button id="btnShareOpenReplay" type="button" class="py-2.5 border border-neutral-300 hover:bg-neutral-100 text-xs font-bold rounded-xl">リプレイで開く</button>
-      <button id="btnShareNative" type="button" class="py-2.5 border border-neutral-300 hover:bg-neutral-100 text-xs font-bold rounded-xl">共有シート</button>
     </div>
 
     <div class="border-t border-neutral-200 pt-3 flex flex-col gap-2">
       <div class="flex items-center justify-between">
         <span class="text-xs font-bold tracking-wider text-neutral-500">結果カード画像</span>
-        <div class="flex gap-2">
-          <button id="btnSharePreviewPng" type="button" class="px-3 py-1.5 border border-neutral-300 hover:bg-neutral-100 text-xs font-bold rounded-lg">プレビュー</button>
-          <button id="btnShareSavePng" type="button" disabled class="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-lg disabled:opacity-40 disabled:pointer-events-none">保存</button>
-        </div>
+        <button id="btnShareSavePng" type="button" class="px-3 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold rounded-lg active:scale-95 transition-all">保存</button>
       </div>
-      <div id="shareCardPreview" class="hidden"></div>
+      <div id="shareCardPreview"></div>
     </div>
 
     <p id="shareStatus" role="status" class="text-xs text-neutral-600 min-h-4"></p>
   </div>
 </div>
 
-<!-- photo import modal --><!-- photo import modal -->
+<!-- photo import modal --><!-- photo import modal --><!-- photo import modal -->
 <div id="photoModal" class="modal-shell fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50 hidden">
   <div id="photoCard" class="modal-card bg-white text-neutral-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-neutral-200 overflow-y-auto overscroll-contain">
     <div class="flex items-center justify-between border-b px-4 py-3 border-neutral-200 sticky top-0 bg-white z-10">

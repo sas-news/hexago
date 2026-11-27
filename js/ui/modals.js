@@ -20,7 +20,28 @@ window.addEventListener('keydown', e => {
   if (open.length) { e.preventDefault(); closeModal(open[open.length - 1]); }
 });
 
-function showResult() { $('resTitle').textContent = G.result.title; $('resDet').innerHTML = G.result.details; $('resModal').classList.remove('hidden'); }
+function showResult() {
+  $('resTitle').textContent = G.result.title;
+  $('resDet').innerHTML = G.result.details;
+  $('resModal').classList.remove('hidden');
+  // 対局が終わったら、そのままリプレイ画面へ切り替える(結果はヘッダで確認可能)
+  autoOpenReplayOnEnd();
+}
+
+// 終局直後にリプレイ画面へ自動で切り替える。
+// すぐに切り替わると結果を見逃すので少し待ち、モーダルを閉じてから開く。
+let autoReplayTimer = null;
+function autoOpenReplayOnEnd() {
+  if (autoReplayTimer) clearTimeout(autoReplayTimer);
+  autoReplayTimer = setTimeout(() => {
+    autoReplayTimer = null;
+    if (!G || !G.over) return;
+    if (typeof window.HexagoReplayUI === 'undefined' || !window.HexagoReplayUI.open) return;
+    if (typeof window.HexagoReplayView !== 'undefined' && window.HexagoReplayView.active()) return; // 既に表示中
+    closeModal($('resModal'));
+    window.HexagoReplayUI.open();
+  }, 1400);
+}
 $('btnShowResult').onclick = showResult;
 $('btnAgain').onclick = () => { closeModal($('resModal')); reset(); };
 $('btnPass').onclick = () => { if (!G.over && G.phase === 'playing' && mine()) { doPass(); after(); } };
