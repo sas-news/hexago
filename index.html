@@ -7350,22 +7350,35 @@ window.addEventListener('offline', () => {
     // 隠す前の表示状態を覚えておき、終了時にそのまま戻す
     const targets = [...GAME_ONLY_IDS];
     if (hidden) {
+      // すでに隠している場合は記録を上書きしない。
+      // 上書きすると「隠れている」を元の状態として覚えてしまい、
+      // 解除してもパネルが戻らなくなる(二重に開いたとき等)。
       targets.forEach(id => {
         const el = $(id);
-        if (el) { HIDDEN_BEFORE.set(id, el.classList.contains('hidden')); el.classList.add('hidden'); }
+        if (!el) return;
+        if (!HIDDEN_BEFORE.has(id)) HIDDEN_BEFORE.set(id, el.classList.contains('hidden'));
+        el.classList.add('hidden');
       });
       // 操作ボタンは親の行ごと隠す
       const row = $('btnUndo') && $('btnUndo').parentElement;
-      if (row) { HIDDEN_BEFORE.set('__actionRow', row.classList.contains('hidden')); row.classList.add('hidden'); }
+      if (row) {
+        if (!HIDDEN_BEFORE.has('__actionRow')) HIDDEN_BEFORE.set('__actionRow', row.classList.contains('hidden'));
+        row.classList.add('hidden');
+      }
       const hint = document.querySelector('p.text-xs.opacity-60.text-center');
-      if (hint) { HIDDEN_BEFORE.set('__hint', hint.classList.contains('hidden')); hint.classList.add('hidden'); }
+      if (hint) {
+        if (!HIDDEN_BEFORE.has('__hint')) HIDDEN_BEFORE.set('__hint', hint.classList.contains('hidden'));
+        hint.classList.add('hidden');
+      }
     } else {
       targets.forEach(id => {
         const el = $(id);
-        if (el && HIDDEN_BEFORE.has(id)) el.classList.toggle('hidden', HIDDEN_BEFORE.get(id));
+        if (!el) return;
+        // 記録が無い場合は表示に戻す(隠れたまま固まるのを防ぐ)
+        el.classList.toggle('hidden', HIDDEN_BEFORE.has(id) ? !!HIDDEN_BEFORE.get(id) : false);
       });
       const row = $('btnUndo') && $('btnUndo').parentElement;
-      if (row && HIDDEN_BEFORE.has('__actionRow')) row.classList.toggle('hidden', HIDDEN_BEFORE.get('__actionRow'));
+      if (row) row.classList.toggle('hidden', HIDDEN_BEFORE.has('__actionRow') ? !!HIDDEN_BEFORE.get('__actionRow') : false);
       const hint = document.querySelector('p.text-xs.opacity-60.text-center');
       if (hint && HIDDEN_BEFORE.has('__hint')) hint.classList.toggle('hidden', HIDDEN_BEFORE.get('__hint'));
       HIDDEN_BEFORE.clear();
@@ -7431,6 +7444,8 @@ window.addEventListener('offline', () => {
       swEl.classList.remove('hidden');
       swEl.innerHTML = `最大の形勢変化: ${sw.ply}手目 ${dotHtml(sw.player)}<strong>${esc(seatName(sw.player))}</strong> ${sw.delta > 0 ? '+' : '−'}${fmt(Math.abs(sw.delta))}%`;
     } else swEl.classList.add('hidden');
+    // 対局用UIは「最初に隠したときの状態」を正しく復元できるよう、
+    // 隠すのは1回だけにする(二重に呼んでも上書きしない)。
     setGameUiHidden(true);
     seek(positions.length - 1); // まず終局(最新)局面。再生ボタンで0手目から
     // CSS のレイアウト確定後にグラフ/盤面を測り直す
