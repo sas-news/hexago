@@ -134,6 +134,27 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 .rp-ghost:hover{background:var(--hover)}
 /* range スライダー: accent-color でテーマ色に追従させる */
 .rp-range{accent-color:var(--accent);height:1.25rem}
+
+/* ===== モードバッジ: 「ローカル 人・人・AI」の各項目を押して切り替え =====
+   既存のバッジ見た目を保ったまま、人/AI の各文字だけをボタンにする。
+   手番の席は下線で強調する(色名は出さず、位置で席が分かる)。 */
+#modeBadge.mode-seats{display:inline-flex;align-items:center;gap:.15rem;padding:.15rem .5rem}
+#modeBadge .mode-label{margin-right:.1rem;opacity:.7}
+#modeBadge .mode-sep{opacity:.45}
+#modeBadge .seat-pill{
+  font:inherit;font-weight:800;line-height:1.3;
+  padding:.15rem .35rem;border-radius:.375rem;
+  background:transparent;border:1px solid transparent;color:inherit;
+  cursor:pointer;transition:background .15s ease,border-color .15s ease,opacity .15s ease;
+}
+#modeBadge .seat-pill:hover{background:var(--hover);border-color:var(--bd)}
+#modeBadge .seat-pill:active{transform:scale(.95)}
+/* AI は塗り、人間は素の文字。押すと入れ替わる */
+#modeBadge .seat-pill.is-ai{background:var(--accent);color:var(--accent-tx);border-color:var(--accent)}
+#modeBadge .seat-pill.is-ai:hover{filter:brightness(1.1)}
+/* 手番の席 */
+#modeBadge .seat-pill.is-turn{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
+#modeBadge .seat-pill:disabled{cursor:not-allowed;opacity:.45}
 </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-6 select-none">
@@ -5680,7 +5701,7 @@ function updateUI() {
   const countForGrid = G.playerCount || 3;
   $('dmg').style.gridTemplateColumns = `repeat(${Math.ceil(countForGrid / 2)}, minmax(0, 1fr))`;
   $('dmg').innerHTML = Array.from({length:countForGrid},(_,i)=>i+1).map(p => `<span class="min-w-0 whitespace-nowrap text-[11px] sm:text-xs">${dotHtml(p)}${playerDisplayName(p)} <strong>${G.board.filter(v => v === p).length}</strong>${G.out[p] ? '(投)' : ''}</span>`).join('');
-  $('modeBadge').textContent = mode === 'online' ? `オンライン ${myRole ? playerDisplayName(myRole) : 'プール / 観戦'}` : 'ローカル ' + seats.slice(1,playerCount+1).map(s => s === 'ai' ? 'AI' : '人').join('・');
+  renderModeBadge();
   if (mode === 'online' && !isHost) $('aiOv').classList.toggle('hidden', !(aiSeatOf(G.turn) && !G.over && G.phase === 'playing'));
   $('btnUndo').disabled = !canUndo();
   resetResignButton();
@@ -5697,6 +5718,43 @@ function updateUI() {
   $('bnResult').classList.toggle('hidden', !G.over);
   render();
 }
+
+// ===== モードバッジ(ローカル 人・AI の切り替え) =====
+// 「ローカル 人・人・AI」の各項目を押すと、その席の人間/AIを切り替える。
+// 席の順に並ぶので、どの項目が誰かは位置で分かる(色名は出さない)。
+function seatToggleEnabled() {
+  if (!G) return false;
+  if (mode === 'online') return !!isHost;
+  return true;
+}
+function renderModeBadge() {
+  const el = $('modeBadge');
+  if (!el) return;
+  if (mode === 'online') {
+    el.textContent = `オンライン ${myRole ? playerDisplayName(myRole) : 'プール / 観戦'}`;
+    el.classList.remove('mode-seats');
+    return;
+  }
+  const pc = G.playerCount || playerCount;
+  const enabled = seatToggleEnabled();
+  const parts = [];
+  for (let p = 1; p <= pc; p++) {
+    const isAi = seats[p] === 'ai';
+    const turn = (p === G.turn && !G.over) ? ' is-turn' : '';
+    parts.push(`<button type="button" class="seat-pill${isAi ? ' is-ai' : ''}${turn}" data-seat="${p}"`
+      + ` aria-pressed="${isAi}"${enabled ? '' : ' disabled'}`
+      + ` title="${p}P を ${isAi ? '人間' : 'AI'} に切り替え">${isAi ? 'AI' : '人'}</button>`);
+  }
+  el.classList.add('mode-seats');
+  el.innerHTML = `<span class="mode-label">ローカル</span>` + parts.join('<span class="mode-sep">・</span>');
+}
+document.addEventListener('click', e => {
+  const btn = e.target.closest && e.target.closest('#modeBadge .seat-pill');
+  if (!btn || btn.disabled) return;
+  const p = +btn.dataset.seat;
+  if (!p || !seatToggleEnabled()) return;
+  if (typeof setSeatMode === 'function') setSeatMode(p, seats[p] === 'ai' ? 'human' : 'ai');
+});
 
 // ===== 盤面・棋譜の保存/読み込み と 連続パス =====
 function ensureGameRecord() { return gameFeatures ? gameFeatures.ensureRecord(G) : null; }
