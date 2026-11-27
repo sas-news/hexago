@@ -20,17 +20,17 @@ window.addEventListener('keydown', e => {
   if (open.length) { e.preventDefault(); closeModal(open[open.length - 1]); }
 });
 
-// 結果モーダルを表示する。リプレイへの遷移は終局時(onGameEnd)に一度だけ行い、
-// ここからは呼ばない(「結果を見る」を押すたびにリプレイへ飛ぶのを防ぐ)。
-function showResult(options) {
+// 結果モーダルの中身を更新して表示する。
+// 終局時はこれが開いたまま、背後でリプレイ画面へ切り替わる。
+// リプレイ画面の「結果」ボタンからも開き直せる。
+function showResult() {
+  if (!G || !G.result) return;
   $('resTitle').textContent = G.result.title;
   $('resDet').innerHTML = G.result.details;
   $('resModal').classList.remove('hidden');
-  if (options && options.autoReplay) autoOpenReplayOnEnd();
 }
 
-// 終局直後にリプレイ画面へ切り替える(終局画面はリプレイそのものとする)。
-// 結果モーダルは閉じない(結果を見ながら直後にリプレイへ移れるようにする)。
+// 終局したらリプレイ画面へ切り替える(結果モーダルは開いたまま重ねる)。
 let autoReplayTimer = null;
 function autoOpenReplayOnEnd() {
   if (autoReplayTimer) clearTimeout(autoReplayTimer);
@@ -39,7 +39,7 @@ function autoOpenReplayOnEnd() {
     if (!G || !G.over) return;
     if (typeof window.HexagoReplayUI === 'undefined' || !window.HexagoReplayUI.open) return;
     if (typeof window.HexagoReplayView !== 'undefined' && window.HexagoReplayView.active()) return;
-    window.HexagoReplayUI.open({ keepResultModal: true });
+    window.HexagoReplayUI.open();
   }, 220);
 }
 $('btnShowResult').onclick = () => showResult();

@@ -543,14 +543,13 @@
     const positions = R.replayPositions(record, geo2);
     const series = R.advantageSeries(positions, geo2, playerCount, names);
     const t = cardTheme();
-    // 横長(4:3)にして PC でも見やすく。余白は詰める。
-    const W = 960, H = 720;
-    const PAD = 36;
+    // 縦長デザイン。余白を詰めて高さを 1180 → 1040 に。
+    const W = 720, H = 1040;
     const cv = document.createElement('canvas');
     cv.width = W; cv.height = H;
     const g = cv.getContext('2d');
 
-    // 背景
+    // 背景(テーマ)
     if (t.dark) { g.fillStyle = t.bg1; g.fillRect(0, 0, W, H); }
     else {
       const grad = g.createLinearGradient(0, 0, 0, H);
@@ -558,33 +557,17 @@
       g.fillStyle = grad; g.fillRect(0, 0, W, H);
     }
 
-    const scoreEvt = [...record.events].reverse().find(e => e.type === 'score');
-    const last = series.rows[series.rows.length - 1];
-    const order = Array.from({ length: playerCount }, (_, i) => i + 1)
-      .sort((a, b) => (last.leadPct[b] ?? -999) - (last.leadPct[a] ?? -999));
-
-    // ---- ヘッダ: タイトルと勝者 ----
-    g.textBaseline = 'top';
-    g.textAlign = 'left';
+    // タイトル
     g.fillStyle = t.text;
-    g.font = 'bold 26px system-ui, -apple-system, "Hiragino Sans", sans-serif';
-    g.fillText('HEXAGO', PAD, PAD);
-    g.font = '15px system-ui, sans-serif';
+    g.font = 'bold 40px system-ui, -apple-system, "Hiragino Sans", sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'top';
+    g.fillText('HEXAGO', W / 2, 30);
+    g.font = '18px system-ui, sans-serif';
     g.fillStyle = t.sub;
-    g.fillText(`${size}路盤・${playerCount}人戦・${last.ply}手`, PAD + 108, PAD + 6);
+    g.fillText(`${size}路盤・${playerCount}人戦・${series.rows[series.rows.length - 1].ply}手`, W / 2, 80);
 
-    // 勝者(右上)。サイト名と紛れないよう大きく
-    if (scoreEvt && scoreEvt.result) {
-      g.textAlign = 'right';
-      g.fillStyle = t.text;
-      g.font = 'bold 22px system-ui, sans-serif';
-      g.fillText(scoreEvt.result, W - PAD, PAD + 2);
-      g.textAlign = 'left';
-    }
-
-    // ---- 盤面(左) ----
-    const boardSize = 380;
-    const boardX = PAD, boardY = 92;
+    // 盤面
+    const boardSize = 452;
     const board = document.createElement('canvas');
     const fills = {}, strokes = {};
     for (let p = 1; p <= playerCount; p++) { fills[p] = playerFill(p); strokes[p] = playerStroke(p); }
@@ -592,26 +575,29 @@
       cssSize: boardSize, dpr: 1,
       themeBoard: t.board, themeLine: t.line, fills, strokes
     });
-    g.drawImage(board, boardX, boardY, boardSize, boardSize);
+    g.drawImage(board, (W - boardSize) / 2, 118, boardSize, boardSize);
 
-    // ---- 右カラム: グラフ ----
-    const colX = boardX + boardSize + 32;
-    const colW = W - colX - PAD;
-    const gy = boardY + 12, gh = 150;
-    g.fillStyle = t.sub;
-    g.font = 'bold 15px system-ui, sans-serif';
-    g.fillText('優勢グラフ', colX, boardY - 2);
+    // 優勢グラフ
+    const gx = 72, gy = 618, gw = W - 144, gh = 154;
+    g.beginPath();
+    if (g.roundRect) g.roundRect(gx - 12, gy - 34, gw + 24, gh + 50, 14); else g.rect(gx - 12, gy - 34, gw + 24, gh + 50);
+    g.fillStyle = t.panel; g.fill();
+    g.strokeStyle = t.panelBorder; g.lineWidth = 2; g.stroke();
+
+    g.fillStyle = t.sub; g.font = 'bold 16px system-ui, sans-serif';
+    g.textAlign = 'left'; g.textBaseline = 'top';
+    g.fillText('優勢グラフ', gx, gy - 24);
 
     let maxAbs = 1;
     for (const row of series.rows) for (const k of Object.keys(row.leadPct)) maxAbs = Math.max(maxAbs, Math.abs(row.leadPct[k]));
     const rows = series.rows;
     const yy = v => gy + gh / 2 - (v / maxAbs) * (gh / 2);
-    const xx = i => colX + (rows.length <= 1 ? colW / 2 : (i / (rows.length - 1)) * colW);
+    const xx = i => gx + (rows.length <= 1 ? gw / 2 : (i / (rows.length - 1)) * gw);
     g.strokeStyle = t.dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.16)'; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(colX, yy(0)); g.lineTo(colX + colW, yy(0)); g.stroke();
+    g.beginPath(); g.moveTo(gx, yy(0)); g.lineTo(gx + gw, yy(0)); g.stroke();
     const lines = playerCount === 2 ? [1] : Array.from({ length: playerCount }, (_, i) => i + 1);
     lines.forEach(p => {
-      g.strokeStyle = graphLineColor(p, t.dark); g.lineWidth = 2.2; g.lineJoin = 'round';
+      g.strokeStyle = graphLineColor(p, t.dark); g.lineWidth = 2.5; g.lineJoin = 'round';
       g.beginPath();
       let started = false;
       for (let k = 0; k < rows.length; k++) {
@@ -622,25 +608,32 @@
       g.stroke();
     });
 
-    // ---- 右カラム: 順位 ----
-    const rankY = gy + gh + 34;
+    // 順位
+    const last = series.rows[series.rows.length - 1];
+    const order = Array.from({ length: playerCount }, (_, i) => i + 1)
+      .sort((a, b) => (last.leadPct[b] ?? -999) - (last.leadPct[a] ?? -999));
     g.textBaseline = 'middle';
     order.forEach((p, idx) => {
-      const y = rankY + idx * 34;
+      const y = 838 + idx * 32;
       g.fillStyle = playerFill(p);
-      g.beginPath(); g.arc(colX + 9, y, 9, 0, 7); g.fill();
-      g.strokeStyle = t.sub; g.lineWidth = 1.5; g.stroke();
-      g.fillStyle = t.text; g.font = 'bold 16px system-ui, sans-serif';
-      g.textAlign = 'left';
+      g.beginPath(); g.arc(104, y, 10, 0, 7); g.fill();
+      g.strokeStyle = t.sub; g.lineWidth = 1.6; g.stroke();
+      g.fillStyle = t.text; g.font = 'bold 18px system-ui, sans-serif';
       const nm = (names && names[p]) || `${p}P`;
-      g.fillText(`${nm} (${p}P)`, colX + 28, y);
+      g.textAlign = 'left'; g.fillText(`${nm} (${p}P)`, 126, y);
       const lead = last.leadPct[p];
       const leadTxt = (typeof lead === 'number') ? `${lead >= 0 ? '+' : '−'}${Math.abs(lead).toFixed(1)}%` : '投了';
-      g.textAlign = 'right'; g.fillText(leadTxt, W - PAD, y);
+      g.textAlign = 'right'; g.fillText(leadTxt, W - 104, y);
     });
 
-    // ---- サイトURL(右下・控えめ)----
-    g.textAlign = 'right'; g.textBaseline = 'bottom';
+    // 結果とサイトURL
+    const scoreEvt = [...record.events].reverse().find(e => e.type === 'score');
+    if (scoreEvt && scoreEvt.result) {
+      g.textAlign = 'center'; g.textBaseline = 'top';
+      g.fillStyle = t.text; g.font = 'bold 21px system-ui, sans-serif';
+      g.fillText(scoreEvt.result, W / 2, H - 68);
+    }
+    g.textAlign = 'center'; g.textBaseline = 'top';
     g.fillStyle = t.sub; g.font = '14px system-ui, sans-serif';
     const siteUrl = (function () {
       const sm = $('shareModal');
@@ -650,8 +643,7 @@
       u.hash = ''; u.search = '';
       return u.toString();
     })();
-    g.fillText(siteUrl, W - PAD, H - PAD + 8);
-
+    g.fillText(siteUrl, W / 2, H - 34);
     return cv;
   }
 
@@ -740,6 +732,10 @@
     });
     window.addEventListener('orientationchange', () => { if (active()) { setTimeout(() => { layoutReplayBar(true); seek(cur); }, 120); } });
     // 共有
+    if ($('replayShowResult')) $('replayShowResult').onclick = () => {
+      if (snd.click) snd.click();
+      if (typeof G !== 'undefined' && G && G.over && G.result && typeof showResult === 'function') showResult();
+    };
     if ($('replayShare')) $('replayShare').onclick = () => { snd.click(); shareGame(); };
     if ($('btnShareGame')) $('btnShareGame').onclick = () => { snd.click(); closeModal($('resModal')); shareGame(); };
     if ($('btnCloseShare')) $('btnCloseShare').onclick = () => closeModal($('shareModal'));

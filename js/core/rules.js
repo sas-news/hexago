@@ -185,7 +185,7 @@ function finishScore() {
   const row = p => `<div class="flex justify-between items-center gap-3"><span class="whitespace-nowrap"><span class="dot" style="background:${playerFill(p)};border-color:${playerStroke(p)}"></span>${playerName(p)}${G.out[p] ? ' (投了)' : ''}</span><span class="text-right">地 ${t[p]} ＋ 石 ${stones[p]} ＝ <strong>${sc[p]}点</strong></span></div>`;
   G.result = { title, details: Array.from({length:G.playerCount||3},(_,i)=>i+1).map(row).join('') };
   if (typeof recordGameEvent === 'function') recordGameEvent({ type: 'score', removed: removedForRecord, scores: sc, result: title });
-  snd.win(); showResult({ autoReplay: true });
+  snd.win(); showResult(); if (typeof autoOpenReplayOnEnd === 'function') autoOpenReplayOnEnd();
 }
 function resign() {
   if (typeof ensureGameRecord === 'function') ensureGameRecord();
@@ -196,7 +196,7 @@ function resign() {
   if (activeCount() <= 1) {
     const w = Array.from({length:G.playerCount||3},(_,i)=>i+1).find(x => !G.out[x]); G.over = true;
     G.result = { title: `${playerName(w)}の勝ち`, details: `${playerName(p)} が投了し、残りは ${playerName(w)} のみとなりました。` };
-    snd.win(); showResult({ autoReplay: true });
+    snd.win(); showResult(); if (typeof autoOpenReplayOnEnd === 'function') autoOpenReplayOnEnd();
   } else { G.passes = 0; nextTurn(); }
   if (typeof recordGameEvent === 'function') recordGameEvent({ type: 'resign', player: p });
 }

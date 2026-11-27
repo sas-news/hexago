@@ -411,7 +411,7 @@ function applySnapshot(data) {
   if (G && !G.aiSeats) G.aiSeats = Array.from({length: (G.playerCount || 3) + 1}, (_, p) => p > 0 && seats[p] !== 'human');
   if (G) G.aiSeat = G.aiSeats.findIndex((v, i) => i > 0 && v);
   setRemoteRoleFromSnapshot(); setSeen(); prev = -1;
-  if (G?.over && !wasOver && G.result) showResult();
+  if (G?.over && !wasOver && G.result) { showResult(); if (typeof autoOpenReplayOnEnd === 'function') autoOpenReplayOnEnd(); }
   if (!G?.over) $('resModal').classList.add('hidden');
   if (!isHost) setNetStatus('');
   syncSettings(); updateUI(); save();

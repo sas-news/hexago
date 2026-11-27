@@ -10,7 +10,11 @@ window.onload = () => {
   if (!restored) $('setModal').classList.remove('hidden');
   if (G.over && G.result) $('bnResult').classList.remove('hidden');
   resizeCanvas(); updateUI();
-  // 読み込み時は必ず対局画面から始める(リプレイ表示が残らないように)
+  // 読み込み時はいったんリプレイ表示を解除したうえで、
+  // 終局済みならリプレイ画面から始める(終局=リプレイ状態)。
   if (window.HexagoReplayUI && window.HexagoReplayUI.reset) window.HexagoReplayUI.reset();
+  if (G.over && G.result && window.HexagoReplayUI && window.HexagoReplayUI.open) {
+    setTimeout(() => { if (G.over) window.HexagoReplayUI.open({ keepResultModal: true }); }, 0);
+  }
   if (!resumedOnline) maybeAI();
 };
