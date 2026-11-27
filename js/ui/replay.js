@@ -567,7 +567,7 @@
     const positions = R.replayPositions(record, geo2);
     const series = R.advantageSeries(positions, geo2, playerCount, names);
     const t = cardTheme();
-    const W = 720, H = 900;
+    const W = 720, H = 930;
     const PAD = 44;
     const cv = document.createElement('canvas');
     cv.width = W; cv.height = H;
@@ -586,29 +586,19 @@
     const order = Array.from({ length: playerCount }, (_, i) => i + 1)
       .sort((a, b) => (last.leadPct[b] ?? -999) - (last.leadPct[a] ?? -999));
 
-    // ---- ヘッダ ----
+    // ---- ヘッダ(中央寄せ) ----
     g.textBaseline = 'top';
-    g.textAlign = 'left';
+    g.textAlign = 'center';
     g.fillStyle = t.text;
-    g.font = 'bold 30px system-ui, -apple-system, "Hiragino Sans", sans-serif';
-    g.fillText('HEXAGO', PAD, 30);
-    const titleW = g.measureText('HEXAGO').width;
-    g.font = '15px system-ui, sans-serif';
+    g.font = 'bold 44px system-ui, -apple-system, "Hiragino Sans", sans-serif';
+    g.fillText('HEXAGO', W / 2, 26);
+    g.font = '20px system-ui, sans-serif';
     g.fillStyle = t.sub;
-    g.fillText(`${size}路盤 · ${playerCount}人戦 · ${last.ply}手`, PAD + titleW + 16, 40);
-
-    // 勝者(右上・大きく)
-    if (scoreEvt && scoreEvt.result) {
-      g.textAlign = 'right';
-      g.fillStyle = t.text;
-      g.font = 'bold 22px system-ui, sans-serif';
-      g.fillText(scoreEvt.result, W - PAD, 34);
-      g.textAlign = 'left';
-    }
+    g.fillText(`${size}路盤・${playerCount}人戦・${last.ply}手`, W / 2, 82);
 
     // ---- 盤面 ----
-    const boardSize = 392;
-    const boardY = 88;
+    const boardSize = 380;
+    const boardY = 124;
     const board = document.createElement('canvas');
     const fills = {}, strokes = {};
     for (let p = 1; p <= playerCount; p++) { fills[p] = playerFill(p); strokes[p] = playerStroke(p); }
@@ -618,13 +608,23 @@
     });
     g.drawImage(board, (W - boardSize) / 2, boardY, boardSize, boardSize);
 
-    // ---- 優勢グラフ(勝者のすぐ下) ----
-    const gx = PAD + 8, gy = boardY + boardSize + 50, gw = W - (PAD + 8) * 2, gh = 130;
+    // ---- 勝者(盤面とグラフの間) ----
+    const winnerY = boardY + boardSize + 22;
+    if (scoreEvt && scoreEvt.result) {
+      g.textAlign = 'center'; g.textBaseline = 'top';
+      g.fillStyle = t.text;
+      g.font = 'bold 24px system-ui, sans-serif';
+      g.fillText(scoreEvt.result, W / 2, winnerY);
+    }
+
+    // ---- 優勢グラフ ----
+    const gLabelY = winnerY + 40;
+    const gx = PAD + 8, gy = gLabelY + 30, gw = W - (PAD + 8) * 2, gh = 120;
     g.textAlign = 'left'; g.textBaseline = 'top';
     g.fillStyle = t.sub; g.font = 'bold 15px system-ui, sans-serif';
-    g.fillText('優勢グラフ', gx, gy - 26);
+    g.fillText('優勢グラフ', gx, gLabelY);
     g.beginPath();
-    if (g.roundRect) g.roundRect(gx - 12, gy - 8, gw + 24, gh + 16, 14); else g.rect(gx - 12, gy - 8, gw + 24, gh + 16);
+    if (g.roundRect) g.roundRect(gx - 12, gy - 10, gw + 24, gh + 20, 14); else g.rect(gx - 12, gy - 10, gw + 24, gh + 20);
     g.fillStyle = t.panel; g.fill();
     g.strokeStyle = t.panelBorder; g.lineWidth = 1.5; g.stroke();
 
@@ -670,7 +670,7 @@
       }
     }
 
-    const rankY = gy + gh + 34;
+    const rankY = gy + gh + 36;
     g.textBaseline = 'middle';
     order.forEach((p, idx) => {
       const y = rankY + idx * 34;
