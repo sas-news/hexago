@@ -41,6 +41,18 @@ function buildScenario(record) {
   ok(positions[positions.length - 1].board[2] === 0, 'score イベントで死に石除去');
   ok(positions.findIndex(pos => pos.note && pos.note.captured > 0) > 0, '捕獲の局面が含まれる');
 
+  // 手番: 各局面の turn は「次に打つ席」。打った本人が手番になってはいけない
+  // (リプレイの途中から再開したとき、同じ人が2連続で打ててしまうバグの再発防止)
+  let turnBad = null;
+  for (let i = 1; i < positions.length; i++) {
+    const pos = positions[i], note = pos.note;
+    if (!note || (note.kind !== 'play' && note.kind !== 'pass')) continue;
+    const pc = 2, expected = (note.player % pc) + 1;
+    if (pos.turn !== expected) turnBad = { ply: pos.ply, player: note.player, turn: pos.turn, expected };
+  }
+  ok(!turnBad, '局面の turn は「次に打つ席」(打った人の次)' + (turnBad ? ' ' + JSON.stringify(turnBad) : ''));
+
+
   const series = R.advantageSeries(positions, geo, 2);
   ok(series.rows.length === positions.length, '優勢度の行数 = 局面数');
   const leadsOk = series.rows.every(r => Math.abs((r.lead[1] ?? 0) + (r.lead[2] ?? 0)) < 1e-9);
@@ -63,10 +75,33 @@ function buildScenario(record) {
   const empty3 = new Array(geo3.points.length).fill(0);
   const st3 = { playerCount: 3, size: 9, board: empty3.slice(), turn: 1, passes: 0, over: false, phase: 'setup', dead: [], seen: [], out: [false, false, false, false], damage: [0, 0, 0, 0] };
   st3.record = Features.createRecord(st3);
-  const pos3 = R.replayPositions(st3.record, geo3);
+  // 3人戦で実際に打った手を入れて、手番が「次の人」になっているか検証する
+  // (2人戦だけ通る実装を防ぐ)
+  {
+    const b = empty3.slice(); let turn = 1;
+    for (let k = 0; k < 6; k++) {
+      const mv = b.findIndex((v, i) => !v && R.simulateOnBoard(b, geo3, i, turn));
+      if (mv < 0) break;
+      const r = R.simulateOnBoard(b, geo3, mv, turn);
+      b.splice(0, b.length, ...r.a);
+      st3.record.events.push({ type: 'play', player: turn, point: mv, captured: r.cap });
+      turn = (turn % 3) + 1;
+    }
+  }
+  const pos3 = R.replayPositions(st3.record, geo3, 3);
   const s3 = R.advantageSeries(pos3, geo3, 3);
-  ok(s3.rows.length === 1 && Object.keys(s3.rows[0].lead).length === 3, '3人戦: 各席のリードが計算される');
-  ok(s3.rows[0].evals.every(v => !v), '空盤は全員 0');
+  ok(s3.rows.length === pos3.length && Object.keys(s3.rows[0].lead).length === 3, '3人戦: 各席のリードが計算される');
+  ok(s3.rows.every(r => Object.keys(r.lead).length === 3), '3人戦: 全行で3席ぶんのリード');
+  {
+    let bad3 = null;
+    for (let i = 1; i < pos3.length; i++) {
+      const pos = pos3[i], note = pos.note;
+      if (!note || (note.kind !== 'play' && note.kind !== 'pass')) continue;
+      const expected = (note.player % 3) + 1;
+      if (pos.turn !== expected) bad3 = { ply: pos.ply, player: note.player, turn: pos.turn, expected };
+    }
+    ok(!bad3, '3人戦でも turn は次の人' + (bad3 ? ' ' + JSON.stringify(bad3) : ''));
+  }
 
   // アタリ(呼吸点1)の連は弱石として評価から減じる
   const b4 = new Array(geo3.points.length).fill(0);

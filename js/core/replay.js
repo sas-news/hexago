@@ -195,8 +195,20 @@
 
   // 棋譜レコード → 手数ごとの局面リスト(先頭 = 初期局面)。
   // 手数(ply) は play/pass/resign を数える。score イベントは死に石の除去を適用する。
-  function replayPositions(record, geo) {
+  // 次に打つ席。打った人の「次」で、投了済みの席は飛ばす。
+  function nextTurnAfter(player, outArr, playerCount) {
+    const n = Math.max(1, playerCount | 0);
+    for (let k = 1; k <= n; k++) {
+      const p = ((player - 1 + k) % n) + 1;
+      if (!(outArr && outArr[p])) return p;
+    }
+    return player;
+  }
+
+  // playerCount を渡すと手番計算を正確に行う(省略時は initial.out の長さから推定)
+  function replayPositions(record, geo, playerCount) {
     const initial = record && record.initial && record.initial.board ? record.initial.board : new Array(geo.points.length).fill(0);
+    const pc = Math.max(2, Math.min(6, Number(playerCount) || (record && record.playerCount) || (Array.isArray(record && record.initial && record.initial.out) && record.initial.out.length > 2 ? record.initial.out.length - 1 : 2)));
     if (initial.length !== geo.points.length) throw new Error('盤面サイズと初期局面の石配列が一致しません');
     const events = (record && Array.isArray(record.events) ? record.events : []).filter(e => e && (isMoveEvent(e) || e.type === 'score' || e.type === 'seat'));
     const initAi = (record && record.initial && Array.isArray(record.initial.aiSeats)) ? record.initial.aiSeats.slice() : [];
@@ -215,10 +227,10 @@
         const r = simulateOnBoard(board, geo, event.point, event.player);
         if (!r) continue; // 復元不能なイベント(旧形式)は読み飛ばして継続
         ply++;
-        next = { board: r.a, last: event.point, passes: 0, out, aiSeats, note: { kind: 'play', player: event.player, point: event.point, captured: r.cap.length }, ply, turn: event.player, eventIndex: evIndex };
+        next = { board: r.a, last: event.point, passes: 0, out, aiSeats, note: { kind: 'play', player: event.player, point: event.point, captured: r.cap.length }, ply, turn: nextTurnAfter(event.player, out, pc), eventIndex: evIndex };
       } else if (event.type === 'pass') {
         ply++;
-        next = { board, last: -1, passes: prev.passes + 1, out, aiSeats, note: { kind: 'pass', player: event.player, automatic: !!event.automatic }, ply, turn: event.player, eventIndex: evIndex };
+        next = { board, last: -1, passes: prev.passes + 1, out, aiSeats, note: { kind: 'pass', player: event.player, automatic: !!event.automatic }, ply, turn: nextTurnAfter(event.player, out, pc), eventIndex: evIndex };
       } else if (event.type === 'resign') {
         ply++;
         if (Number.isInteger(event.player) && event.player >= 1 && event.player < out.length) out[event.player] = true;

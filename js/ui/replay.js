@@ -333,7 +333,7 @@
       record = Object.assign({}, record, { initial: Object.assign({}, record.initial || {}, { aiSeats: ai }) });
     }
     geo = R.buildGeometry(size);
-    const positions = R.replayPositions(record, geo);
+    const positions = R.replayPositions(record, geo, playerCount);
     data = { positions, playerCount, names: names || {}, fills: {}, strokes: {}, series: null, graphGeom: null, shareRecord: record };
     for (let p = 1; p <= playerCount; p++) {
       data.fills[p] = playerFill(p);
@@ -706,7 +706,7 @@
 
   function drawShareCard(record, size, playerCount, names) {
     const geo2 = R.buildGeometry(size);
-    const positions = R.replayPositions(record, geo2);
+    const positions = R.replayPositions(record, geo2, playerCount);
     const series = R.advantageSeries(positions, geo2, playerCount, names);
     const t = cardTheme();
     const W = 720, H = 930;
