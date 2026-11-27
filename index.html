@@ -102,10 +102,23 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 /* ===== リプレイの凡例(1席1行) =====
    固定グリッドで数値列を右寄せに揃える。名前だけ省略して伸びる。
    これまで要素が左に詰まって見えていたのを、幅いっぱいに並べる。 */
-#replayLegend{display:flex;flex-direction:column;gap:1px}
-.replay-row{display:grid;grid-template-columns:auto minmax(3.5em,1fr) 4.6em 1.75em;align-items:center;gap:0 .375rem;padding:1px 0;font-size:11px;line-height:1.5}
-.replay-row > span:nth-child(2){min-width:0}
+/* 表全体は幅を持たせず中央へ。列は内容幅の合計だけにして、左右へ散らさない */
+#replayLegend{display:flex;flex-direction:column;gap:1px;width:max-content;max-width:100%;margin-left:auto;margin-right:auto}
+.replay-row{display:grid;grid-template-columns:auto minmax(2.5em,auto) 4.6em 1.75em;align-items:center;gap:0 .5rem;padding:1px 0;font-size:11px;line-height:1.5}
+.replay-row > span:nth-child(2){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:9em}
 .replay-row strong{font-weight:800}
+
+/* ===== リプレイUIのテーマ対応 =====
+   リプレイまわりの要素は、これまで黒/白/emeraldを直接指定していたため
+   ダーク・サイバー・和風・ファンシーでは浮いていた。テーマ変数へ寄せる。
+   モーダルは対象外(従来どおり白のまま)。 */
+.rp-badge{background:var(--accent);color:var(--accent-tx)}
+.rp-primary{background:var(--accent);color:var(--accent-tx)}
+.rp-primary:hover{filter:brightness(1.12)}
+.rp-ghost{color:inherit}
+.rp-ghost:hover{background:var(--hover)}
+/* range スライダー: accent-color でテーマ色に追従させる */
+.rp-range{accent-color:var(--accent);height:1.25rem}
 </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-6 select-none">
@@ -170,7 +183,7 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
   <div id="debugPanel" class="hidden w-full card rounded-xl p-3 text-xs flex flex-col gap-2 shadow-sm">
     <div class="flex items-center justify-between">
       <span class="font-bold">AI評価の可視化</span>
-      <label class="flex items-center gap-1.5 cursor-pointer"><input id="debugOverlayToggle" type="checkbox" checked class="w-3.5 h-3.5 accent-emerald-600"> 盤面に表示</label>
+      <label class="flex items-center gap-1.5 cursor-pointer"><input id="debugOverlayToggle" type="checkbox" checked class="rp-range w-3.5 h-3.5"> 盤面に表示</label>
     </div>
     <div class="flex items-center gap-3 flex-wrap">
       <label class="flex items-center gap-1.5">表示
@@ -373,14 +386,14 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 <div id="replayBar" class="hidden w-full flex flex-col gap-2.5 card rounded-xl p-3 shadow-sm">
   <div class="flex items-center justify-between gap-2">
     <div class="flex items-center gap-1.5 min-w-0">
-      <span class="text-xs font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-700 text-white shrink-0">リプレイ</span>
+      <span class="rp-badge text-xs font-bold tracking-wider px-2 py-0.5 rounded-full shrink-0">リプレイ</span>
       <span id="replayTitle" class="text-xs font-semibold opacity-80 truncate"></span>
     </div>
     <span class="flex items-center gap-1 shrink-0">
-    <button id="replayShowResult" type="button" class="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all" title="対局結果">
+    <button id="replayShowResult" type="button" class="rp-ghost flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-current/20 active:scale-95 transition-all" title="対局結果">
       <svg aria-hidden="true" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v6a5 5 0 01-10 0z"/><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/></svg><span>結果</span>
     </button>
-    <button id="replayShare" type="button" class="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 active:scale-95 transition-all" title="この対局のURLを共有">
+    <button id="replayShare" type="button" class="rp-primary flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg active:scale-95 transition-all" title="この対局のURLを共有">
       <svg aria-hidden="true" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-4M8.6 13.5l6.8 4"/></svg><span>共有</span>
     </button>
 
@@ -389,13 +402,13 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
   <p id="replayEvt" class="text-sm text-center min-h-5 font-medium" aria-live="polite"></p>
   <div id="replayLegend" class="text-xs w-full"></div>
   <div class="flex items-center gap-1.5">
-    <button id="replayFirst" type="button" title="最初へ" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5v14l-11-7z"/></svg></button>
-    <button id="replayPrev" type="button" title="1手戻る" aria-label="1手戻る" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5v14L5 12z"/></svg></button>
-    <button id="replayPlayBtn" type="button" class="flex-1 h-9 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-lg active:scale-[0.98] transition-all px-2 flex items-center justify-center gap-1.5"><span id="replayPlayIcon"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span><span id="replayPlayLabel">再生</span></button>
-    <button id="replayNext" type="button" title="1手進む" aria-label="1手進む" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l11 7-11 7z"/></svg></button>
-    <button id="replayLast" type="button" title="最後へ" aria-label="最後へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5l11 7-11 7z"/></svg></button>
+    <button id="replayFirst" type="button" title="最初へ" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5v14l-11-7z"/></svg></button>
+    <button id="replayPrev" type="button" title="1手戻る" aria-label="1手戻る" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5v14L5 12z"/></svg></button>
+    <button id="replayPlayBtn" type="button" class="rp-primary flex-1 h-9 text-sm font-bold rounded-lg active:scale-[0.98] transition-all px-2 flex items-center justify-center gap-1.5"><span id="replayPlayIcon"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span><span id="replayPlayLabel">再生</span></button>
+    <button id="replayNext" type="button" title="1手進む" aria-label="1手進む" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l11 7-11 7z"/></svg></button>
+    <button id="replayLast" type="button" title="最後へ" aria-label="最後へ" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5l11 7-11 7z"/></svg></button>
   </div>
-  <input id="replaySlider" type="range" min="0" max="0" value="0" step="1" class="w-full accent-neutral-900" aria-label="リプレイの再生位置">
+  <input id="replaySlider" type="range" min="0" max="0" value="0" step="1" class="rp-range w-full" aria-label="リプレイの再生位置">
   <div class="flex items-center justify-between gap-2 text-xs">
     <span id="replayPos" class="font-mono opacity-80"></span>
     <span class="flex items-center gap-1 shrink-0"><label for="replaySpeed" class="opacity-70">速度</label>
@@ -6173,9 +6186,20 @@ $('btnCloseSettings').onclick = () => closeModal($('setModal'));
 $('btnCloseResult').onclick = () => closeModal($('resModal'));
 $('btnNew').onclick = () => { snd.click(); if (reset()) closeModal($('setModal')); };
 
+// リプレイUIの強調色。テーマの文字色を基調に、背景との差を確保する。
+// hover は文字色を薄く重ねる(黒固定だとダーク系で見えなくなるため)。
+function themeAccent(th) {
+  return {
+    accent: th.id === 'default' ? '#15803d' : th.tx,
+    accentTx: th.id === 'default' ? '#ffffff' : th.bg,
+    hover: th.tx + '1a',
+  };
+}
 function applyTheme(th) {
   theme = th; const s = document.body.style;
   s.setProperty('--bg', th.bg); s.setProperty('--tx', th.tx); s.setProperty('--card', th.card); s.setProperty('--bd', th.bd);
+  const a = themeAccent(th);
+  s.setProperty('--accent', a.accent); s.setProperty('--accent-tx', a.accentTx); s.setProperty('--hover', a.hover);
   if (G) { updateUI(); save(); }
 }
 function buildThemes() {
@@ -7080,10 +7104,10 @@ window.addEventListener('offline', () => {
     g.clearRect(0, 0, cssW, cssH);
     // ガイド線 + 目盛(%)
     g.lineWidth = 1;
-    g.fillStyle = dark ? 'rgba(255,255,255,.45)' : 'rgba(0,0,0,.45)';
+    g.fillStyle = dark ? 'rgba(255,255,255,.62)' : 'rgba(0,0,0,.55)';
     g.font = '10px system-ui, sans-serif'; g.textAlign = 'right'; g.textBaseline = 'middle';
     for (let v = -range; v <= range + 1e-9; v += step) {
-      g.strokeStyle = Math.abs(v) < 1e-9 ? (dark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)') : (dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.1)');
+      g.strokeStyle = Math.abs(v) < 1e-9 ? (dark ? 'rgba(255,255,255,.6)' : 'rgba(0,0,0,.5)') : (dark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.12)');
       g.setLineDash(Math.abs(v) < 1e-9 ? [4, 3] : []);
       g.beginPath(); g.moveTo(padL, y(v)); g.lineTo(padL + iw, y(v)); g.stroke();
       g.fillText(Math.round(v) + '%', padL - 5, y(v));
@@ -7109,7 +7133,7 @@ window.addEventListener('offline', () => {
       trace(p);
     });
     // 手数ラベル
-    g.fillStyle = dark ? 'rgba(255,255,255,.45)' : 'rgba(0,0,0,.45)';
+    g.fillStyle = dark ? 'rgba(255,255,255,.62)' : 'rgba(0,0,0,.55)';
     g.textAlign = 'center'; g.textBaseline = 'top';
     const labelEvery = Math.max(1, Math.ceil(rows.length / 8));
     for (let k = 0; k < rows.length; k++) {

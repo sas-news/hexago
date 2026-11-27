@@ -144,9 +144,20 @@ $('btnCloseSettings').onclick = () => closeModal($('setModal'));
 $('btnCloseResult').onclick = () => closeModal($('resModal'));
 $('btnNew').onclick = () => { snd.click(); if (reset()) closeModal($('setModal')); };
 
+// リプレイUIの強調色。テーマの文字色を基調に、背景との差を確保する。
+// hover は文字色を薄く重ねる(黒固定だとダーク系で見えなくなるため)。
+function themeAccent(th) {
+  return {
+    accent: th.id === 'default' ? '#15803d' : th.tx,
+    accentTx: th.id === 'default' ? '#ffffff' : th.bg,
+    hover: th.tx + '1a',
+  };
+}
 function applyTheme(th) {
   theme = th; const s = document.body.style;
   s.setProperty('--bg', th.bg); s.setProperty('--tx', th.tx); s.setProperty('--card', th.card); s.setProperty('--bd', th.bd);
+  const a = themeAccent(th);
+  s.setProperty('--accent', a.accent); s.setProperty('--accent-tx', a.accentTx); s.setProperty('--hover', a.hover);
   if (G) { updateUI(); save(); }
 }
 function buildThemes() {

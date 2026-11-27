@@ -77,7 +77,7 @@
   <div id="debugPanel" class="hidden w-full card rounded-xl p-3 text-xs flex flex-col gap-2 shadow-sm">
     <div class="flex items-center justify-between">
       <span class="font-bold">AI評価の可視化</span>
-      <label class="flex items-center gap-1.5 cursor-pointer"><input id="debugOverlayToggle" type="checkbox" checked class="w-3.5 h-3.5 accent-emerald-600"> 盤面に表示</label>
+      <label class="flex items-center gap-1.5 cursor-pointer"><input id="debugOverlayToggle" type="checkbox" checked class="rp-range w-3.5 h-3.5"> 盤面に表示</label>
     </div>
     <div class="flex items-center gap-3 flex-wrap">
       <label class="flex items-center gap-1.5">表示
@@ -280,14 +280,14 @@
 <div id="replayBar" class="hidden w-full flex flex-col gap-2.5 card rounded-xl p-3 shadow-sm">
   <div class="flex items-center justify-between gap-2">
     <div class="flex items-center gap-1.5 min-w-0">
-      <span class="text-xs font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-700 text-white shrink-0">リプレイ</span>
+      <span class="rp-badge text-xs font-bold tracking-wider px-2 py-0.5 rounded-full shrink-0">リプレイ</span>
       <span id="replayTitle" class="text-xs font-semibold opacity-80 truncate"></span>
     </div>
     <span class="flex items-center gap-1 shrink-0">
-    <button id="replayShowResult" type="button" class="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all" title="対局結果">
+    <button id="replayShowResult" type="button" class="rp-ghost flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg border border-current/20 active:scale-95 transition-all" title="対局結果">
       <svg aria-hidden="true" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v6a5 5 0 01-10 0z"/><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/></svg><span>結果</span>
     </button>
-    <button id="replayShare" type="button" class="flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 active:scale-95 transition-all" title="この対局のURLを共有">
+    <button id="replayShare" type="button" class="rp-primary flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg active:scale-95 transition-all" title="この対局のURLを共有">
       <svg aria-hidden="true" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-4M8.6 13.5l6.8 4"/></svg><span>共有</span>
     </button>
 
@@ -296,13 +296,13 @@
   <p id="replayEvt" class="text-sm text-center min-h-5 font-medium" aria-live="polite"></p>
   <div id="replayLegend" class="text-xs w-full"></div>
   <div class="flex items-center gap-1.5">
-    <button id="replayFirst" type="button" title="最初へ" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5v14l-11-7z"/></svg></button>
-    <button id="replayPrev" type="button" title="1手戻る" aria-label="1手戻る" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5v14L5 12z"/></svg></button>
-    <button id="replayPlayBtn" type="button" class="flex-1 h-9 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-lg active:scale-[0.98] transition-all px-2 flex items-center justify-center gap-1.5"><span id="replayPlayIcon"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span><span id="replayPlayLabel">再生</span></button>
-    <button id="replayNext" type="button" title="1手進む" aria-label="1手進む" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l11 7-11 7z"/></svg></button>
-    <button id="replayLast" type="button" title="最後へ" aria-label="最後へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5l11 7-11 7z"/></svg></button>
+    <button id="replayFirst" type="button" title="最初へ" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5v14l-11-7z"/></svg></button>
+    <button id="replayPrev" type="button" title="1手戻る" aria-label="1手戻る" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5v14L5 12z"/></svg></button>
+    <button id="replayPlayBtn" type="button" class="rp-primary flex-1 h-9 text-sm font-bold rounded-lg active:scale-[0.98] transition-all px-2 flex items-center justify-center gap-1.5"><span id="replayPlayIcon"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span><span id="replayPlayLabel">再生</span></button>
+    <button id="replayNext" type="button" title="1手進む" aria-label="1手進む" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l11 7-11 7z"/></svg></button>
+    <button id="replayLast" type="button" title="最後へ" aria-label="最後へ" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5l11 7-11 7z"/></svg></button>
   </div>
-  <input id="replaySlider" type="range" min="0" max="0" value="0" step="1" class="w-full accent-neutral-900" aria-label="リプレイの再生位置">
+  <input id="replaySlider" type="range" min="0" max="0" value="0" step="1" class="rp-range w-full" aria-label="リプレイの再生位置">
   <div class="flex items-center justify-between gap-2 text-xs">
     <span id="replayPos" class="font-mono opacity-80"></span>
     <span class="flex items-center gap-1 shrink-0"><label for="replaySpeed" class="opacity-70">速度</label>

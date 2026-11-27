@@ -86,7 +86,20 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 /* ===== リプレイの凡例(1席1行) =====
    固定グリッドで数値列を右寄せに揃える。名前だけ省略して伸びる。
    これまで要素が左に詰まって見えていたのを、幅いっぱいに並べる。 */
-#replayLegend{display:flex;flex-direction:column;gap:1px}
-.replay-row{display:grid;grid-template-columns:auto minmax(3.5em,1fr) 4.6em 1.75em;align-items:center;gap:0 .375rem;padding:1px 0;font-size:11px;line-height:1.5}
-.replay-row > span:nth-child(2){min-width:0}
+/* 表全体は幅を持たせず中央へ。列は内容幅の合計だけにして、左右へ散らさない */
+#replayLegend{display:flex;flex-direction:column;gap:1px;width:max-content;max-width:100%;margin-left:auto;margin-right:auto}
+.replay-row{display:grid;grid-template-columns:auto minmax(2.5em,auto) 4.6em 1.75em;align-items:center;gap:0 .5rem;padding:1px 0;font-size:11px;line-height:1.5}
+.replay-row > span:nth-child(2){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:9em}
 .replay-row strong{font-weight:800}
+
+/* ===== リプレイUIのテーマ対応 =====
+   リプレイまわりの要素は、これまで黒/白/emeraldを直接指定していたため
+   ダーク・サイバー・和風・ファンシーでは浮いていた。テーマ変数へ寄せる。
+   モーダルは対象外(従来どおり白のまま)。 */
+.rp-badge{background:var(--accent);color:var(--accent-tx)}
+.rp-primary{background:var(--accent);color:var(--accent-tx)}
+.rp-primary:hover{filter:brightness(1.12)}
+.rp-ghost{color:inherit}
+.rp-ghost:hover{background:var(--hover)}
+/* range スライダー: accent-color でテーマ色に追従させる */
+.rp-range{accent-color:var(--accent);height:1.25rem}

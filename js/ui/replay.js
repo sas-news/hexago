@@ -200,10 +200,10 @@
     g.clearRect(0, 0, cssW, cssH);
     // ガイド線 + 目盛(%)
     g.lineWidth = 1;
-    g.fillStyle = dark ? 'rgba(255,255,255,.45)' : 'rgba(0,0,0,.45)';
+    g.fillStyle = dark ? 'rgba(255,255,255,.62)' : 'rgba(0,0,0,.55)';
     g.font = '10px system-ui, sans-serif'; g.textAlign = 'right'; g.textBaseline = 'middle';
     for (let v = -range; v <= range + 1e-9; v += step) {
-      g.strokeStyle = Math.abs(v) < 1e-9 ? (dark ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.5)') : (dark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.1)');
+      g.strokeStyle = Math.abs(v) < 1e-9 ? (dark ? 'rgba(255,255,255,.6)' : 'rgba(0,0,0,.5)') : (dark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.12)');
       g.setLineDash(Math.abs(v) < 1e-9 ? [4, 3] : []);
       g.beginPath(); g.moveTo(padL, y(v)); g.lineTo(padL + iw, y(v)); g.stroke();
       g.fillText(Math.round(v) + '%', padL - 5, y(v));
@@ -229,7 +229,7 @@
       trace(p);
     });
     // 手数ラベル
-    g.fillStyle = dark ? 'rgba(255,255,255,.45)' : 'rgba(0,0,0,.45)';
+    g.fillStyle = dark ? 'rgba(255,255,255,.62)' : 'rgba(0,0,0,.55)';
     g.textAlign = 'center'; g.textBaseline = 'top';
     const labelEvery = Math.max(1, Math.ceil(rows.length / 8));
     for (let k = 0; k < rows.length; k++) {
