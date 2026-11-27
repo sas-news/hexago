@@ -647,7 +647,7 @@
     }, 'image/png');
   }
 
-  function openFromGame() {
+  function openFromGame(options) {
     if (typeof ensureGameRecord !== 'function') return;
     const record = ensureGameRecord();
     if (!record || !record.events.length) {
@@ -661,18 +661,24 @@
     openFromRecord(record, G.size, pc, names);
   }
 
+  // リプレイ状態を完全に解除する(新規対局・ページ読み込み時にも呼ぶ)
   function close() {
-    if (!data) return;
     stop();
+    timer = null;
+    playing = false;
     data = null;
+    geo = null;
+    const bar = $('replayBar');
+    if (bar) bar.classList.add('hidden');
+    document.body.classList.remove('replaying');
     setGameUiHidden(false);
     if (typeof updateUI === 'function') updateUI(); // 盤面を現在の対局局面に戻す
+    if (typeof resizeCanvas === 'function') resizeCanvas();
   }
 
   // ===== 配線 =====
   document.addEventListener('DOMContentLoaded', () => {
     const bar = $('replayBar'); if (!bar) return;
-    $('replayExit').onclick = () => { snd.click(); close(); };
     $('replayPlayBtn').onclick = () => { snd.click(); togglePlay(); };
     $('replayFirst').onclick = () => { snd.click(); stop(); seek(0); };
     $('replayPrev').onclick = () => { snd.click(); stop(); seek(cur - 1); };
@@ -747,7 +753,6 @@
 
     // 入口: 結果モーダル / 終局バナー / 盤面・棋譜モーダル
     $('btnReplayGame').onclick = () => { snd.click(); closeModal($('resModal')); openFromGame(); };
-    $('btnShowReplay').onclick = () => { snd.click(); openFromGame(); };
     $('btnOpenReplay').onclick = () => { snd.click(); closeModal($('recordModal')); openFromGame(); };
   });
 
@@ -800,6 +805,7 @@
   };
   window.HexagoReplayUI = {
     open: openFromGame,
+    reset: close,
     openFromRecord,
     close,
     share: shareGame,

@@ -10,5 +10,7 @@ window.onload = () => {
   if (!restored) $('setModal').classList.remove('hidden');
   if (G.over && G.result) $('bnResult').classList.remove('hidden');
   resizeCanvas(); updateUI();
+  // 読み込み時は必ず対局画面から始める(リプレイ表示が残らないように)
+  if (window.HexagoReplayUI && window.HexagoReplayUI.reset) window.HexagoReplayUI.reset();
   if (!resumedOnline) maybeAI();
 };

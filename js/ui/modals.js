@@ -29,7 +29,7 @@ function showResult() {
 }
 
 // 終局直後にリプレイ画面へ自動で切り替える。
-// すぐに切り替わると結果を見逃すので少し待ち、モーダルを閉じてから開く。
+// 結果モーダルは閉じない(結果を見ながら直後にリプレイへ移れるようにする)。
 let autoReplayTimer = null;
 function autoOpenReplayOnEnd() {
   if (autoReplayTimer) clearTimeout(autoReplayTimer);
@@ -37,10 +37,9 @@ function autoOpenReplayOnEnd() {
     autoReplayTimer = null;
     if (!G || !G.over) return;
     if (typeof window.HexagoReplayUI === 'undefined' || !window.HexagoReplayUI.open) return;
-    if (typeof window.HexagoReplayView !== 'undefined' && window.HexagoReplayView.active()) return; // 既に表示中
-    closeModal($('resModal'));
-    window.HexagoReplayUI.open();
-  }, 1400);
+    if (typeof window.HexagoReplayView !== 'undefined' && window.HexagoReplayView.active()) return;
+    window.HexagoReplayUI.open({ keepResultModal: true });
+  }, 900);
 }
 $('btnShowResult').onclick = showResult;
 $('btnAgain').onclick = () => { closeModal($('resModal')); reset(); };

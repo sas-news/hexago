@@ -157,6 +157,8 @@ function buildThemes() {
 }
 function reset() {
   if (mode === 'online' && !isHost) { $('roomSt').textContent = '新規対局はホストが開始します'; return false; }
+  // リプレイ表示中なら先に解除する(盤面がリプレイのまま裏で対局が始まるのを防ぐ)
+  if (typeof window.HexagoReplayUI !== 'undefined' && window.HexagoReplayUI.reset) window.HexagoReplayUI.reset();
   if (typeof clearAutoPass === 'function') clearAutoPass();
   build(pendingSize); G = newG(pendingSize);
   // 未着席の人間席は対局中だけAIが代打し、席は後から着席可能なまま維持する。
