@@ -4,8 +4,7 @@ canvas{display:block;touch-action:manipulation}
 .btn{background:var(--card);border:1px solid var(--bd)}
 .opt{border:1px solid #d4d4d4;border-radius:8px;padding:8px 4px;font-weight:700;font-size:13px}
 .opt.on{background:#171717;color:#fff}
-/* 押せない選択肢(対局中のモード切替など) */
-.opt:disabled{opacity:.38;cursor:not-allowed}
+
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;border:1.5px solid;vertical-align:-1px;margin-right:3px}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(150,150,150,.3);border-radius:3px}
 
