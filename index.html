@@ -6225,19 +6225,27 @@ function setAllSeatModes(value) {
   if (mode === 'online' && isHost) sync();
   after();
 }
+// 設定画面に出す「人数・盤面サイズ」。
+// 対局中は今の対局の設定を出し、変えた値は次局の予約として持っておく。
+// そうしないと、開き直したときに現在の盤面と食い違う値が選択されて見える。
+function shownPlayerCount() { return isMatchRunning() ? (G.playerCount || playerCount) : playerCount; }
+function shownSize() { return isMatchRunning() ? G.size : pendingSize; }
 function syncSettings() {
+  const showPc = shownPlayerCount(), showSize = shownSize();
   document.querySelectorAll('#playerCountBtns .opt').forEach(b => {
-    b.classList.toggle('on', +b.dataset.count === playerCount);
+    b.classList.toggle('on', +b.dataset.count === showPc);
     b.disabled = mode === 'online' && !!roomCode && !isHost;
   });
   document.querySelectorAll('#sizeBtns .opt').forEach(b => {
-    b.classList.toggle('on', +b.dataset.v === pendingSize);
+    b.classList.toggle('on', +b.dataset.v === showSize);
     b.disabled = mode === 'online' && !!roomCode && !isHost;
   });
-  document.querySelectorAll('#modeBtns .opt').forEach(b => b.classList.toggle('on', b.dataset.v === selectedMode));
-  $('onlineBox').classList.toggle('hidden', selectedMode !== 'online');
+  // 対局中は「いま対局中のモード」を出す。選んだだけの予約は次局で反映される。
+  const showMode = isMatchRunning() ? mode : selectedMode;
+  document.querySelectorAll('#modeBtns .opt').forEach(b => b.classList.toggle('on', b.dataset.v === showMode));
+  $('onlineBox').classList.toggle('hidden', showMode !== 'online');
   const participantView = mode === 'online' && boardView === 'participant';
-  $('onlineRoleConfig').classList.toggle('hidden', selectedMode !== 'online');
+  $('onlineRoleConfig').classList.toggle('hidden', showMode !== 'online');
   $('seatBox').classList.toggle('hidden', participantView);
   ['boardSizeConfig', 'playerCountConfig', 'aiModeConfig', 'soundConfig'].forEach(id => $(id).classList.toggle('hidden', participantView));
   const bulkMode = typeof currentAIMode === 'function' ? currentAIMode() : 'fast';
@@ -6253,7 +6261,7 @@ function syncSettings() {
   $('btnHostBoard').classList.toggle('on', !participantView);
   $('btnParticipantBoard').classList.toggle('on', participantView);
   $('seatBtns').innerHTML = '';
-  for (let p = 1; p <= playerCount; p++) {
+  for (let p = 1; p <= showPc; p++) {
     const row = document.createElement('div'); row.className = 'flex items-center gap-1.5';
     const label = document.createElement('span'); label.className = 'w-16 shrink-0 text-xs font-bold text-neutral-700';
     label.textContent = `${p}P ${playerName(p)}`; row.appendChild(label);
