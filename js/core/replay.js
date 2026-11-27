@@ -316,7 +316,7 @@
     [[0, 0], [1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]].forEach(([q, r]) => {
       const i = geo.map[q * star + ',' + r * star]; if (i === undefined) return;
       const [x, y] = px(geo.points[i][0], geo.points[i][1]);
-      g.beginPath(); g.arc(x, y, Math.max(2, cell * 0.14), 0, 7); g.fill();
+      g.beginPath(); g.arc(x, y, Math.max(1.2, cell * 0.075), 0, 7); g.fill();
     });
     const rad = Math.max(2.4, cell * 0.44);
     const fills = (options && options.fills) || {}, strokes = (options && options.strokes) || {};

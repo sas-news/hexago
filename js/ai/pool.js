@@ -247,10 +247,11 @@ function mergeAIResults(results, state) {
   const totalVisits = results.reduce((n, r) => n + (r.visits || 0), 0);
   const totalPlayouts = results.reduce((n, r) => n + (r.playouts || 0), 0);
   const totalW = results.reduce((n, r) => n + (r.winrate || 0) * (r.visits || 0), 0);
-  const mergedMoves = [...acc.values()]
+  // 上位8手は従来どおり bestMoves として返しつつ、デバッグ用に全候補も返す
+  const allMoves = [...acc.values()]
     .map(c => ({ move: c.move, visits: c.visits, value: c.wn ? c.wsum / c.wn : 0 }))
-    .sort((a, b) => b.visits - a.visits)
-    .slice(0, 8);
+    .sort((a, b) => b.visits - a.visits);
+  const mergedMoves = allMoves.slice(0, 8);
   return {
     move: best ? best.move : -1,
     visits: totalVisits,
@@ -259,6 +260,7 @@ function mergeAIResults(results, state) {
     value: 0,
     bestMoves: mergedMoves,
     rootMoves: mergedMoves,
+    allMoves,
     elapsedMs: results.reduce((m, r) => Math.max(m, r.elapsedMs || 0), 0),
     workers: results.length,
     engine: results[0] && results[0].engine,

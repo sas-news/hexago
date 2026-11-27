@@ -110,11 +110,11 @@
       const changed = prevRow && prevRow.aiSeats && !!prevRow.aiSeats[p] !== isAi;
       const v = row.leadPct[p];
       const leadTxt = v === undefined ? '投了' : `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}%`;
-      return `<div class="grid grid-cols-[auto_1fr_auto_auto] items-center gap-x-2 py-0.5${changed ? ' font-bold' : ''}">
+      return `<div class="grid grid-cols-[auto_auto_auto_auto] items-center justify-start gap-x-1.5 py-0.5${changed ? ' font-bold' : ''}">
         <span class="flex items-center gap-1">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span></span>
-        <span class="truncate">${esc(seatName(p))}</span>
-        <span class="text-right tabular-nums font-mono">${leadTxt}</span>
-        <span class="w-8 text-center">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
+        <span class="whitespace-nowrap">${esc(seatName(p))}</span>
+        <span class="text-right tabular-nums font-mono min-w-[3.2em]">${leadTxt}</span>
+        <span class="w-7 text-left">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
       </div>`;
     });
     el.innerHTML = rows.join('');
@@ -278,6 +278,7 @@
     const bar = $('replayBar');
     if (bar) bar.classList.toggle('hidden', !hidden);
     document.body.classList.toggle('replaying', hidden);
+    if (window.HexagoDebug && window.HexagoDebug.syncPanel) window.HexagoDebug.syncPanel();
     layoutReplayBar(hidden);
   }
 

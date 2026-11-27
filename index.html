@@ -98,9 +98,6 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
       <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
     </button>
     <button id="btnOpenRules" type="button" title="ルールを見る" aria-label="ルールを見る" class="w-9 h-9 flex items-center justify-center rounded-full text-current opacity-35 hover:opacity-70 hover:bg-black/5 active:scale-95 transition-all text-2xl font-semibold">ⓘ</button>
-    <button id="btnDebugMode" type="button" title="デバッグモード(AI評価の可視化)" aria-label="デバッグモード" class="w-9 h-9 flex items-center justify-center rounded-full text-current opacity-50 hover:opacity-90 hover:bg-black/5 active:scale-95 transition-all">
-      <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3v2M5 8l1.5 1M19 8l-1.5 1M7 13H4M20 13h-3M8 19l1-1.5M16 19l-1-1.5"/><circle cx="12" cy="13" r="4.5"/></svg>
-    </button>
     <button id="btnOpenSettings" type="button" title="設定" aria-label="設定" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-black/5 active:scale-95 transition-all">
       <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
     </button>
@@ -152,15 +149,24 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 
   <div id="debugPanel" class="hidden w-full card rounded-xl p-3 text-xs flex flex-col gap-2 shadow-sm">
     <div class="flex items-center justify-between">
-      <span class="font-bold">デバッグモード <span id="debugToggleState" class="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[10px]">OFF</span></span>
+      <span class="font-bold">AI評価の可視化</span>
       <label class="flex items-center gap-1.5 cursor-pointer"><input id="debugOverlayToggle" type="checkbox" checked class="w-3.5 h-3.5 accent-emerald-600"> 盤面に表示</label>
     </div>
-    <label class="flex items-center gap-1.5">表示内容
-      <select id="debugOverlayMode" class="px-2 py-1 rounded-lg border border-current/20 bg-transparent text-xs font-bold">
-        <option value="visits">訪問数(探索の集中)</option>
-        <option value="winrate">勝率(形勢)</option>
-      </select>
-    </label>
+    <div class="flex items-center gap-3 flex-wrap">
+      <label class="flex items-center gap-1.5">表示
+        <select id="debugOverlayStyle" class="px-2 py-1 rounded-lg border border-current/20 bg-transparent text-xs font-bold">
+          <option value="heat">色むら</option>
+          <option value="number">数値</option>
+          <option value="both">色むら+数値</option>
+        </select>
+      </label>
+      <label class="flex items-center gap-1.5">基準
+        <select id="debugOverlayMode" class="px-2 py-1 rounded-lg border border-current/20 bg-transparent text-xs font-bold">
+          <option value="visits">訪問数</option>
+          <option value="winrate">勝率</option>
+        </select>
+      </label>
+    </div>
   </div>
 
   <div id="bnResult" class="hidden w-full flex items-center justify-between py-2 px-3 card text-xs sm:text-sm rounded-lg">
@@ -305,6 +311,16 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
       <label class="text-xs font-bold tracking-wider text-neutral-500">カラーテーマ</label>
       <div class="grid grid-cols-1 gap-1.5" id="themeList"></div>
     </div>
+    <details class="border-t border-neutral-200 pt-3">
+      <summary class="text-xs font-bold tracking-wider text-neutral-400 cursor-pointer select-none">詳細設定</summary>
+      <div class="flex items-center justify-between pt-2.5">
+        <div class="min-w-0">
+          <span class="text-sm font-bold text-neutral-700">AI評価の可視化</span>
+          <p class="text-[11px] text-neutral-500 leading-snug mt-0.5">AIが各点をどう評価したかをリプレイで色分け表示</p>
+        </div>
+        <button id="btnDebugMode" type="button" class="shrink-0 ml-3 px-3 py-1 text-xs font-bold rounded-full border border-neutral-300 bg-neutral-100">OFF</button>
+      </div>
+    </details>
     <button id="btnNew" class="w-full py-3 bg-neutral-900 text-white font-bold text-sm tracking-wider rounded-xl hover:bg-neutral-800 mt-2">ニューゲームスタート</button>
   </div>
 </div>
@@ -4242,7 +4258,7 @@ function resign() {
     [[0, 0], [1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]].forEach(([q, r]) => {
       const i = geo.map[q * star + ',' + r * star]; if (i === undefined) return;
       const [x, y] = px(geo.points[i][0], geo.points[i][1]);
-      g.beginPath(); g.arc(x, y, Math.max(2, cell * 0.14), 0, 7); g.fill();
+      g.beginPath(); g.arc(x, y, Math.max(1.2, cell * 0.075), 0, 7); g.fill();
     });
     const rad = Math.max(2.4, cell * 0.44);
     const fills = (options && options.fills) || {}, strokes = (options && options.strokes) || {};
@@ -5279,10 +5295,11 @@ function mergeAIResults(results, state) {
   const totalVisits = results.reduce((n, r) => n + (r.visits || 0), 0);
   const totalPlayouts = results.reduce((n, r) => n + (r.playouts || 0), 0);
   const totalW = results.reduce((n, r) => n + (r.winrate || 0) * (r.visits || 0), 0);
-  const mergedMoves = [...acc.values()]
+  // 上位8手は従来どおり bestMoves として返しつつ、デバッグ用に全候補も返す
+  const allMoves = [...acc.values()]
     .map(c => ({ move: c.move, visits: c.visits, value: c.wn ? c.wsum / c.wn : 0 }))
-    .sort((a, b) => b.visits - a.visits)
-    .slice(0, 8);
+    .sort((a, b) => b.visits - a.visits);
+  const mergedMoves = allMoves.slice(0, 8);
   return {
     move: best ? best.move : -1,
     visits: totalVisits,
@@ -5291,6 +5308,7 @@ function mergeAIResults(results, state) {
     value: 0,
     bestMoves: mergedMoves,
     rootMoves: mergedMoves,
+    allMoves,
     elapsedMs: results.reduce((m, r) => Math.max(m, r.elapsedMs || 0), 0),
     workers: results.length,
     engine: results[0] && results[0].engine,
@@ -6917,11 +6935,11 @@ window.addEventListener('offline', () => {
       const changed = prevRow && prevRow.aiSeats && !!prevRow.aiSeats[p] !== isAi;
       const v = row.leadPct[p];
       const leadTxt = v === undefined ? '投了' : `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}%`;
-      return `<div class="grid grid-cols-[auto_1fr_auto_auto] items-center gap-x-2 py-0.5${changed ? ' font-bold' : ''}">
+      return `<div class="grid grid-cols-[auto_auto_auto_auto] items-center justify-start gap-x-1.5 py-0.5${changed ? ' font-bold' : ''}">
         <span class="flex items-center gap-1">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span></span>
-        <span class="truncate">${esc(seatName(p))}</span>
-        <span class="text-right tabular-nums font-mono">${leadTxt}</span>
-        <span class="w-8 text-center">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
+        <span class="whitespace-nowrap">${esc(seatName(p))}</span>
+        <span class="text-right tabular-nums font-mono min-w-[3.2em]">${leadTxt}</span>
+        <span class="w-7 text-left">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
       </div>`;
     });
     el.innerHTML = rows.join('');
@@ -7085,6 +7103,7 @@ window.addEventListener('offline', () => {
     const bar = $('replayBar');
     if (bar) bar.classList.toggle('hidden', !hidden);
     document.body.classList.toggle('replaying', hidden);
+    if (window.HexagoDebug && window.HexagoDebug.syncPanel) window.HexagoDebug.syncPanel();
     layoutReplayBar(hidden);
   }
 
@@ -11127,6 +11146,7 @@ window.__hexagoDebug = {
   // 手数(ply) → { player, moves: [{move, visits, value}], visits, winrate }
   const records = new Map();
   let overlayMode = 'visits';   // 'visits' | 'winrate'
+  let overlayStyle = 'heat';    // 'heat' | 'number' | 'both'
   let showOverlay = true;
 
   try { enabled = localStorage.getItem(KEY) === '1'; } catch (e) { }
@@ -11148,8 +11168,13 @@ window.__hexagoDebug = {
     const moves = list
       .filter(m => m && Number.isInteger(m.move) && m.move >= 0)
       .map(m => ({ move: m.move, visits: Math.max(1, m.visits | 0), value: Number(m.value) || 0 }));
-    if (!moves.length) return;
-    const ply = (G && G.hist) ? G.hist.length : 0;
+    // AI が探索しなかった空点も、ヒューリスティック評価で埋めて盤全体を塗れるようにする
+    const all = buildFullBoardValues(player, moves, window.HexagoReplay ? window.HexagoReplay.buildGeometry((typeof G !== 'undefined' && G) ? G.size : 9) : null);
+    if (!moves.length && !all.length) return;
+    // 手数は棋譜のイベント数から求める(G.hist は40手で打ち切られるため使えない)
+    const ply = (G && G.record && Array.isArray(G.record.events))
+      ? G.record.events.filter(e => e.type === 'play' || e.type === 'pass' || e.type === 'resign').length
+      : 0;
     const key = ply + ':' + player;
     records.set(key, {
       player,
@@ -11157,8 +11182,74 @@ window.__hexagoDebug = {
       visits: result.visits || 0,
       winrate: result.winrate,
       moves,
+      all,
+      best: Number.isInteger(result.move) ? result.move : -1,
       at: Date.now()
     });
+  }
+
+  // 探索済み候補に加えて、未探索の空点を軽量な近似評価で補い、盤面全体の値を返す。
+  // (エンジンは Worker 内にあるため直接呼べない。ここでは簡易な手厚み評価を使う)
+  const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
+  function neighbors(geo, i) {
+    const out = [];
+    for (const [dq, dr] of DIRS) {
+      const k = geo.map[(geo.points[i][0] + dq) + ',' + (geo.points[i][1] + dr)];
+      if (k !== undefined) out.push(k);
+    }
+    return out;
+  }
+  // その点に打ったときの簡易評価: 自分の石の隣接数 - 相手の石の隣接数 に距離減衰を掛ける
+  function quickScore(board, geo, nbCache, i, player) {
+    let own = 0, enemy = 0;
+    const n1 = nbCache[i] || (nbCache[i] = neighbors(geo, i));
+    for (const n of n1) {
+      if (!board[n]) continue;
+      if (board[n] === player) own++; else enemy++;
+    }
+    // 2ホップ先も弱く見る(模様)
+    let own2 = 0, enemy2 = 0;
+    const seen = new Set(n1);
+    for (const n of n1) {
+      const n2 = nbCache[n] || (nbCache[n] = neighbors(geo, n));
+      for (const m of n2) {
+        if (seen.has(m) || m === i) continue;
+        seen.add(m);
+        if (!board[m]) continue;
+        if (board[m] === player) own2++; else enemy2++;
+      }
+    }
+    return own * 2 + own2 * 0.5 - enemy * 1.6 - enemy2 * 0.4;
+  }
+
+  function buildFullBoardValues(player, explored, geo) {
+    const board = (typeof G !== 'undefined' && G && G.board) ? G.board : null;
+    if (!board || !geo) return explored.map(m => ({ move: m.move, value: m.value, weight: m.visits, explored: true }));
+    const byMove = new Map(explored.map(m => [m.move, m]));
+    const nbCache = {};
+    const scored = [];
+    let minV = Infinity, maxV = -Infinity;
+    const quick = [];
+    for (let i = 0; i < board.length; i++) {
+      if (board[i]) continue;
+      if (byMove.has(i)) continue;            // 探索済みは後で上書き
+      const v = quickScore(board, geo, nbCache, i, player);
+      quick.push([i, v]);
+      if (v < minV) minV = v;
+      if (v > maxV) maxV = v;
+    }
+    const span = Math.max(1e-6, maxV - minV);
+    for (const [i, v] of quick) {
+      scored.push({ move: i, value: (v - minV) / span, weight: 0, explored: false });
+    }
+    // 探索済みの手は探索データを優先(勝率ベース)
+    let wMin = Infinity, wMax = -Infinity;
+    for (const m of explored) { wMin = Math.min(wMin, m.value); wMax = Math.max(wMax, m.value); }
+    const wSpan = Math.max(1e-6, wMax - wMin);
+    for (const m of explored) {
+      scored.push({ move: m.move, value: (m.value - wMin) / wSpan, weight: m.visits, explored: true });
+    }
+    return scored;
   }
 
   function getRecord(ply, player) {
@@ -11167,53 +11258,109 @@ window.__hexagoDebug = {
 
   function clear() { records.clear(); }
 
-  // 盤面に評価値のヒートマップを描く(メイン盤面の上に重ねる)
+  // 盤面に評価値を重ねる。
+  //   mode: 'heat'   … 盤全体を色むらで塗る(直感的)
+  //         'number' … 各点に数値を書く(探索した手のみ)
+  //         'both'   … 色むら + 数値
+  // 実際に打たれた手は白いリングで強調する。
   function drawOverlay(canvas, ctx, metrics, overlay) {
     if (!enabled || !showOverlay || !overlay) return;
     const { cell, pos } = metrics;
-    const r0 = cell * 0.42;
-    let maxV = 0, minV = Infinity, maxW = 0;
-    for (const m of overlay.moves) {
-      maxV = Math.max(maxV, m.visits);
-      minV = Math.min(minV, m.visits);
-      maxW = Math.max(maxW, m.value);
-    }
+    const r0 = cell * 0.46;
     const useWinrate = overlayMode === 'winrate';
-    overlay.moves.forEach(m => {
-      const [x, y] = pos(m.move);
-      let t;
-      if (useWinrate) t = maxW > 0 ? Math.max(0, m.value) / maxW : 0;
-      else t = maxV > minV ? (m.visits - minV) / (maxV - minV) : 1;
-      // 赤(弱) → 黄 → 緑(強)
-      const hue = 120 * t;
+    const style = overlayStyle;  // 'heat' | 'number' | 'both'
+
+    // --- 色むら ---
+    if (style !== 'number') {
+      const pts = overlay.all || [];
+      let maxV = 0;
+      for (const m of pts) maxV = Math.max(maxV, m.value);
       ctx.save();
-      ctx.globalAlpha = 0.35 + 0.4 * t;
-      ctx.beginPath(); ctx.arc(x, y, r0, 0, 7);
-      ctx.fillStyle = `hsl(${hue}, 85%, 50%)`;
-      ctx.fill();
-      ctx.globalAlpha = 0.95;
-      ctx.strokeStyle = `hsl(${hue}, 70%, 35%)`;
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      // 数値
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = t > 0.55 ? '#10301a' : '#2a1010';
-      ctx.font = `bold ${Math.max(8, cell * 0.22)}px system-ui, sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const label = useWinrate ? (m.value * 100).toFixed(0) : String(m.visits > 999 ? Math.round(m.visits / 100) / 10 + 'k' : m.visits);
-      ctx.fillText(label, x, y);
+      for (const m of pts) {
+        const [x, y] = pos(m.move);
+        const t = maxV > 0 ? Math.max(0, m.value) / maxV : 0;
+        // 探索された手は濃く、未探索は薄く
+        const alpha = (m.explored ? 0.55 : 0.22) * (0.35 + 0.65 * t);
+        ctx.globalAlpha = alpha;
+        ctx.beginPath(); ctx.arc(x, y, r0, 0, 7);
+        ctx.fillStyle = heatColor(t);
+        ctx.fill();
+      }
       ctx.restore();
-    });
+    }
+
+    // --- 数値(探索した手のみ) ---
+    if (style !== 'heat') {
+      const list = overlay.moves || [];
+      let maxW = 0, minW = Infinity;
+      for (const m of list) { maxW = Math.max(maxW, m.visits); minW = Math.min(minW, m.visits); }
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (const m of list) {
+        const [x, y] = pos(m.move);
+        const t = maxW > minW ? (m.visits - minW) / (maxW - minW) : 1;
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath(); ctx.arc(x, y, r0 * 0.95, 0, 7);
+        ctx.fillStyle = heatColor(t);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = t > 0.55 ? '#0b2a15' : '#3a0d0d';
+        ctx.font = `bold ${Math.max(7, cell * 0.19)}px system-ui, sans-serif`;
+        const label = useWinrate ? (m.value * 100).toFixed(0) : shortNum(m.visits);
+        ctx.fillText(label, x, y);
+      }
+      ctx.restore();
+    }
+
+    // --- 実際に打たれた手を強調 ---
+    if (Number.isInteger(overlay.best) && overlay.best >= 0) {
+      const [x, y] = pos(overlay.best);
+      ctx.save();
+      ctx.beginPath(); ctx.arc(x, y, cell * 0.5, 0, 7);
+      ctx.lineWidth = Math.max(2.5, cell * 0.09);
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+      ctx.lineWidth = Math.max(1.2, cell * 0.04);
+      ctx.strokeStyle = '#111111';
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function shortNum(n) {
+    if (n >= 100000) return Math.round(n / 1000) + 'k';
+    if (n >= 10000) return (n / 1000).toFixed(1) + 'k';
+    if (n >= 1000) return (n / 1000).toFixed(2).replace(/\.?0+$/, '') + 'k';
+    return String(n);
+  }
+  // 0(悪い)→赤, 0.5→黄, 1(良い)→緑
+  function heatColor(t) {
+    t = Math.max(0, Math.min(1, t));
+    const hue = 120 * t;
+    return `hsl(${hue}, 88%, 52%)`;
   }
 
   function syncUi() {
     document.body.classList.toggle('debug-on', enabled);
-    const t = document.getElementById('debugToggleState');
-    if (t) t.textContent = enabled ? 'ON' : 'OFF';
-    const panel = document.getElementById('debugPanel');
-    if (panel) panel.classList.toggle('hidden', !enabled);
     const btn = document.getElementById('btnDebugMode');
-    if (btn) btn.classList.toggle('text-emerald-600', enabled);
+    if (btn) {
+      btn.textContent = enabled ? 'ON' : 'OFF';
+      btn.classList.toggle('bg-emerald-600', enabled);
+      btn.classList.toggle('border-emerald-600', enabled);
+      btn.classList.toggle('bg-neutral-900', enabled);
+      btn.classList.toggle('text-white', enabled);
+      btn.classList.toggle('bg-neutral-100', !enabled);
+    }
+    // パネルはリプレイ中だけ出す(対戦中に表示しても意味がない)
+    syncPanel();
+  }
+
+  // デバッグパネルの表示を現在の状況に合わせる
+  function syncPanel() {
+    const panel = document.getElementById('debugPanel');
+    if (!panel) return;
+    const replaying = typeof window.HexagoReplayView !== 'undefined' && window.HexagoReplayView.active();
+    panel.classList.toggle('hidden', !(enabled && replaying));
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -11223,6 +11370,8 @@ window.__hexagoDebug = {
     if (toggle) toggle.onchange = () => { showOverlay = toggle.checked; if (typeof render === 'function') render(); };
     const modeSel = document.getElementById('debugOverlayMode');
     if (modeSel) modeSel.onchange = () => { overlayMode = modeSel.value; if (typeof render === 'function') render(); };
+    const styleSel = document.getElementById('debugOverlayStyle');
+    if (styleSel) styleSel.onchange = () => { overlayStyle = styleSel.value; if (typeof render === 'function') render(); };
     syncUi();
   });
 
@@ -11233,7 +11382,10 @@ window.__hexagoDebug = {
     getRecord,
     clear,
     drawOverlay,
-    mode: () => overlayMode
+    syncPanel,
+    mode: () => overlayMode,
+    style: () => overlayStyle,
+    setStyle: (v) => { overlayStyle = v; if (typeof render === 'function') render(); }
   };
 })();
 
