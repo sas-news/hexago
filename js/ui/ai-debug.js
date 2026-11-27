@@ -138,8 +138,8 @@
   function heatFill(t) {
     t = Math.max(0, Math.min(1, t));
     // 0.0 → ごく薄い赤 / 1.0 → 濃い赤
-    const alpha = 0.08 + 0.72 * Math.pow(t, 0.75);
-    const light = 62 - 22 * t;   // 明るさ 62% → 40%
+    const alpha = 0.14 + 0.58 * Math.pow(t, 0.85);
+    const light = 58 - 14 * t;   // 明るさ 58% → 44%
     return `hsla(355, 78%, ${light}%, ${alpha.toFixed(3)})`;
   }
   // 訪問数 → 0..1(対数スケール)。0 は 0 のまま。
@@ -152,7 +152,7 @@
   function drawOverlay(canvas, ctx, metrics, overlay) {
     if (!enabled || !showOverlay || !overlay) return;
     const { cell, pos } = metrics;
-    const r0 = cell * 0.46;
+    const r0 = cell * 0.28;   // 碁石より小さくして紛らわしさを避ける
     const style = overlayStyle;  // 'heat' | 'number' | 'both'
     const all = overlay.all || [];
     const list = (overlay.moves || []).filter(m => m.visits > 0);
@@ -161,13 +161,21 @@
     // 一番探索された点を 1.0 とした比率を使う。
     let maxVisits = 0;
     for (const m of all) maxVisits = Math.max(maxVisits, m.visits || 0);
+    // 未探索の点は簡易評価の順位で 0..1 に(記録に無ければ 0)
+    const unexplored = all.filter(m => !((m.visits || 0) > 0));
+    const sortedU = unexplored.slice().sort((a, b) => (a.value || 0) - (b.value || 0));
+    const rankOfUnexplored = new Map();
+    sortedU.forEach((m, i) => {
+      rankOfUnexplored.set(m.move, sortedU.length <= 1 ? 0.5 : i / (sortedU.length - 1));
+    });
 
     // --- 色むら(全点・単一の塗り) ---
     if (style !== 'number') {
       ctx.save();
       for (const m of all) {
         const [x, y] = pos(m.move);
-        const rel = logRatio(m.visits || 0, maxVisits);
+        const explored = (m.visits || 0) > 0;
+        const rel = explored ? logRatio(m.visits, maxVisits) : (rankOfUnexplored.get(m.move) || 0) * 0.45;
         ctx.beginPath(); ctx.arc(x, y, r0, 0, 7);
         ctx.fillStyle = heatFill(rel);
         ctx.fill();
@@ -191,19 +199,6 @@
       ctx.restore();
     }
 
-    // --- 実際に打たれた手を強調 ---
-    if (Number.isInteger(overlay.best) && overlay.best >= 0) {
-      const [x, y] = pos(overlay.best);
-      ctx.save();
-      ctx.beginPath(); ctx.arc(x, y, cell * 0.5, 0, 7);
-      ctx.lineWidth = Math.max(2.5, cell * 0.09);
-      ctx.strokeStyle = '#ffffff';
-      ctx.stroke();
-      ctx.lineWidth = Math.max(1.2, cell * 0.04);
-      ctx.strokeStyle = '#111111';
-      ctx.stroke();
-      ctx.restore();
-    }
   }
 
   function shortNum(n) {
