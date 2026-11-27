@@ -20,6 +20,8 @@ canvas{display:block;touch-action:manipulation}
 .btn{background:var(--card);border:1px solid var(--bd)}
 .opt{border:1px solid #d4d4d4;border-radius:8px;padding:8px 4px;font-weight:700;font-size:13px}
 .opt.on{background:#171717;color:#fff}
+/* 押せない選択肢(対局中のモード切替など) */
+.opt:disabled{opacity:.38;cursor:not-allowed}
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;border:1.5px solid;vertical-align:-1px;margin-right:3px}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(150,150,150,.3);border-radius:3px}
 
@@ -140,13 +142,7 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
    (全部を塗るとカラフルで落ち着かないため)。
    AI だけは少し濃くして一目で分かるようにする。 */
 #modeBadge.mode-seats{display:inline-flex;align-items:center;gap:0;padding:.1rem .45rem}
-#modeBadge .mode-label{
-  margin-right:.3rem;opacity:.7;
-  font:inherit;font-weight:700;
-  background:transparent;border:0;padding:0;
-  color:inherit;cursor:pointer;
-}
-#modeBadge .mode-label:hover{opacity:1}
+#modeBadge .mode-label{margin-right:.3rem;opacity:.7}
 #modeBadge .seat-pill{
   display:inline-flex;align-items:center;gap:.18rem;
   font:inherit;font-weight:700;line-height:1.3;
@@ -5769,34 +5765,16 @@ function renderModeBadge() {
       + ` title="${p}P(${playerName(p)}) を ${isAi ? '人間' : 'AI'} に切り替え">`
       + `<span class="seat-dot" style="background:${fill};border-color:${edge}"></span>${isAi ? 'AI' : '人'}</button>`);
   }
-  // 「ローカル」自体を押すと設定の対戦モードへ飛ぶ(オンラインはルーム作成が必要なため)
   el.classList.add('mode-seats');
-  el.innerHTML = `<button type="button" class="mode-label" data-open-mode title="対戦モードを切り替え（設定を開く）">ローカル</button>` + parts.join('');
+  el.innerHTML = `<span class="mode-label">ローカル</span>` + parts.join('');
 }
 document.addEventListener('click', e => {
-  const modeBtn = e.target.closest && e.target.closest('#modeBadge .mode-label');
-  if (modeBtn) { openModeSettings(); return; }
   const btn = e.target.closest && e.target.closest('#modeBadge .seat-pill');
   if (!btn || btn.disabled) return;
   const p = +btn.dataset.seat;
   if (!p || !seatToggleEnabled()) return;
   if (typeof setSeatMode === 'function') setSeatMode(p, seats[p] === 'ai' ? 'human' : 'ai');
 });
-
-// 設定モーダルを開いて「対戦モード」の位置までスクロールする
-function openModeSettings() {
-  const sm = $('setModal');
-  if (!sm) return;
-  if (typeof snd !== 'undefined' && snd.click) snd.click();
-  if (typeof syncSettings === 'function') syncSettings();
-  sm.classList.remove('hidden');
-  const box = document.getElementById('modeBtns');
-  if (box) {
-    // 少し待ってからじゃないとスクロール位置が確定しない
-    requestAnimationFrame(() => { try { box.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { box.scrollIntoView(); } });
-  }
-  if (typeof autoPass === 'function' && autoPass()) autoPass().update();
-}
 
 // ===== 盤面・棋譜の保存/読み込み と 連続パス =====
 function ensureGameRecord() { return gameFeatures ? gameFeatures.ensureRecord(G) : null; }
@@ -6254,7 +6232,13 @@ function syncSettings() {
     b.classList.toggle('on', +b.dataset.v === pendingSize);
     b.disabled = mode === 'online' && !!roomCode && !isHost;
   });
-  document.querySelectorAll('#modeBtns .opt').forEach(b => b.classList.toggle('on', b.dataset.v === mode));
+  // 対局中はモードを切り替えられない(ローカル⇔オンラインで対局状態と接続が食い違うため)
+  document.querySelectorAll('#modeBtns .opt').forEach(b => {
+    b.classList.toggle('on', b.dataset.v === mode);
+    const cur = b.dataset.v === mode;
+    b.disabled = !cur && isMatchRunning();
+    b.title = b.disabled ? '対局中は切り替えできません（終局後、または新規対局で選べます）' : '';
+  });
   $('onlineBox').classList.toggle('hidden', mode !== 'online');
   const participantView = mode === 'online' && boardView === 'participant';
   $('onlineRoleConfig').classList.toggle('hidden', mode !== 'online');
@@ -6326,6 +6310,8 @@ document.querySelectorAll('#sizeBtns .opt').forEach(b => b.onclick = () => {
 document.querySelectorAll('#modeBtns .opt').forEach(b => b.onclick = () => {
   snd.click();
   if (mode === b.dataset.v) return;
+  // 対局中は切り替えない(開始済みの対局を別モードへ移すと整合が取れない)
+  if (isMatchRunning()) return;
   if (aiBusy) cancelAI();
   if (mode === 'online') closePeer();
   mode = b.dataset.v; syncSettings(); updateUI();

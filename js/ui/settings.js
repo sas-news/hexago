@@ -59,7 +59,13 @@ function syncSettings() {
     b.classList.toggle('on', +b.dataset.v === pendingSize);
     b.disabled = mode === 'online' && !!roomCode && !isHost;
   });
-  document.querySelectorAll('#modeBtns .opt').forEach(b => b.classList.toggle('on', b.dataset.v === mode));
+  // 対局中はモードを切り替えられない(ローカル⇔オンラインで対局状態と接続が食い違うため)
+  document.querySelectorAll('#modeBtns .opt').forEach(b => {
+    b.classList.toggle('on', b.dataset.v === mode);
+    const cur = b.dataset.v === mode;
+    b.disabled = !cur && isMatchRunning();
+    b.title = b.disabled ? '対局中は切り替えできません（終局後、または新規対局で選べます）' : '';
+  });
   $('onlineBox').classList.toggle('hidden', mode !== 'online');
   const participantView = mode === 'online' && boardView === 'participant';
   $('onlineRoleConfig').classList.toggle('hidden', mode !== 'online');
@@ -131,6 +137,8 @@ document.querySelectorAll('#sizeBtns .opt').forEach(b => b.onclick = () => {
 document.querySelectorAll('#modeBtns .opt').forEach(b => b.onclick = () => {
   snd.click();
   if (mode === b.dataset.v) return;
+  // 対局中は切り替えない(開始済みの対局を別モードへ移すと整合が取れない)
+  if (isMatchRunning()) return;
   if (aiBusy) cancelAI();
   if (mode === 'online') closePeer();
   mode = b.dataset.v; syncSettings(); updateUI();

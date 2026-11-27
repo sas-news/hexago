@@ -71,34 +71,16 @@ function renderModeBadge() {
       + ` title="${p}P(${playerName(p)}) を ${isAi ? '人間' : 'AI'} に切り替え">`
       + `<span class="seat-dot" style="background:${fill};border-color:${edge}"></span>${isAi ? 'AI' : '人'}</button>`);
   }
-  // 「ローカル」自体を押すと設定の対戦モードへ飛ぶ(オンラインはルーム作成が必要なため)
   el.classList.add('mode-seats');
-  el.innerHTML = `<button type="button" class="mode-label" data-open-mode title="対戦モードを切り替え（設定を開く）">ローカル</button>` + parts.join('');
+  el.innerHTML = `<span class="mode-label">ローカル</span>` + parts.join('');
 }
 document.addEventListener('click', e => {
-  const modeBtn = e.target.closest && e.target.closest('#modeBadge .mode-label');
-  if (modeBtn) { openModeSettings(); return; }
   const btn = e.target.closest && e.target.closest('#modeBadge .seat-pill');
   if (!btn || btn.disabled) return;
   const p = +btn.dataset.seat;
   if (!p || !seatToggleEnabled()) return;
   if (typeof setSeatMode === 'function') setSeatMode(p, seats[p] === 'ai' ? 'human' : 'ai');
 });
-
-// 設定モーダルを開いて「対戦モード」の位置までスクロールする
-function openModeSettings() {
-  const sm = $('setModal');
-  if (!sm) return;
-  if (typeof snd !== 'undefined' && snd.click) snd.click();
-  if (typeof syncSettings === 'function') syncSettings();
-  sm.classList.remove('hidden');
-  const box = document.getElementById('modeBtns');
-  if (box) {
-    // 少し待ってからじゃないとスクロール位置が確定しない
-    requestAnimationFrame(() => { try { box.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { box.scrollIntoView(); } });
-  }
-  if (typeof autoPass === 'function' && autoPass()) autoPass().update();
-}
 
 // ===== 盤面・棋譜の保存/読み込み と 連続パス =====
 function ensureGameRecord() { return gameFeatures ? gameFeatures.ensureRecord(G) : null; }

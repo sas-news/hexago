@@ -4,6 +4,8 @@ canvas{display:block;touch-action:manipulation}
 .btn{background:var(--card);border:1px solid var(--bd)}
 .opt{border:1px solid #d4d4d4;border-radius:8px;padding:8px 4px;font-weight:700;font-size:13px}
 .opt.on{background:#171717;color:#fff}
+/* 押せない選択肢(対局中のモード切替など) */
+.opt:disabled{opacity:.38;cursor:not-allowed}
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;border:1.5px solid;vertical-align:-1px;margin-right:3px}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(150,150,150,.3);border-radius:3px}
 
@@ -124,13 +126,7 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
    (全部を塗るとカラフルで落ち着かないため)。
    AI だけは少し濃くして一目で分かるようにする。 */
 #modeBadge.mode-seats{display:inline-flex;align-items:center;gap:0;padding:.1rem .45rem}
-#modeBadge .mode-label{
-  margin-right:.3rem;opacity:.7;
-  font:inherit;font-weight:700;
-  background:transparent;border:0;padding:0;
-  color:inherit;cursor:pointer;
-}
-#modeBadge .mode-label:hover{opacity:1}
+#modeBadge .mode-label{margin-right:.3rem;opacity:.7}
 #modeBadge .seat-pill{
   display:inline-flex;align-items:center;gap:.18rem;
   font:inherit;font-weight:700;line-height:1.3;
