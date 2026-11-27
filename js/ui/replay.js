@@ -113,7 +113,7 @@
       const leadTxt = v === undefined ? '投了' : `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}%`;
       return `<div class="replay-row${changed ? ' font-bold' : ''}">
         <span class="flex items-center gap-1">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span></span>
-        <span class="truncate">${esc(seatName(p))}</span>
+        <span class="rp-name truncate">${esc(seatName(p))}</span>
         <span class="text-right tabular-nums font-mono whitespace-nowrap">${leadTxt}</span>
         <span class="text-left">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
       </div>`;

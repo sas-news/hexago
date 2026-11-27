@@ -100,13 +100,23 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 }
 
 /* ===== リプレイの凡例(1席1行) =====
-   固定グリッドで数値列を右寄せに揃える。名前だけ省略して伸びる。
-   これまで要素が左に詰まって見えていたのを、幅いっぱいに並べる。 */
-/* 表全体は幅を持たせず中央へ。列は内容幅の合計だけにして、左右へ散らさない */
-#replayLegend{display:flex;flex-direction:column;gap:1px;width:max-content;max-width:100%;margin-left:auto;margin-right:auto}
-.replay-row{display:grid;grid-template-columns:auto minmax(2.5em,auto) 4.6em 1.75em;align-items:center;gap:0 .5rem;padding:1px 0;font-size:11px;line-height:1.5}
-.replay-row > span:nth-child(2){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:9em}
+   中央に寄せつつ、左右に散らばらない程度の幅を持たせる。
+   詰めすぎると窮屈に見えるので、列間と行間に余白を確保する。
+   数字は等幅で揃え、値が変わっても幅が揺れない。 */
+#replayLegend{
+  display:flex;flex-direction:column;gap:.25rem;
+  width:max-content;max-width:100%;margin-left:auto;margin-right:auto;
+  padding:.5rem 1.25rem .625rem;
+}
+.replay-row{
+  display:grid;grid-template-columns:auto minmax(3em,7.5em) 4.8em 1.75em;
+  align-items:center;gap:0 1rem;padding:.25rem 0;
+  font-size:12px;line-height:1.6;
+}
+.replay-row > span:nth-child(2){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .replay-row strong{font-weight:800}
+/* 席番号のキャラクタ間を広げて、詰まって見えないようにする */
+.replay-row .rp-name{padding-right:.25rem;letter-spacing:.01em}
 
 /* ===== リプレイUIのテーマ対応 =====
    リプレイまわりの要素は、これまで黒/白/emeraldを直接指定していたため
@@ -400,7 +410,7 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
     </span>
   </div>
   <p id="replayEvt" class="text-sm text-center min-h-5 font-medium" aria-live="polite"></p>
-  <div id="replayLegend" class="text-xs w-full"></div>
+  <div id="replayLegend" class="text-xs"></div>
   <div class="flex items-center gap-1.5">
     <button id="replayFirst" type="button" title="最初へ" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5v14l-11-7z"/></svg></button>
     <button id="replayPrev" type="button" title="1手戻る" aria-label="1手戻る" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5v14L5 12z"/></svg></button>
@@ -7017,7 +7027,7 @@ window.addEventListener('offline', () => {
       const leadTxt = v === undefined ? '投了' : `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}%`;
       return `<div class="replay-row${changed ? ' font-bold' : ''}">
         <span class="flex items-center gap-1">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span></span>
-        <span class="truncate">${esc(seatName(p))}</span>
+        <span class="rp-name truncate">${esc(seatName(p))}</span>
         <span class="text-right tabular-nums font-mono whitespace-nowrap">${leadTxt}</span>
         <span class="text-left">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
       </div>`;
