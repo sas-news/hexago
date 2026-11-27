@@ -1270,6 +1270,8 @@
 
   function applyToGame(entry) {
     if (!entry || !entry.board) return;
+    // リプレイ表示中なら解除する(盤面がリプレイのまま残らないように)
+    if (typeof exitReplayForLoad === 'function') exitReplayForLoad();
     try {
       // 既存の対局状態を置き換える
       playerCount = Math.max(2, Math.min(6, entry.playerCount || 2));
@@ -1302,6 +1304,17 @@
       G.hist = [];
       G.seen = [hash(G.board)];
       setSeen();
+      // 手順つきで保存された対局なら、終局状態と棋譜を復元してリプレイできるようにする
+      var hasHistory = false;
+      if (entry.kifu && typeof applyImportedKifu === 'function' && entry.finished) {
+        try {
+          entry.kifu.currentPosition = Object.assign({}, entry.kifu.currentPosition, {
+            over: true, phase: 'ended', result: entry.result || entry.kifu.currentPosition.result
+          });
+          applyImportedKifu(entry.kifu);
+          hasHistory = true;
+        } catch (e) { hasHistory = false; }
+      }
       closeModal($('photoModal'));
       $('setModal').classList.add('hidden');
       $('resModal').classList.add('hidden');
@@ -1309,7 +1322,17 @@
       resizeCanvas();
       updateUI();
       save();
-      toast((entry.meta && entry.meta.source === 'game') ? '保存した盤面を読み込みました' : '写真の局面を読み込みました');
+      if (hasHistory) {
+        // 終局として保存された対局は、開いた直後からリプレイで見られるようにする
+        if (window.HexagoReplayUI && window.HexagoReplayUI.open) window.HexagoReplayUI.open({ keepResultModal: true });
+        toast('対局終了として保存された棋譜を読み込みました');
+      } else if (entry.kifu && typeof applyImportedKifu === 'function') {
+        try { entry.kifu.currentPosition = Object.assign({}, entry.kifu.currentPosition, { over: false, phase: 'playing', result: null }); applyImportedKifu(entry.kifu); }
+        catch (e2) { /* 手順が読めない場合は盤面のみで継続 */ }
+        toast((entry.meta && entry.meta.source === 'game') ? '保存した盤面と手順を読み込みました' : '写真の局面を読み込みました');
+      } else {
+        toast((entry.meta && entry.meta.source === 'game') ? '保存した盤面を読み込みました' : '写真の局面を読み込みました');
+      }
     } catch (e) {
       toast('局面の読み込みに失敗しました');
     }

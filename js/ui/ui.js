@@ -81,9 +81,15 @@ function saveCurrentBoardToLibrary() {
       colors[p] = { fill: playerFill(p), stroke: playerStroke(p) };
       names[p] = playerName(p);
     }
-    const moves = (ensureGameRecord()?.events || []).filter(e => ['play', 'pass', 'resign'].includes(e.type)).length;
+    const record = ensureGameRecord();
+    const moves = (record?.events || []).filter(e => ['play', 'pass', 'resign'].includes(e.type)).length;
+    // 盤面だけでなく手順も保存する。これがあると開いたときにリプレイできる。
+    // 終局済みなら終局状態(結果・死に石)も一緒に残す。
+    const kifu = gameFeatures ? gameFeatures.exportRecord(G, { names: Array.from({ length: pc + 1 }, (_, p) => p ? playerName(p) : '') }) : null;
+    const ended = !!(G.over && G.result);
+    const finished = ended || G.phase === 'dead';
     const entry = {
-      name: `${G.size}路・${pc}人戦（${moves}手）`,
+      name: `${G.size}路・${pc}人戦（${moves}手）${ended ? '・対局終了' : ''}`,
       size: G.size,
       playerCount: pc,
       board: G.board.slice(),
@@ -91,15 +97,36 @@ function saveCurrentBoardToLibrary() {
       out: G.out.slice(),
       colors,
       names,
-      meta: { source: 'game' },
+      kifu,                       // 手順つき(hexago-kifu と同じ形)
+      finished,                   // 終局として保存されたか
+      result: ended ? { title: G.result.title } : null,
+      dead: (G.dead || []).slice(),
+      phase: G.phase,
+      meta: { source: 'game', history: !!kifu, ended },
       thumb: typeof makeBoardThumb === 'function' ? makeBoardThumb({ size: G.size, board: G.board, colors }) : ''
     };
     window.HexagoPhotoStore.save(entry);
     refreshRecordSummary();
-    $('recordExportStatus').textContent = '現在の盤面を端末ライブラリに保存しました。';
+    if (ended) $('recordExportStatus').textContent = '対局終了として保存しました。開くとリプレイできます。';
+    else $('recordExportStatus').textContent = '現在の盤面と手順を端末ライブラリに保存しました。';
   } catch (e) {
     $('recordExportStatus').textContent = 'ライブラリへの保存に失敗しました。';
   }
+}
+// 盤面・棋譜・ライブラリ・写真から局面を読み込むときは、必ずリプレイ表示を解除する。
+// 解除しないと body.replaying が残り、盤面が古いリプレイ局面を描き続けて
+// 「読み込んだのに画面が切り替わらない」状態になる。
+function exitReplayForLoad() {
+  if (typeof window.HexagoReplayUI !== 'undefined' && window.HexagoReplayUI && window.HexagoReplayUI.reset) {
+    window.HexagoReplayUI.reset();
+  }
+  document.body.classList.remove('replaying');
+  const bar = $('replayBar');
+  if (bar) bar.classList.add('hidden');
+  const side = $('replaySide');
+  if (side) side.classList.add('hidden');
+  const area = $('playArea');
+  if (bar && area && bar.parentElement !== area) area.appendChild(bar);
 }
 function applyImportedKifu(data) {
   const size = Number(data && data.game && data.game.size);
@@ -114,6 +141,7 @@ function applyImportedKifu(data) {
   if (aiBusy) cancelAI();
   if (mode === 'online') closePeer();
   clearAutoPass();
+  exitReplayForLoad();
   mode = 'local'; onlineAI = false; boardView = 'host';
   playerCount = pc; pendingSize = size;
   seats = [0, 'human', 'human', 'human', 'human', 'human', 'human'];
@@ -177,6 +205,7 @@ function importBoardOrKifuJSON(text) {
   if (Array.isArray(data)) {
     if (!window.HexagoPhotoStore) throw new Error('ライブラリ機能が利用できません');
     const added = window.HexagoPhotoStore.importJSON(text);
+    exitReplayForLoad();
     closeModal($('recordModal'));
     if (window.HexagoPhotoUI && window.HexagoPhotoUI.openLibrary) window.HexagoPhotoUI.openLibrary();
     return { kind: 'library', added };
@@ -184,6 +213,7 @@ function importBoardOrKifuJSON(text) {
   // 3. 単一局面 JSON（写真保存・ライブラリエントリ形式）
   if (data && Array.isArray(data.board) && [9, 13, 19, 25].includes(Number(data.size))) {
     if (window.HexagoPhotoUI && window.HexagoPhotoUI.applyToGame) {
+      exitReplayForLoad();
       closeModal($('recordModal'));
       window.HexagoPhotoUI.applyToGame(data);
       return { kind: 'position', size: Number(data.size), pc: Number(data.playerCount) || 2 };

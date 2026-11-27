@@ -344,6 +344,120 @@
     return { size, playerCount, moves: positions.length - 1 };
   }
 
+
+  // ===== この局面から対局を再開する =====
+  // リプレイの任意の地点で「ここから再開」。以降の手順は破棄し、
+  // その局面を開始点として新しい対局を始める。
+  // 開始時点で手番になる席が AI なら人間に切り替える(自分で打ちたいはずなので)。
+  // 席の AI/人間設定・名前・配色などはそのまま引き継ぐ。
+  function resumeFromHere() {
+    if (!data || !geo) return;
+    const pos = data.positions[cur];
+    if (!pos) return;
+    const pc = data.playerCount;
+    if (pos.out && pos.out.slice(1, pc + 1).length === pc && pos.out.slice(1, pc + 1).every(v => v))
+      return toastResume('全員が終局しているため再開できません。');
+    if (modeIsOnline()) return toastResume('オンライン対局中は再開できません。');
+
+    const size = geo.size;
+    // この局面までに消化したイベントだけを残す
+    const lastEv = Number.isInteger(pos.eventIndex) ? pos.eventIndex : 0;
+    const events = [];
+    ((data.shareRecord && data.shareRecord.events) || []).slice(0, lastEv).forEach(ev => {
+      const e = eventOfEvent(ev);
+      if (e) events.push(e);
+    });
+    const initAi = [];
+    for (let p = 1; p <= pc; p++) initAi[p] = !!(pos.aiSeats && pos.aiSeats[p]);
+
+    if (typeof cancelAI === 'function') cancelAI();
+    if (typeof clearAutoPass === 'function') clearAutoPass();
+    if (typeof exitReplayForLoad === 'function') exitReplayForLoad();
+
+    mode = 'local'; onlineAI = false; boardView = 'host';
+    playerCount = pc; pendingSize = size;
+    for (let p = 1; p <= pc; p++) seats[p] = initAi[p] ? 'ai' : 'human';
+    for (let p = pc + 1; p <= 6; p++) seats[p] = 'human';
+
+    build(size);
+    G = newG(size);
+    G.board = pos.board.slice();
+    G.out = pos.out.slice(0, pc + 1);
+    G.damage = Array.from({ length: pc + 1 }, () => 0);
+    G.passes = pos.passes || 0;
+    G.turn = Number.isInteger(pos.turn) && pos.turn >= 1 && pos.turn <= pc ? pos.turn : 1;
+    G.over = false; G.result = null; G.phase = 'playing';
+    G.dead = []; G.last = Number.isInteger(pos.last) ? pos.last : -1;
+    G.hist = [];
+    G.seen = [hash(G.board)];
+
+    // 手番の席が AI なら人間へ(開始直後に自分で打ちたいはずなので)。
+    // それ以外の席は AI/人間をそのまま引き継ぐ。
+    const nextHuman = G.turn;
+    const switched = initAi[nextHuman];
+    if (switched) {
+      seats[nextHuman] = 'human';
+      if (typeof setSeatAIMode === 'function') setSeatAIMode(nextHuman, null);
+    }
+    const aiSeats = Array(pc + 1).fill(false);
+    for (let p = 1; p <= pc; p++) aiSeats[p] = seats[p] === 'ai';
+    G.aiSeats = aiSeats;
+    G.aiSeat = aiSeats.findIndex((v, p) => p > 0 && v);
+
+    if (gameFeatures) {
+      G.record = gameFeatures.createRecord(G);
+      G.record.events = events;
+      // 序盤(空盤)から再生できるよう、初期局面は空盤にして手順ぶんを events に持たせる
+      G.record.initial = {
+        board: new Array(P.length).fill(0), turn: 1, passes: 0,
+        out: Array(pc + 1).fill(false), aiSeats: aiSeats.slice()
+      };
+      G.record.complete = true;
+    }
+    // 開始時点で人間へ切り替えたことを棋譜に残す(リプレイの凡例に出る)
+    if (switched && typeof recordGameEvent === 'function' && G.record) {
+      try { recordGameEvent({ type: 'seat', player: nextHuman, ai: false }); } catch (e) { }
+    }
+
+    setSeen(); prev = -1;
+    if (typeof syncSettings === 'function') syncSettings();
+    if (typeof updateUI === 'function') updateUI();
+    if (typeof resizeCanvas === 'function') resizeCanvas();
+    closeAllModals();
+    if (typeof save === 'function') save();
+    toastResume(`${pos.ply}手目から対局を再開しました${switched ? `（${nextHuman}P を人間に変更）` : ''}`);
+  }
+
+  // 棋譜イベントをそのまま複製(描画用の note ではなく元イベントを使う)
+  function eventOfEvent(ev) {
+    if (!ev || !ev.type) return null;
+    const clean = { type: ev.type };
+    if (ev.player != null) clean.player = ev.player;
+    if (ev.point != null) clean.point = ev.point;
+    if (Array.isArray(ev.captured)) clean.captured = ev.captured.slice();
+    if (ev.automatic) clean.automatic = true;
+    if (ev.ai != null) clean.ai = ev.ai;
+    return clean;
+  }
+
+  function modeIsOnline() { return typeof mode !== 'undefined' && mode === 'online'; }
+
+  function closeAllModals() {
+    ['recordModal', 'setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal', 'shareModal'].forEach(id => {
+      const el = $(id); if (el) el.classList.add('hidden');
+    });
+  }
+
+  function toastResume(msg) {
+    const el = $('replayStatus');
+    if (el) {
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      clearTimeout(toastResume.timer);
+      toastResume.timer = setTimeout(() => el.classList.add('hidden'), 3000);
+    }
+  }
+
   // ===== 共有 (URL / 結果カード画像) =====
   function shareBaseUrl() {
     // 既存の #g=... を落として、現在のページURLを返す
@@ -814,6 +928,7 @@
       if (typeof G !== 'undefined' && G && G.over && G.result && typeof showResult === 'function') showResult();
     };
     if ($('replayShare')) $('replayShare').onclick = () => { snd.click(); shareGame(); };
+    if ($('replayResume')) $('replayResume').onclick = () => { snd.click(); resumeFromHere(); };
     if ($('btnShareGame')) $('btnShareGame').onclick = () => { snd.click(); closeModal($('resModal')); shareGame(); };
     if ($('btnCloseShare')) $('btnCloseShare').onclick = () => closeModal($('shareModal'));
     if ($('btnShareCopy')) $('btnShareCopy').onclick = async () => {

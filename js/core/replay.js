@@ -200,9 +200,13 @@
     if (initial.length !== geo.points.length) throw new Error('盤面サイズと初期局面の石配列が一致しません');
     const events = (record && Array.isArray(record.events) ? record.events : []).filter(e => e && (isMoveEvent(e) || e.type === 'score' || e.type === 'seat'));
     const initAi = (record && record.initial && Array.isArray(record.initial.aiSeats)) ? record.initial.aiSeats.slice() : [];
-    const positions = [{ board: initial.slice(), last: -1, passes: 0, out: (record && record.initial && record.initial.out) ? record.initial.out.slice() : [], note: null, ply: 0, aiSeats: initAi }];
-    let ply = 0;
+    // turn = 次に打つ席 ／ eventIndex = この局面に至るまでに消化したイベント数。
+    // 「この局面から再開」で手番と履歴の切り方を決めるのに使う。
+    const firstTurn = (record && record.initial && Number.isInteger(record.initial.turn)) ? record.initial.turn : 1;
+    const positions = [{ board: initial.slice(), last: -1, passes: (record && record.initial && record.initial.passes) || 0, out: (record && record.initial && record.initial.out) ? record.initial.out.slice() : [], note: null, ply: 0, aiSeats: initAi, turn: firstTurn, eventIndex: 0 }];
+    let ply = 0, evIndex = 0;
     for (const event of events) {
+      evIndex++;
       const prev = positions[positions.length - 1];
       const board = prev.board.slice(), out = prev.out.slice();
       const aiSeats = (prev.aiSeats || []).slice();
@@ -211,23 +215,23 @@
         const r = simulateOnBoard(board, geo, event.point, event.player);
         if (!r) continue; // 復元不能なイベント(旧形式)は読み飛ばして継続
         ply++;
-        next = { board: r.a, last: event.point, passes: 0, out, aiSeats, note: { kind: 'play', player: event.player, point: event.point, captured: r.cap.length }, ply };
+        next = { board: r.a, last: event.point, passes: 0, out, aiSeats, note: { kind: 'play', player: event.player, point: event.point, captured: r.cap.length }, ply, turn: event.player, eventIndex: evIndex };
       } else if (event.type === 'pass') {
         ply++;
-        next = { board, last: -1, passes: prev.passes + 1, out, aiSeats, note: { kind: 'pass', player: event.player, automatic: !!event.automatic }, ply };
+        next = { board, last: -1, passes: prev.passes + 1, out, aiSeats, note: { kind: 'pass', player: event.player, automatic: !!event.automatic }, ply, turn: event.player, eventIndex: evIndex };
       } else if (event.type === 'resign') {
         ply++;
         if (Number.isInteger(event.player) && event.player >= 1 && event.player < out.length) out[event.player] = true;
-        next = { board, last: prev.last, passes: 0, out, aiSeats, note: { kind: 'resign', player: event.player }, ply };
+        next = { board, last: prev.last, passes: 0, out, aiSeats, note: { kind: 'resign', player: event.player }, ply, turn: prev.turn, eventIndex: evIndex };
       } else if (event.type === 'seat') {
         // 途中で人間⇔AIを切り替えた記録。盤面と手数は変えない。
         if (Number.isInteger(event.player) && event.player >= 1 && event.player < aiSeats.length) {
           aiSeats[event.player] = !!event.ai;
         }
-        next = { board, last: prev.last, passes: prev.passes, out, aiSeats, note: { kind: 'seat', player: event.player, ai: !!event.ai }, ply };
+        next = { board, last: prev.last, passes: prev.passes, out, aiSeats, note: { kind: 'seat', player: event.player, ai: !!event.ai }, ply, turn: prev.turn, eventIndex: evIndex };
       } else if (event.type === 'score') {
         (event.removed || []).forEach(i => { if (board[i]) board[i] = 0; });
-        next = { board, last: prev.last, passes: 0, out, aiSeats, note: { kind: 'score', removed: (event.removed || []).length, scores: event.scores ? event.scores.slice() : null, result: event.result || null }, ply };
+        next = { board, last: prev.last, passes: 0, out, aiSeats, note: { kind: 'score', removed: (event.removed || []).length, scores: event.scores ? event.scores.slice() : null, result: event.result || null }, ply, turn: prev.turn, eventIndex: evIndex };
       }
       if (next) positions.push(next);
     }

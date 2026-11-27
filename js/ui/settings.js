@@ -24,6 +24,15 @@ function setSeatMode(p, nextMode, quiet=false) {
   if (typeof setSeatAIMode === 'function') setSeatAIMode(p, null);
   seats[p] = nextMode;
   setSeatAIFlag(p);
+  // AI → 人間に切り替えたら、その席の思考は残り秒数に関係なく即座に打ち切る。
+  // 思考中は Worker を terminate し、結果は捨てる(盤面を汚さない)。
+  if (nextMode === 'human' && typeof aiBusy !== 'undefined' && aiBusy) {
+    const thinkingSeat = (typeof G !== 'undefined' && G && Number.isInteger(G.turn)) ? G.turn : 0;
+    if (!thinkingSeat || thinkingSeat === p) {
+      if (typeof cancelAI === 'function') cancelAI();
+      const ov = document.getElementById('aiOv'); if (ov) ov.classList.add('hidden');
+    }
+  }
   // 途中で人間⇔AIを切り替えたことを棋譜に残す(リプレイで表示する)
   if (typeof recordGameEvent === 'function' && typeof ensureGameRecord === 'function' && G && G.record) {
     try { recordGameEvent({ type: 'seat', player: p, ai: seats[p] !== 'human' }); } catch (e) { }

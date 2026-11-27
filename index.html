@@ -415,6 +415,7 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
     </span>
   </div>
   <p id="replayEvt" class="text-sm text-center min-h-5 font-medium" aria-live="polite"></p>
+  <p id="replayStatus" class="hidden text-xs text-center font-semibold rounded-lg border border-current/20 px-2 py-1.5" role="status" aria-live="polite"></p>
   <div id="replayLegend" class="text-xs"></div>
   <div class="flex items-center gap-1.5">
     <button id="replayFirst" type="button" title="最初へ" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5v14l-11-7z"/></svg></button>
@@ -424,6 +425,9 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
     <button id="replayLast" type="button" title="最後へ" aria-label="最後へ" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5l11 7-11 7z"/></svg></button>
   </div>
   <input id="replaySlider" type="range" min="0" max="0" value="0" step="1" class="rp-range w-full" aria-label="リプレイの再生位置">
+  <button id="replayResume" type="button" class="rp-ghost w-full flex items-center justify-center gap-1.5 text-xs font-bold py-1.5 rounded-lg border border-current/20 active:scale-95 transition-all" title="この局面を開始点として対局を続ける">
+    <svg aria-hidden="true" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>この局面から再開</span>
+  </button>
   <div class="flex items-center justify-between gap-2 text-xs">
     <span id="replayPos" class="font-mono opacity-80"></span>
     <span class="flex items-center gap-1 shrink-0"><label for="replaySpeed" class="opacity-70">速度</label>
@@ -4187,9 +4191,13 @@ function resign() {
     if (initial.length !== geo.points.length) throw new Error('盤面サイズと初期局面の石配列が一致しません');
     const events = (record && Array.isArray(record.events) ? record.events : []).filter(e => e && (isMoveEvent(e) || e.type === 'score' || e.type === 'seat'));
     const initAi = (record && record.initial && Array.isArray(record.initial.aiSeats)) ? record.initial.aiSeats.slice() : [];
-    const positions = [{ board: initial.slice(), last: -1, passes: 0, out: (record && record.initial && record.initial.out) ? record.initial.out.slice() : [], note: null, ply: 0, aiSeats: initAi }];
-    let ply = 0;
+    // turn = 次に打つ席 ／ eventIndex = この局面に至るまでに消化したイベント数。
+    // 「この局面から再開」で手番と履歴の切り方を決めるのに使う。
+    const firstTurn = (record && record.initial && Number.isInteger(record.initial.turn)) ? record.initial.turn : 1;
+    const positions = [{ board: initial.slice(), last: -1, passes: (record && record.initial && record.initial.passes) || 0, out: (record && record.initial && record.initial.out) ? record.initial.out.slice() : [], note: null, ply: 0, aiSeats: initAi, turn: firstTurn, eventIndex: 0 }];
+    let ply = 0, evIndex = 0;
     for (const event of events) {
+      evIndex++;
       const prev = positions[positions.length - 1];
       const board = prev.board.slice(), out = prev.out.slice();
       const aiSeats = (prev.aiSeats || []).slice();
@@ -4198,23 +4206,23 @@ function resign() {
         const r = simulateOnBoard(board, geo, event.point, event.player);
         if (!r) continue; // 復元不能なイベント(旧形式)は読み飛ばして継続
         ply++;
-        next = { board: r.a, last: event.point, passes: 0, out, aiSeats, note: { kind: 'play', player: event.player, point: event.point, captured: r.cap.length }, ply };
+        next = { board: r.a, last: event.point, passes: 0, out, aiSeats, note: { kind: 'play', player: event.player, point: event.point, captured: r.cap.length }, ply, turn: event.player, eventIndex: evIndex };
       } else if (event.type === 'pass') {
         ply++;
-        next = { board, last: -1, passes: prev.passes + 1, out, aiSeats, note: { kind: 'pass', player: event.player, automatic: !!event.automatic }, ply };
+        next = { board, last: -1, passes: prev.passes + 1, out, aiSeats, note: { kind: 'pass', player: event.player, automatic: !!event.automatic }, ply, turn: event.player, eventIndex: evIndex };
       } else if (event.type === 'resign') {
         ply++;
         if (Number.isInteger(event.player) && event.player >= 1 && event.player < out.length) out[event.player] = true;
-        next = { board, last: prev.last, passes: 0, out, aiSeats, note: { kind: 'resign', player: event.player }, ply };
+        next = { board, last: prev.last, passes: 0, out, aiSeats, note: { kind: 'resign', player: event.player }, ply, turn: prev.turn, eventIndex: evIndex };
       } else if (event.type === 'seat') {
         // 途中で人間⇔AIを切り替えた記録。盤面と手数は変えない。
         if (Number.isInteger(event.player) && event.player >= 1 && event.player < aiSeats.length) {
           aiSeats[event.player] = !!event.ai;
         }
-        next = { board, last: prev.last, passes: prev.passes, out, aiSeats, note: { kind: 'seat', player: event.player, ai: !!event.ai }, ply };
+        next = { board, last: prev.last, passes: prev.passes, out, aiSeats, note: { kind: 'seat', player: event.player, ai: !!event.ai }, ply, turn: prev.turn, eventIndex: evIndex };
       } else if (event.type === 'score') {
         (event.removed || []).forEach(i => { if (board[i]) board[i] = 0; });
-        next = { board, last: prev.last, passes: 0, out, aiSeats, note: { kind: 'score', removed: (event.removed || []).length, scores: event.scores ? event.scores.slice() : null, result: event.result || null }, ply };
+        next = { board, last: prev.last, passes: 0, out, aiSeats, note: { kind: 'score', removed: (event.removed || []).length, scores: event.scores ? event.scores.slice() : null, result: event.result || null }, ply, turn: prev.turn, eventIndex: evIndex };
       }
       if (next) positions.push(next);
     }
@@ -5730,9 +5738,15 @@ function saveCurrentBoardToLibrary() {
       colors[p] = { fill: playerFill(p), stroke: playerStroke(p) };
       names[p] = playerName(p);
     }
-    const moves = (ensureGameRecord()?.events || []).filter(e => ['play', 'pass', 'resign'].includes(e.type)).length;
+    const record = ensureGameRecord();
+    const moves = (record?.events || []).filter(e => ['play', 'pass', 'resign'].includes(e.type)).length;
+    // 盤面だけでなく手順も保存する。これがあると開いたときにリプレイできる。
+    // 終局済みなら終局状態(結果・死に石)も一緒に残す。
+    const kifu = gameFeatures ? gameFeatures.exportRecord(G, { names: Array.from({ length: pc + 1 }, (_, p) => p ? playerName(p) : '') }) : null;
+    const ended = !!(G.over && G.result);
+    const finished = ended || G.phase === 'dead';
     const entry = {
-      name: `${G.size}路・${pc}人戦（${moves}手）`,
+      name: `${G.size}路・${pc}人戦（${moves}手）${ended ? '・対局終了' : ''}`,
       size: G.size,
       playerCount: pc,
       board: G.board.slice(),
@@ -5740,15 +5754,36 @@ function saveCurrentBoardToLibrary() {
       out: G.out.slice(),
       colors,
       names,
-      meta: { source: 'game' },
+      kifu,                       // 手順つき(hexago-kifu と同じ形)
+      finished,                   // 終局として保存されたか
+      result: ended ? { title: G.result.title } : null,
+      dead: (G.dead || []).slice(),
+      phase: G.phase,
+      meta: { source: 'game', history: !!kifu, ended },
       thumb: typeof makeBoardThumb === 'function' ? makeBoardThumb({ size: G.size, board: G.board, colors }) : ''
     };
     window.HexagoPhotoStore.save(entry);
     refreshRecordSummary();
-    $('recordExportStatus').textContent = '現在の盤面を端末ライブラリに保存しました。';
+    if (ended) $('recordExportStatus').textContent = '対局終了として保存しました。開くとリプレイできます。';
+    else $('recordExportStatus').textContent = '現在の盤面と手順を端末ライブラリに保存しました。';
   } catch (e) {
     $('recordExportStatus').textContent = 'ライブラリへの保存に失敗しました。';
   }
+}
+// 盤面・棋譜・ライブラリ・写真から局面を読み込むときは、必ずリプレイ表示を解除する。
+// 解除しないと body.replaying が残り、盤面が古いリプレイ局面を描き続けて
+// 「読み込んだのに画面が切り替わらない」状態になる。
+function exitReplayForLoad() {
+  if (typeof window.HexagoReplayUI !== 'undefined' && window.HexagoReplayUI && window.HexagoReplayUI.reset) {
+    window.HexagoReplayUI.reset();
+  }
+  document.body.classList.remove('replaying');
+  const bar = $('replayBar');
+  if (bar) bar.classList.add('hidden');
+  const side = $('replaySide');
+  if (side) side.classList.add('hidden');
+  const area = $('playArea');
+  if (bar && area && bar.parentElement !== area) area.appendChild(bar);
 }
 function applyImportedKifu(data) {
   const size = Number(data && data.game && data.game.size);
@@ -5763,6 +5798,7 @@ function applyImportedKifu(data) {
   if (aiBusy) cancelAI();
   if (mode === 'online') closePeer();
   clearAutoPass();
+  exitReplayForLoad();
   mode = 'local'; onlineAI = false; boardView = 'host';
   playerCount = pc; pendingSize = size;
   seats = [0, 'human', 'human', 'human', 'human', 'human', 'human'];
@@ -5826,6 +5862,7 @@ function importBoardOrKifuJSON(text) {
   if (Array.isArray(data)) {
     if (!window.HexagoPhotoStore) throw new Error('ライブラリ機能が利用できません');
     const added = window.HexagoPhotoStore.importJSON(text);
+    exitReplayForLoad();
     closeModal($('recordModal'));
     if (window.HexagoPhotoUI && window.HexagoPhotoUI.openLibrary) window.HexagoPhotoUI.openLibrary();
     return { kind: 'library', added };
@@ -5833,6 +5870,7 @@ function importBoardOrKifuJSON(text) {
   // 3. 単一局面 JSON（写真保存・ライブラリエントリ形式）
   if (data && Array.isArray(data.board) && [9, 13, 19, 25].includes(Number(data.size))) {
     if (window.HexagoPhotoUI && window.HexagoPhotoUI.applyToGame) {
+      exitReplayForLoad();
       closeModal($('recordModal'));
       window.HexagoPhotoUI.applyToGame(data);
       return { kind: 'position', size: Number(data.size), pc: Number(data.playerCount) || 2 };
@@ -6081,6 +6119,15 @@ function setSeatMode(p, nextMode, quiet=false) {
   if (typeof setSeatAIMode === 'function') setSeatAIMode(p, null);
   seats[p] = nextMode;
   setSeatAIFlag(p);
+  // AI → 人間に切り替えたら、その席の思考は残り秒数に関係なく即座に打ち切る。
+  // 思考中は Worker を terminate し、結果は捨てる(盤面を汚さない)。
+  if (nextMode === 'human' && typeof aiBusy !== 'undefined' && aiBusy) {
+    const thinkingSeat = (typeof G !== 'undefined' && G && Number.isInteger(G.turn)) ? G.turn : 0;
+    if (!thinkingSeat || thinkingSeat === p) {
+      if (typeof cancelAI === 'function') cancelAI();
+      const ov = document.getElementById('aiOv'); if (ov) ov.classList.add('hidden');
+    }
+  }
   // 途中で人間⇔AIを切り替えたことを棋譜に残す(リプレイで表示する)
   if (typeof recordGameEvent === 'function' && typeof ensureGameRecord === 'function' && G && G.record) {
     try { recordGameEvent({ type: 'seat', player: p, ai: seats[p] !== 'human' }); } catch (e) { }
@@ -7263,6 +7310,120 @@ window.addEventListener('offline', () => {
     return { size, playerCount, moves: positions.length - 1 };
   }
 
+
+  // ===== この局面から対局を再開する =====
+  // リプレイの任意の地点で「ここから再開」。以降の手順は破棄し、
+  // その局面を開始点として新しい対局を始める。
+  // 開始時点で手番になる席が AI なら人間に切り替える(自分で打ちたいはずなので)。
+  // 席の AI/人間設定・名前・配色などはそのまま引き継ぐ。
+  function resumeFromHere() {
+    if (!data || !geo) return;
+    const pos = data.positions[cur];
+    if (!pos) return;
+    const pc = data.playerCount;
+    if (pos.out && pos.out.slice(1, pc + 1).length === pc && pos.out.slice(1, pc + 1).every(v => v))
+      return toastResume('全員が終局しているため再開できません。');
+    if (modeIsOnline()) return toastResume('オンライン対局中は再開できません。');
+
+    const size = geo.size;
+    // この局面までに消化したイベントだけを残す
+    const lastEv = Number.isInteger(pos.eventIndex) ? pos.eventIndex : 0;
+    const events = [];
+    ((data.shareRecord && data.shareRecord.events) || []).slice(0, lastEv).forEach(ev => {
+      const e = eventOfEvent(ev);
+      if (e) events.push(e);
+    });
+    const initAi = [];
+    for (let p = 1; p <= pc; p++) initAi[p] = !!(pos.aiSeats && pos.aiSeats[p]);
+
+    if (typeof cancelAI === 'function') cancelAI();
+    if (typeof clearAutoPass === 'function') clearAutoPass();
+    if (typeof exitReplayForLoad === 'function') exitReplayForLoad();
+
+    mode = 'local'; onlineAI = false; boardView = 'host';
+    playerCount = pc; pendingSize = size;
+    for (let p = 1; p <= pc; p++) seats[p] = initAi[p] ? 'ai' : 'human';
+    for (let p = pc + 1; p <= 6; p++) seats[p] = 'human';
+
+    build(size);
+    G = newG(size);
+    G.board = pos.board.slice();
+    G.out = pos.out.slice(0, pc + 1);
+    G.damage = Array.from({ length: pc + 1 }, () => 0);
+    G.passes = pos.passes || 0;
+    G.turn = Number.isInteger(pos.turn) && pos.turn >= 1 && pos.turn <= pc ? pos.turn : 1;
+    G.over = false; G.result = null; G.phase = 'playing';
+    G.dead = []; G.last = Number.isInteger(pos.last) ? pos.last : -1;
+    G.hist = [];
+    G.seen = [hash(G.board)];
+
+    // 手番の席が AI なら人間へ(開始直後に自分で打ちたいはずなので)。
+    // それ以外の席は AI/人間をそのまま引き継ぐ。
+    const nextHuman = G.turn;
+    const switched = initAi[nextHuman];
+    if (switched) {
+      seats[nextHuman] = 'human';
+      if (typeof setSeatAIMode === 'function') setSeatAIMode(nextHuman, null);
+    }
+    const aiSeats = Array(pc + 1).fill(false);
+    for (let p = 1; p <= pc; p++) aiSeats[p] = seats[p] === 'ai';
+    G.aiSeats = aiSeats;
+    G.aiSeat = aiSeats.findIndex((v, p) => p > 0 && v);
+
+    if (gameFeatures) {
+      G.record = gameFeatures.createRecord(G);
+      G.record.events = events;
+      // 序盤(空盤)から再生できるよう、初期局面は空盤にして手順ぶんを events に持たせる
+      G.record.initial = {
+        board: new Array(P.length).fill(0), turn: 1, passes: 0,
+        out: Array(pc + 1).fill(false), aiSeats: aiSeats.slice()
+      };
+      G.record.complete = true;
+    }
+    // 開始時点で人間へ切り替えたことを棋譜に残す(リプレイの凡例に出る)
+    if (switched && typeof recordGameEvent === 'function' && G.record) {
+      try { recordGameEvent({ type: 'seat', player: nextHuman, ai: false }); } catch (e) { }
+    }
+
+    setSeen(); prev = -1;
+    if (typeof syncSettings === 'function') syncSettings();
+    if (typeof updateUI === 'function') updateUI();
+    if (typeof resizeCanvas === 'function') resizeCanvas();
+    closeAllModals();
+    if (typeof save === 'function') save();
+    toastResume(`${pos.ply}手目から対局を再開しました${switched ? `（${nextHuman}P を人間に変更）` : ''}`);
+  }
+
+  // 棋譜イベントをそのまま複製(描画用の note ではなく元イベントを使う)
+  function eventOfEvent(ev) {
+    if (!ev || !ev.type) return null;
+    const clean = { type: ev.type };
+    if (ev.player != null) clean.player = ev.player;
+    if (ev.point != null) clean.point = ev.point;
+    if (Array.isArray(ev.captured)) clean.captured = ev.captured.slice();
+    if (ev.automatic) clean.automatic = true;
+    if (ev.ai != null) clean.ai = ev.ai;
+    return clean;
+  }
+
+  function modeIsOnline() { return typeof mode !== 'undefined' && mode === 'online'; }
+
+  function closeAllModals() {
+    ['recordModal', 'setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal', 'shareModal'].forEach(id => {
+      const el = $(id); if (el) el.classList.add('hidden');
+    });
+  }
+
+  function toastResume(msg) {
+    const el = $('replayStatus');
+    if (el) {
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      clearTimeout(toastResume.timer);
+      toastResume.timer = setTimeout(() => el.classList.add('hidden'), 3000);
+    }
+  }
+
   // ===== 共有 (URL / 結果カード画像) =====
   function shareBaseUrl() {
     // 既存の #g=... を落として、現在のページURLを返す
@@ -7733,6 +7894,7 @@ window.addEventListener('offline', () => {
       if (typeof G !== 'undefined' && G && G.over && G.result && typeof showResult === 'function') showResult();
     };
     if ($('replayShare')) $('replayShare').onclick = () => { snd.click(); shareGame(); };
+    if ($('replayResume')) $('replayResume').onclick = () => { snd.click(); resumeFromHere(); };
     if ($('btnShareGame')) $('btnShareGame').onclick = () => { snd.click(); closeModal($('resModal')); shareGame(); };
     if ($('btnCloseShare')) $('btnCloseShare').onclick = () => closeModal($('shareModal'));
     if ($('btnShareCopy')) $('btnShareCopy').onclick = async () => {
@@ -10837,6 +10999,8 @@ window.addEventListener('offline', () => {
 
   function applyToGame(entry) {
     if (!entry || !entry.board) return;
+    // リプレイ表示中なら解除する(盤面がリプレイのまま残らないように)
+    if (typeof exitReplayForLoad === 'function') exitReplayForLoad();
     try {
       // 既存の対局状態を置き換える
       playerCount = Math.max(2, Math.min(6, entry.playerCount || 2));
@@ -10869,6 +11033,17 @@ window.addEventListener('offline', () => {
       G.hist = [];
       G.seen = [hash(G.board)];
       setSeen();
+      // 手順つきで保存された対局なら、終局状態と棋譜を復元してリプレイできるようにする
+      var hasHistory = false;
+      if (entry.kifu && typeof applyImportedKifu === 'function' && entry.finished) {
+        try {
+          entry.kifu.currentPosition = Object.assign({}, entry.kifu.currentPosition, {
+            over: true, phase: 'ended', result: entry.result || entry.kifu.currentPosition.result
+          });
+          applyImportedKifu(entry.kifu);
+          hasHistory = true;
+        } catch (e) { hasHistory = false; }
+      }
       closeModal($('photoModal'));
       $('setModal').classList.add('hidden');
       $('resModal').classList.add('hidden');
@@ -10876,7 +11051,17 @@ window.addEventListener('offline', () => {
       resizeCanvas();
       updateUI();
       save();
-      toast((entry.meta && entry.meta.source === 'game') ? '保存した盤面を読み込みました' : '写真の局面を読み込みました');
+      if (hasHistory) {
+        // 終局として保存された対局は、開いた直後からリプレイで見られるようにする
+        if (window.HexagoReplayUI && window.HexagoReplayUI.open) window.HexagoReplayUI.open({ keepResultModal: true });
+        toast('対局終了として保存された棋譜を読み込みました');
+      } else if (entry.kifu && typeof applyImportedKifu === 'function') {
+        try { entry.kifu.currentPosition = Object.assign({}, entry.kifu.currentPosition, { over: false, phase: 'playing', result: null }); applyImportedKifu(entry.kifu); }
+        catch (e2) { /* 手順が読めない場合は盤面のみで継続 */ }
+        toast((entry.meta && entry.meta.source === 'game') ? '保存した盤面と手順を読み込みました' : '写真の局面を読み込みました');
+      } else {
+        toast((entry.meta && entry.meta.source === 'game') ? '保存した盤面を読み込みました' : '写真の局面を読み込みました');
+      }
     } catch (e) {
       toast('局面の読み込みに失敗しました');
     }

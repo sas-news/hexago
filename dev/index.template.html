@@ -294,6 +294,7 @@
     </span>
   </div>
   <p id="replayEvt" class="text-sm text-center min-h-5 font-medium" aria-live="polite"></p>
+  <p id="replayStatus" class="hidden text-xs text-center font-semibold rounded-lg border border-current/20 px-2 py-1.5" role="status" aria-live="polite"></p>
   <div id="replayLegend" class="text-xs"></div>
   <div class="flex items-center gap-1.5">
     <button id="replayFirst" type="button" title="最初へ" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5v14l-11-7z"/></svg></button>
@@ -303,6 +304,9 @@
     <button id="replayLast" type="button" title="最後へ" aria-label="最後へ" class="w-9 h-9 shrink-0 flex items-center justify-center rp-ghost rounded-lg border border-current/20 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM5 5l11 7-11 7z"/></svg></button>
   </div>
   <input id="replaySlider" type="range" min="0" max="0" value="0" step="1" class="rp-range w-full" aria-label="リプレイの再生位置">
+  <button id="replayResume" type="button" class="rp-ghost w-full flex items-center justify-center gap-1.5 text-xs font-bold py-1.5 rounded-lg border border-current/20 active:scale-95 transition-all" title="この局面を開始点として対局を続ける">
+    <svg aria-hidden="true" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>この局面から再開</span>
+  </button>
   <div class="flex items-center justify-between gap-2 text-xs">
     <span id="replayPos" class="font-mono opacity-80"></span>
     <span class="flex items-center gap-1 shrink-0"><label for="replaySpeed" class="opacity-70">速度</label>
