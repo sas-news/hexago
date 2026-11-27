@@ -63,12 +63,16 @@ function renderModeBadge() {
   for (let p = 1; p <= pc; p++) {
     const isAi = seats[p] === 'ai';
     const turn = (p === G.turn && !G.over) ? ' is-turn' : '';
+    // 色は小さな点だけで示す(ボタン全体を塗るとカラフルで落ち着かないため)。
+    // 席のコマと同じ色・同じ縁取りなので、どれが誰かは点で分かる。
+    const fill = playerFill(p), edge = playerStroke(p);
     parts.push(`<button type="button" class="seat-pill${isAi ? ' is-ai' : ''}${turn}" data-seat="${p}"`
       + ` aria-pressed="${isAi}"${enabled ? '' : ' disabled'}`
-      + ` title="${p}P を ${isAi ? '人間' : 'AI'} に切り替え">${isAi ? 'AI' : '人'}</button>`);
+      + ` title="${p}P(${playerName(p)}) を ${isAi ? '人間' : 'AI'} に切り替え">`
+      + `<span class="seat-dot" style="background:${fill};border-color:${edge}"></span>${isAi ? 'AI' : '人'}</button>`);
   }
   el.classList.add('mode-seats');
-  el.innerHTML = `<span class="mode-label">ローカル</span>` + parts.join('<span class="mode-sep">・</span>');
+  el.innerHTML = `<span class="mode-label">ローカル</span>` + parts.join('');
 }
 document.addEventListener('click', e => {
   const btn = e.target.closest && e.target.closest('#modeBadge .seat-pill');

@@ -135,26 +135,40 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 /* range スライダー: accent-color でテーマ色に追従させる */
 .rp-range{accent-color:var(--accent);height:1.25rem}
 
-/* ===== モードバッジ: 「ローカル 人・人・AI」の各項目を押して切り替え =====
-   既存のバッジ見た目を保ったまま、人/AI の各文字だけをボタンにする。
-   手番の席は下線で強調する(色名は出さず、位置で席が分かる)。 */
-#modeBadge.mode-seats{display:inline-flex;align-items:center;gap:.15rem;padding:.15rem .5rem}
-#modeBadge .mode-label{margin-right:.1rem;opacity:.7}
-#modeBadge .mode-sep{opacity:.45}
+/* ===== モードバッジ: 「ローカル 人人AI」の各項目を押して切り替え =====
+   色は小さな点だけに留め、ボタン自体は地味な文字ボタンにする
+   (全部を塗るとカラフルで落ち着かないため)。
+   AI だけは少し濃くして一目で分かるようにする。 */
+#modeBadge.mode-seats{display:inline-flex;align-items:center;gap:.15rem;padding:.1rem .4rem}
+#modeBadge .mode-label{margin-right:.15rem;opacity:.7}
 #modeBadge .seat-pill{
-  font:inherit;font-weight:800;line-height:1.3;
-  padding:.15rem .35rem;border-radius:.375rem;
+  display:inline-flex;align-items:center;gap:.22rem;
+  font:inherit;font-weight:700;line-height:1.3;
+  padding:.1rem .3rem;border-radius:.3rem;
   background:transparent;border:1px solid transparent;color:inherit;
-  cursor:pointer;transition:background .15s ease,border-color .15s ease,opacity .15s ease;
+  opacity:.72;cursor:pointer;
+  transition:background .15s ease,opacity .15s ease;
 }
-#modeBadge .seat-pill:hover{background:var(--hover);border-color:var(--bd)}
+#modeBadge .seat-pill:hover{background:var(--hover);opacity:1}
 #modeBadge .seat-pill:active{transform:scale(.95)}
-/* AI は塗り、人間は素の文字。押すと入れ替わる */
-#modeBadge .seat-pill.is-ai{background:var(--accent);color:var(--accent-tx);border-color:var(--accent)}
-#modeBadge .seat-pill.is-ai:hover{filter:brightness(1.1)}
-/* 手番の席 */
-#modeBadge .seat-pill.is-turn{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}
-#modeBadge .seat-pill:disabled{cursor:not-allowed;opacity:.45}
+/* コマの色を示す小さな点(席の順番が分かる)。
+   カラフルに見えないよう少し淡くする */
+#modeBadge .seat-dot{
+  display:inline-block;width:6px;height:6px;border-radius:50%;
+  border:1px solid;vertical-align:0;
+  opacity:.85;
+}
+/* AI は文字を濃く */
+#modeBadge .seat-pill.is-ai{opacity:1;font-weight:800}
+#modeBadge .seat-pill.is-ai::after{content:'';}
+/* 手番の席: 装飾を足さず、文字を濃く + 点を少し大きくするだけで示す
+   (枠や下線はうるさく見えたため) */
+#modeBadge .seat-pill.is-turn{opacity:1;font-weight:900;color:inherit}
+#modeBadge .seat-pill.is-turn .seat-dot{
+  width:8px;height:8px;opacity:1;
+  box-shadow:0 0 0 2px var(--card);
+}
+#modeBadge .seat-pill:disabled{cursor:not-allowed;opacity:.35;transform:none}
 </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-6 select-none">
@@ -5741,12 +5755,16 @@ function renderModeBadge() {
   for (let p = 1; p <= pc; p++) {
     const isAi = seats[p] === 'ai';
     const turn = (p === G.turn && !G.over) ? ' is-turn' : '';
+    // 色は小さな点だけで示す(ボタン全体を塗るとカラフルで落ち着かないため)。
+    // 席のコマと同じ色・同じ縁取りなので、どれが誰かは点で分かる。
+    const fill = playerFill(p), edge = playerStroke(p);
     parts.push(`<button type="button" class="seat-pill${isAi ? ' is-ai' : ''}${turn}" data-seat="${p}"`
       + ` aria-pressed="${isAi}"${enabled ? '' : ' disabled'}`
-      + ` title="${p}P を ${isAi ? '人間' : 'AI'} に切り替え">${isAi ? 'AI' : '人'}</button>`);
+      + ` title="${p}P(${playerName(p)}) を ${isAi ? '人間' : 'AI'} に切り替え">`
+      + `<span class="seat-dot" style="background:${fill};border-color:${edge}"></span>${isAi ? 'AI' : '人'}</button>`);
   }
   el.classList.add('mode-seats');
-  el.innerHTML = `<span class="mode-label">ローカル</span>` + parts.join('<span class="mode-sep">・</span>');
+  el.innerHTML = `<span class="mode-label">ローカル</span>` + parts.join('');
 }
 document.addEventListener('click', e => {
   const btn = e.target.closest && e.target.closest('#modeBadge .seat-pill');
