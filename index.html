@@ -23,22 +23,27 @@ canvas{display:block;touch-action:manipulation}
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;border:1.5px solid;vertical-align:-1px;margin-right:3px}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(150,150,150,.3);border-radius:3px}
 
-/* ===== リプレイ: 横画面では盤面の横にパネルを収める ===== */
+/* ===== リプレイ: 広い画面では盤面の横にパネルを収める ===== */
+/* 幅だけを基準にすると「横長でも背の低い画面」で盤面が縦に潰れるので、
+   幅・高さの両方が足りるときだけ横並びにする(判定は JS の layoutReplayBar と揃える) */
 body.replaying #playArea{flex-direction:row;align-items:center;justify-content:center;gap:14px}
 body.replaying #boardWrap{width:auto;flex:0 0 auto}
-body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520px);aspect-ratio:1/1}
-/* 縦・狭い画面: 盤面は横幅いっぱい、パネルは下 */
-@media (max-width:899px){
+/* 盤面は常に正方形。min() で幅・高さの両方に収め、片方だけ縛らない */
+body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520px);aspect-ratio:1/1;flex:0 0 auto}
+/* 幅が足りない/縦長: 盤面は横幅いっぱい、パネルは下 */
+@media (max-width:899px), (orientation:portrait){
   body.replaying #playArea{flex-direction:column;align-items:stretch}
   body.replaying #boardWrap{width:100%}
-  body.replaying #cv{width:100%;height:auto;max-width:min(520px,92vw);max-height:none;margin-left:auto;margin-right:auto}
+  body.replaying #cv{width:100%;height:auto;max-width:min(520px,92vw);max-height:none;margin-left:auto;margin-right:auto;flex:0 1 auto}
 }
-/* 横画面: 盤面を縦に収め、パネルを右へ */
-@media (min-width:900px) and (orientation:landscape){
+/* 横並び: 盤面を正方形のまま縦に収め、パネルを右へ
+   (スマホ横持ちの低い画面ではパネルが入らないので縦積みのまま) */
+@media (min-width:900px) and (orientation:landscape) and (min-height:560px){
   /* 盤面+パネルを1組のブロックとして中央に置く(盤面だけ左に寄らない) */
-  body.replaying #playArea{justify-content:center;align-items:center;margin-left:auto;margin-right:auto;max-width:calc(min(72vh,540px) + min(360px,34vw) + 14px)}
-  body.replaying #cv{width:min(72vh,540px);height:min(72vh,540px);flex:0 0 auto}
-  body.replaying #replaySide{display:flex;flex-direction:column;justify-content:center;flex:0 0 auto;width:min(360px,34vw);max-height:min(78vh,540px)}
+  body.replaying #playArea{justify-content:center;align-items:center;margin-left:auto;margin-right:auto;max-width:calc(min(88vh,720px) + min(360px,34vw) + 14px)}
+  body.replaying #cv{width:min(88vh,720px);height:min(88vh,720px);max-height:none;flex:0 0 auto}
+  body.replaying #replaySide{display:flex;flex-direction:column;justify-content:center;flex:0 0 auto;width:min(360px,34vw);max-height:min(92vh,640px)}
+  /* パネルは画面の高さいっぱいに使えるので、中身はスクロールさせない */
   body.replaying #replayBar{width:100%}
 }
 
@@ -86,6 +91,14 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 @media (prefers-reduced-motion: reduce) {
   #playArea, #boardWrap, #replayBar, #replaySide { transition: none !important; }
 }
+
+/* ===== リプレイの凡例(1席1行) =====
+   固定グリッドで数値列を右寄せに揃える。名前だけ省略して伸びる。
+   これまで要素が左に詰まって見えていたのを、得点内訳の列も含めて幅いっぱいに並べる。 */
+#replayLegend{display:flex;flex-direction:column;gap:1px}
+.replay-row{display:grid;grid-template-columns:auto minmax(3.5em,1fr) 4.6em auto 1.75em;align-items:center;gap:0 .375rem;padding:1px 0;font-size:11px;line-height:1.5}
+.replay-row > span:nth-child(2){min-width:0}
+.replay-row strong{font-weight:800}
 </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-6 select-none">
@@ -4196,7 +4209,29 @@ function resign() {
         const lv = leadValues(adv);
         active.forEach((p, k) => { lead[p] = lv.lead[k]; leadPct[p] = lv.leadPct[k]; });
       }
-      rows.push({ ply: pos.ply, kind: pos.note ? pos.note.kind : 'start', event: pos.note, evals, lead, leadPct, out: pos.out.slice(), aiSeats: (pos.aiSeats || []).slice() });
+      const area = areaScores(pos.board, geo, playerCount);
+      // 地と石の内訳(整数)。地は「空点のうち按分でその色に入る量」を四捨五入したもの。
+      const stones = Array(playerCount + 1).fill(0), terr = Array(playerCount + 1).fill(0);
+      pos.board.forEach(v => { if (v) stones[v]++; });
+      for (let p = 1; p <= playerCount; p++) terr[p] = Math.max(0, Math.round(area[p] - stones[p]));
+      // 終局の公式スコアがあればそちらを優先(死に石除去後の最終値)
+      const useOfficial = !!(finalScores && !pos.out.some(() => false));
+      let breakdown = null;
+      if (useOfficial) {
+        breakdown = Array(playerCount + 1).fill(null);
+        for (let p = 1; p <= playerCount; p++) {
+          const total = Math.max(0, Number(finalScores[p]) || 0);
+          const st = stones[p];
+          breakdown[p] = { terr: Math.max(0, total - st), stones: st, total, official: true };
+        }
+      } else {
+        breakdown = Array(playerCount + 1).fill(null);
+        for (let p = 1; p <= playerCount; p++) {
+          if (pos.out[p]) continue;
+          breakdown[p] = { terr: terr[p], stones: stones[p], total: terr[p] + stones[p], official: false };
+        }
+      }
+      rows.push({ ply: pos.ply, kind: pos.note ? pos.note.kind : 'start', event: pos.note, evals, score: breakdown, lead, leadPct, out: pos.out.slice(), aiSeats: (pos.aiSeats || []).slice() });
     }
     let swing = null;
     for (let k = 1; k < rows.length; k++) {
@@ -5426,11 +5461,27 @@ cv.addEventListener('click', e => {
 
 // --- ./js/ui/render.js ---
 // ===== 描画 =====
+// 盤面(cv)の実寸は CSS が決める。ここは「CSS 上の大きさにバッキングストアを合わせる」だけ。
+// サイズ変更でバッキングストアが消えるため、必ず描き直す。
+let canvasSyncTimer = null;
 function resizeCanvas() {
   const rc = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
-  cv.width = rc.width * d; cv.height = rc.height * d; ctx.setTransform(d, 0, 0, d, 0, 0); render();
+  const w = Math.round(rc.width * d), h = Math.round(rc.height * d);
+  if (w > 0 && h > 0 && (cv.width !== w || cv.height !== h)) { cv.width = w; cv.height = h; }
+  ctx.setTransform(d, 0, 0, d, 0, 0);
+  render();
+}
+// リプレイ開始/終了でレイアウトが切り替わった直後は、画面の再描画が来るまで
+// 盤面の実寸が古いまま(＝大きさが変わらない)。いくつかのタイミングで強制的に測り直す。
+function syncCanvasSoon() {
+  resizeCanvas();
+  if (canvasSyncTimer) clearTimeout(canvasSyncTimer);
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(resizeCanvas);
+  canvasSyncTimer = setTimeout(() => { canvasSyncTimer = null; resizeCanvas(); }, 180);
+  setTimeout(resizeCanvas, 520);
 }
 window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 120));
 function stone(x, y, r, p, alpha) {
   ctx.save(); ctx.globalAlpha = alpha; ctx.beginPath(); ctx.arc(x, y, r, 0, 7);
   ctx.fillStyle = playerFill(p); ctx.fill(); ctx.strokeStyle = playerStroke(p); ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
@@ -6924,16 +6975,23 @@ window.addEventListener('offline', () => {
     const pc = data.playerCount;
     const prevRow = cur > 0 ? data.series.rows[cur - 1] : null;
     // 1席1行の表。数値は固定幅・等幅フォントで、値が変わっても幅が揺れない。
+    // 列は「印+AI/人 ／ 名前 ／ 形勢 ／ 内訳(地+石=点) ／ 切替バッジ」の固定グリッド。
+    // 名前だけが伸び、数値列は右寄せで幅が揃うので左に寄って見えない。
     const rows = Array.from({ length: pc }, (_, i) => i + 1).map(p => {
       const isAi = !!(row.aiSeats && row.aiSeats[p]);
       const changed = prevRow && prevRow.aiSeats && !!prevRow.aiSeats[p] !== isAi;
       const v = row.leadPct[p];
       const leadTxt = v === undefined ? '投了' : `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}%`;
-      return `<div class="grid grid-cols-[auto_auto_auto_auto] items-center justify-start gap-x-1.5 py-0.5${changed ? ' font-bold' : ''}">
+      const sc = row.score && row.score[p];
+      const scoreTxt = sc
+        ? `地${sc.terr}＋石${sc.stones}＝<strong>${sc.total}</strong>点`
+        : '終局';
+      return `<div class="replay-row${changed ? ' font-bold' : ''}">
         <span class="flex items-center gap-1">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span></span>
-        <span class="whitespace-nowrap">${esc(seatName(p))}</span>
-        <span class="text-right tabular-nums font-mono min-w-[3.2em]">${leadTxt}</span>
-        <span class="w-7 text-left">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
+        <span class="truncate">${esc(seatName(p))}</span>
+        <span class="text-right tabular-nums font-mono whitespace-nowrap">${leadTxt}</span>
+        <span class="text-right tabular-nums whitespace-nowrap">${scoreTxt}</span>
+        <span class="text-left">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
       </div>`;
     });
     el.innerHTML = rows.join('');
@@ -7099,6 +7157,19 @@ window.addEventListener('offline', () => {
     document.body.classList.toggle('replaying', hidden);
     if (window.HexagoDebug && window.HexagoDebug.syncPanel) window.HexagoDebug.syncPanel();
     layoutReplayBar(hidden);
+    // リプレイ用レイアウトに切り替えた直後は、盤面の実寸を取り直して
+    // キャンバスのバッキングストアを合わせる(切り替え直後にサイズが変わらない不具合の対策)
+    if (typeof syncCanvasSoon === 'function') syncCanvasSoon();
+  }
+
+  // 横並び(盤面の右にパネル)にする条件。CSS の @media と同じ判定にそろえる:
+  //   幅 900px 以上 かつ 横長、ただし低すぎる画面(スマホ横持ち)ではパネルに
+  //   必要な高さが取れないので下に置く。
+  function useSidePanel() {
+    const w = window.innerWidth || 0, h = window.innerHeight || 0;
+    if (w < 900 || h < 560) return false;
+    const landscape = window.matchMedia ? window.matchMedia('(orientation: landscape)').matches : w > h;
+    return landscape;
   }
 
   // 横画面では盤面の右側パネルへ、縦画面では盤面の下へバーを置く
@@ -7106,8 +7177,7 @@ window.addEventListener('offline', () => {
     const bar = $('replayBar'), side = $('replaySide'), area = $('playArea');
     if (!bar || !side || !area) return;
     if (on) {
-      const wide = window.innerWidth >= 900 && window.matchMedia('(orientation: landscape)').matches;
-      if (wide) { side.appendChild(bar); side.classList.remove('hidden'); }
+      if (useSidePanel()) { side.appendChild(bar); side.classList.remove('hidden'); }
       else { area.appendChild(bar); side.classList.add('hidden'); }
     } else {
       side.classList.add('hidden');
@@ -7146,7 +7216,7 @@ window.addEventListener('offline', () => {
     setGameUiHidden(true);
     seek(positions.length - 1); // まず終局(最新)局面。再生ボタンで0手目から
     // CSS のレイアウト確定後にグラフ/盤面を測り直す
-    requestAnimationFrame(() => { layoutReplayBar(true); seek(cur); });
+    requestAnimationFrame(() => { layoutReplayBar(true); if (typeof syncCanvasSoon === 'function') syncCanvasSoon(); seek(cur); });
     return { size, playerCount, moves: positions.length - 1 };
   }
 
@@ -7572,7 +7642,7 @@ window.addEventListener('offline', () => {
     document.body.classList.remove('replaying');
     setGameUiHidden(false);
     if (typeof updateUI === 'function') updateUI(); // 盤面を現在の対局局面に戻す
-    if (typeof resizeCanvas === 'function') resizeCanvas();
+    if (typeof syncCanvasSoon === 'function') syncCanvasSoon(); else if (typeof resizeCanvas === 'function') resizeCanvas();
   }
 
   // ===== 配線 =====
@@ -7610,9 +7680,10 @@ window.addEventListener('offline', () => {
     window.addEventListener('resize', () => {
       if (!active()) return;
       layoutReplayBar(true);
+      if (typeof syncCanvasSoon === 'function') syncCanvasSoon();
       seek(cur);
     });
-    window.addEventListener('orientationchange', () => { if (active()) { setTimeout(() => { layoutReplayBar(true); seek(cur); }, 120); } });
+    window.addEventListener('orientationchange', () => { if (active()) { setTimeout(() => { layoutReplayBar(true); if (typeof syncCanvasSoon === 'function') syncCanvasSoon(); seek(cur); }, 120); } });
     // 共有
     if ($('replayShowResult')) $('replayShowResult').onclick = () => {
       if (snd.click) snd.click();

@@ -260,7 +260,29 @@
         const lv = leadValues(adv);
         active.forEach((p, k) => { lead[p] = lv.lead[k]; leadPct[p] = lv.leadPct[k]; });
       }
-      rows.push({ ply: pos.ply, kind: pos.note ? pos.note.kind : 'start', event: pos.note, evals, lead, leadPct, out: pos.out.slice(), aiSeats: (pos.aiSeats || []).slice() });
+      const area = areaScores(pos.board, geo, playerCount);
+      // 地と石の内訳(整数)。地は「空点のうち按分でその色に入る量」を四捨五入したもの。
+      const stones = Array(playerCount + 1).fill(0), terr = Array(playerCount + 1).fill(0);
+      pos.board.forEach(v => { if (v) stones[v]++; });
+      for (let p = 1; p <= playerCount; p++) terr[p] = Math.max(0, Math.round(area[p] - stones[p]));
+      // 終局の公式スコアがあればそちらを優先(死に石除去後の最終値)
+      const useOfficial = !!(finalScores && !pos.out.some(() => false));
+      let breakdown = null;
+      if (useOfficial) {
+        breakdown = Array(playerCount + 1).fill(null);
+        for (let p = 1; p <= playerCount; p++) {
+          const total = Math.max(0, Number(finalScores[p]) || 0);
+          const st = stones[p];
+          breakdown[p] = { terr: Math.max(0, total - st), stones: st, total, official: true };
+        }
+      } else {
+        breakdown = Array(playerCount + 1).fill(null);
+        for (let p = 1; p <= playerCount; p++) {
+          if (pos.out[p]) continue;
+          breakdown[p] = { terr: terr[p], stones: stones[p], total: terr[p] + stones[p], official: false };
+        }
+      }
+      rows.push({ ply: pos.ply, kind: pos.note ? pos.note.kind : 'start', event: pos.note, evals, score: breakdown, lead, leadPct, out: pos.out.slice(), aiSeats: (pos.aiSeats || []).slice() });
     }
     let swing = null;
     for (let k = 1; k < rows.length; k++) {

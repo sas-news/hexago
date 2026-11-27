@@ -1,9 +1,25 @@
 // ===== 描画 =====
+// 盤面(cv)の実寸は CSS が決める。ここは「CSS 上の大きさにバッキングストアを合わせる」だけ。
+// サイズ変更でバッキングストアが消えるため、必ず描き直す。
+let canvasSyncTimer = null;
 function resizeCanvas() {
   const rc = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
-  cv.width = rc.width * d; cv.height = rc.height * d; ctx.setTransform(d, 0, 0, d, 0, 0); render();
+  const w = Math.round(rc.width * d), h = Math.round(rc.height * d);
+  if (w > 0 && h > 0 && (cv.width !== w || cv.height !== h)) { cv.width = w; cv.height = h; }
+  ctx.setTransform(d, 0, 0, d, 0, 0);
+  render();
+}
+// リプレイ開始/終了でレイアウトが切り替わった直後は、画面の再描画が来るまで
+// 盤面の実寸が古いまま(＝大きさが変わらない)。いくつかのタイミングで強制的に測り直す。
+function syncCanvasSoon() {
+  resizeCanvas();
+  if (canvasSyncTimer) clearTimeout(canvasSyncTimer);
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(resizeCanvas);
+  canvasSyncTimer = setTimeout(() => { canvasSyncTimer = null; resizeCanvas(); }, 180);
+  setTimeout(resizeCanvas, 520);
 }
 window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 120));
 function stone(x, y, r, p, alpha) {
   ctx.save(); ctx.globalAlpha = alpha; ctx.beginPath(); ctx.arc(x, y, r, 0, 7);
   ctx.fillStyle = playerFill(p); ctx.fill(); ctx.strokeStyle = playerStroke(p); ctx.lineWidth = 2; ctx.stroke(); ctx.restore();

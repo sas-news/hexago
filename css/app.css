@@ -7,22 +7,27 @@ canvas{display:block;touch-action:manipulation}
 .dot{display:inline-block;width:11px;height:11px;border-radius:50%;border:1.5px solid;vertical-align:-1px;margin-right:3px}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-thumb{background:rgba(150,150,150,.3);border-radius:3px}
 
-/* ===== リプレイ: 横画面では盤面の横にパネルを収める ===== */
+/* ===== リプレイ: 広い画面では盤面の横にパネルを収める ===== */
+/* 幅だけを基準にすると「横長でも背の低い画面」で盤面が縦に潰れるので、
+   幅・高さの両方が足りるときだけ横並びにする(判定は JS の layoutReplayBar と揃える) */
 body.replaying #playArea{flex-direction:row;align-items:center;justify-content:center;gap:14px}
 body.replaying #boardWrap{width:auto;flex:0 0 auto}
-body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520px);aspect-ratio:1/1}
-/* 縦・狭い画面: 盤面は横幅いっぱい、パネルは下 */
-@media (max-width:899px){
+/* 盤面は常に正方形。min() で幅・高さの両方に収め、片方だけ縛らない */
+body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520px);aspect-ratio:1/1;flex:0 0 auto}
+/* 幅が足りない/縦長: 盤面は横幅いっぱい、パネルは下 */
+@media (max-width:899px), (orientation:portrait){
   body.replaying #playArea{flex-direction:column;align-items:stretch}
   body.replaying #boardWrap{width:100%}
-  body.replaying #cv{width:100%;height:auto;max-width:min(520px,92vw);max-height:none;margin-left:auto;margin-right:auto}
+  body.replaying #cv{width:100%;height:auto;max-width:min(520px,92vw);max-height:none;margin-left:auto;margin-right:auto;flex:0 1 auto}
 }
-/* 横画面: 盤面を縦に収め、パネルを右へ */
-@media (min-width:900px) and (orientation:landscape){
+/* 横並び: 盤面を正方形のまま縦に収め、パネルを右へ
+   (スマホ横持ちの低い画面ではパネルが入らないので縦積みのまま) */
+@media (min-width:900px) and (orientation:landscape) and (min-height:560px){
   /* 盤面+パネルを1組のブロックとして中央に置く(盤面だけ左に寄らない) */
-  body.replaying #playArea{justify-content:center;align-items:center;margin-left:auto;margin-right:auto;max-width:calc(min(72vh,540px) + min(360px,34vw) + 14px)}
-  body.replaying #cv{width:min(72vh,540px);height:min(72vh,540px);flex:0 0 auto}
-  body.replaying #replaySide{display:flex;flex-direction:column;justify-content:center;flex:0 0 auto;width:min(360px,34vw);max-height:min(78vh,540px)}
+  body.replaying #playArea{justify-content:center;align-items:center;margin-left:auto;margin-right:auto;max-width:calc(min(88vh,720px) + min(360px,34vw) + 14px)}
+  body.replaying #cv{width:min(88vh,720px);height:min(88vh,720px);max-height:none;flex:0 0 auto}
+  body.replaying #replaySide{display:flex;flex-direction:column;justify-content:center;flex:0 0 auto;width:min(360px,34vw);max-height:min(92vh,640px)}
+  /* パネルは画面の高さいっぱいに使えるので、中身はスクロールさせない */
   body.replaying #replayBar{width:100%}
 }
 
@@ -70,3 +75,11 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 @media (prefers-reduced-motion: reduce) {
   #playArea, #boardWrap, #replayBar, #replaySide { transition: none !important; }
 }
+
+/* ===== リプレイの凡例(1席1行) =====
+   固定グリッドで数値列を右寄せに揃える。名前だけ省略して伸びる。
+   これまで要素が左に詰まって見えていたのを、得点内訳の列も含めて幅いっぱいに並べる。 */
+#replayLegend{display:flex;flex-direction:column;gap:1px}
+.replay-row{display:grid;grid-template-columns:auto minmax(3.5em,1fr) 4.6em auto 1.75em;align-items:center;gap:0 .375rem;padding:1px 0;font-size:11px;line-height:1.5}
+.replay-row > span:nth-child(2){min-width:0}
+.replay-row strong{font-weight:800}

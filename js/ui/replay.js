@@ -105,16 +105,23 @@
     const pc = data.playerCount;
     const prevRow = cur > 0 ? data.series.rows[cur - 1] : null;
     // 1席1行の表。数値は固定幅・等幅フォントで、値が変わっても幅が揺れない。
+    // 列は「印+AI/人 ／ 名前 ／ 形勢 ／ 内訳(地+石=点) ／ 切替バッジ」の固定グリッド。
+    // 名前だけが伸び、数値列は右寄せで幅が揃うので左に寄って見えない。
     const rows = Array.from({ length: pc }, (_, i) => i + 1).map(p => {
       const isAi = !!(row.aiSeats && row.aiSeats[p]);
       const changed = prevRow && prevRow.aiSeats && !!prevRow.aiSeats[p] !== isAi;
       const v = row.leadPct[p];
       const leadTxt = v === undefined ? '投了' : `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}%`;
-      return `<div class="grid grid-cols-[auto_auto_auto_auto] items-center justify-start gap-x-1.5 py-0.5${changed ? ' font-bold' : ''}">
+      const sc = row.score && row.score[p];
+      const scoreTxt = sc
+        ? `地${sc.terr}＋石${sc.stones}＝<strong>${sc.total}</strong>点`
+        : '終局';
+      return `<div class="replay-row${changed ? ' font-bold' : ''}">
         <span class="flex items-center gap-1">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span></span>
-        <span class="whitespace-nowrap">${esc(seatName(p))}</span>
-        <span class="text-right tabular-nums font-mono min-w-[3.2em]">${leadTxt}</span>
-        <span class="w-7 text-left">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
+        <span class="truncate">${esc(seatName(p))}</span>
+        <span class="text-right tabular-nums font-mono whitespace-nowrap">${leadTxt}</span>
+        <span class="text-right tabular-nums whitespace-nowrap">${scoreTxt}</span>
+        <span class="text-left">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
       </div>`;
     });
     el.innerHTML = rows.join('');
@@ -280,6 +287,19 @@
     document.body.classList.toggle('replaying', hidden);
     if (window.HexagoDebug && window.HexagoDebug.syncPanel) window.HexagoDebug.syncPanel();
     layoutReplayBar(hidden);
+    // リプレイ用レイアウトに切り替えた直後は、盤面の実寸を取り直して
+    // キャンバスのバッキングストアを合わせる(切り替え直後にサイズが変わらない不具合の対策)
+    if (typeof syncCanvasSoon === 'function') syncCanvasSoon();
+  }
+
+  // 横並び(盤面の右にパネル)にする条件。CSS の @media と同じ判定にそろえる:
+  //   幅 900px 以上 かつ 横長、ただし低すぎる画面(スマホ横持ち)ではパネルに
+  //   必要な高さが取れないので下に置く。
+  function useSidePanel() {
+    const w = window.innerWidth || 0, h = window.innerHeight || 0;
+    if (w < 900 || h < 560) return false;
+    const landscape = window.matchMedia ? window.matchMedia('(orientation: landscape)').matches : w > h;
+    return landscape;
   }
 
   // 横画面では盤面の右側パネルへ、縦画面では盤面の下へバーを置く
@@ -287,8 +307,7 @@
     const bar = $('replayBar'), side = $('replaySide'), area = $('playArea');
     if (!bar || !side || !area) return;
     if (on) {
-      const wide = window.innerWidth >= 900 && window.matchMedia('(orientation: landscape)').matches;
-      if (wide) { side.appendChild(bar); side.classList.remove('hidden'); }
+      if (useSidePanel()) { side.appendChild(bar); side.classList.remove('hidden'); }
       else { area.appendChild(bar); side.classList.add('hidden'); }
     } else {
       side.classList.add('hidden');
@@ -327,7 +346,7 @@
     setGameUiHidden(true);
     seek(positions.length - 1); // まず終局(最新)局面。再生ボタンで0手目から
     // CSS のレイアウト確定後にグラフ/盤面を測り直す
-    requestAnimationFrame(() => { layoutReplayBar(true); seek(cur); });
+    requestAnimationFrame(() => { layoutReplayBar(true); if (typeof syncCanvasSoon === 'function') syncCanvasSoon(); seek(cur); });
     return { size, playerCount, moves: positions.length - 1 };
   }
 
@@ -753,7 +772,7 @@
     document.body.classList.remove('replaying');
     setGameUiHidden(false);
     if (typeof updateUI === 'function') updateUI(); // 盤面を現在の対局局面に戻す
-    if (typeof resizeCanvas === 'function') resizeCanvas();
+    if (typeof syncCanvasSoon === 'function') syncCanvasSoon(); else if (typeof resizeCanvas === 'function') resizeCanvas();
   }
 
   // ===== 配線 =====
@@ -791,9 +810,10 @@
     window.addEventListener('resize', () => {
       if (!active()) return;
       layoutReplayBar(true);
+      if (typeof syncCanvasSoon === 'function') syncCanvasSoon();
       seek(cur);
     });
-    window.addEventListener('orientationchange', () => { if (active()) { setTimeout(() => { layoutReplayBar(true); seek(cur); }, 120); } });
+    window.addEventListener('orientationchange', () => { if (active()) { setTimeout(() => { layoutReplayBar(true); if (typeof syncCanvasSoon === 'function') syncCanvasSoon(); seek(cur); }, 120); } });
     // 共有
     if ($('replayShowResult')) $('replayShowResult').onclick = () => {
       if (snd.click) snd.click();
