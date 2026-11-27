@@ -7,6 +7,8 @@ function visibleModals() {
 function closeModal(el) {
   if (!el || el.classList.contains('hidden')) return false;
   el.classList.add('hidden');
+  // 設定を閉じたら「その場だけの表示」は捨てる(開き直すと対局中の状態に戻る)
+  if (el.id === 'setModal' && typeof clearTransientSettings === 'function') clearTransientSettings();
   if (G && typeof autoPass === 'function' && autoPass()) autoPass().update();
   return true;
 }
