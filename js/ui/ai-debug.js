@@ -7,7 +7,7 @@
   let enabled = false;
   // 手数(ply) → { player, moves: [{move, visits, value}], visits, winrate }
   const records = new Map();
-  let overlayMode = 'visits';   // 'visits' | 'winrate'
+  // 訪問数のみを使う(勝率は探索済みの手でしか意味がない)
   let overlayStyle = 'heat';    // 'heat' | 'number' | 'both'
   let showOverlay = true;
 
@@ -102,14 +102,14 @@
     }
     const span = Math.max(1e-6, maxV - minV);
     for (const [i, v] of quick) {
-      scored.push({ move: i, value: (v - minV) / span, weight: 0, explored: false });
+      scored.push({ move: i, value: (v - minV) / span, visits: 0, weight: 0, explored: false });
     }
     // 探索済みの手は探索データを優先(勝率ベース)
     let wMin = Infinity, wMax = -Infinity;
     for (const m of explored) { wMin = Math.min(wMin, m.value); wMax = Math.max(wMax, m.value); }
     const wSpan = Math.max(1e-6, wMax - wMin);
     for (const m of explored) {
-      scored.push({ move: m.move, value: (m.value - wMin) / wSpan, weight: m.visits, explored: true });
+      scored.push({ move: m.move, value: (m.value - wMin) / wSpan, visits: m.visits, weight: m.visits, explored: true });
     }
     return scored;
   }
@@ -121,55 +121,72 @@
   function clear() { records.clear(); }
 
   // 盤面に評価値を重ねる。
-  //   mode: 'heat'   … 盤全体を色むらで塗る(直感的)
-  //         'number' … 各点に数値を書く(探索した手のみ)
-  //         'both'   … 色むら + 数値
-  // 実際に打たれた手は白いリングで強調する。
+  //   訪問数のみを使う(勝率は探索した手でしか意味がなく、実質同じ情報だった)。
+  //   色は連続グラデーションではなく 4 段階の帯にして「どこが強いか」を読みやすくする。
+  //   style: 'heat' … 全点を段階色で塗る
+  //          'number' … 探索した手だけ数値を出す
+  //          'both' … 段階色 + 探索した手の数値(塗りは共通で二重に濃くしない)
+  //   実際に打たれた手は白リングで強調する。
+  // 訪問数は 1 桁以上ばらつく(数百 vs 数万)ので、対数スケールで 0..1 に落として
+  // 4 段階に分ける。線形だと突出した 1 点以外が全部最下段に潰れてしまう。
+  // 実際の分布は「ほぼ 0(未探索)」と「数百〜数万(探索済み)」の2峰になり、
+  // 探索済みの中でも差がある。0.70 付近が「探索されたかどうか」の境目。
+  // AI は上位手にほぼ均等に探索を配分するため、値は狭い範囲に固まる。
+  // そこで「探索したか」を主軸にし、探索量の差は色味で段階化する。
+  // 一色(赤)の濃淡で表す。多色より「どこが強いか」が一目で分かる。
+  // 未探索はほぼ無色、探索が多いほど濃い赤。
+  function heatFill(t) {
+    t = Math.max(0, Math.min(1, t));
+    // 0.0 → ごく薄い赤 / 1.0 → 濃い赤
+    const alpha = 0.08 + 0.72 * Math.pow(t, 0.75);
+    const light = 62 - 22 * t;   // 明るさ 62% → 40%
+    return `hsla(355, 78%, ${light}%, ${alpha.toFixed(3)})`;
+  }
+  // 訪問数 → 0..1(対数スケール)。0 は 0 のまま。
+  function logRatio(v, max) {
+    if (!(v > 0) || !(max > 0)) return 0;
+    if (max <= 1) return 1;
+    return Math.log(1 + v) / Math.log(1 + max);
+  }
+
   function drawOverlay(canvas, ctx, metrics, overlay) {
     if (!enabled || !showOverlay || !overlay) return;
     const { cell, pos } = metrics;
     const r0 = cell * 0.46;
-    const useWinrate = overlayMode === 'winrate';
     const style = overlayStyle;  // 'heat' | 'number' | 'both'
+    const all = overlay.all || [];
+    const list = (overlay.moves || []).filter(m => m.visits > 0);
+    // 相対的な強弱で段階を決める。
+    // 「合計に対するシェア」だと全点がほぼ均等になり段階が潰れるため、
+    // 一番探索された点を 1.0 とした比率を使う。
+    let maxVisits = 0;
+    for (const m of all) maxVisits = Math.max(maxVisits, m.visits || 0);
 
-    // --- 色むら ---
+    // --- 色むら(全点・単一の塗り) ---
     if (style !== 'number') {
-      const pts = overlay.all || [];
-      let maxV = 0;
-      for (const m of pts) maxV = Math.max(maxV, m.value);
       ctx.save();
-      for (const m of pts) {
+      for (const m of all) {
         const [x, y] = pos(m.move);
-        const t = maxV > 0 ? Math.max(0, m.value) / maxV : 0;
-        // 探索された手は濃く、未探索は薄く
-        const alpha = (m.explored ? 0.55 : 0.22) * (0.35 + 0.65 * t);
-        ctx.globalAlpha = alpha;
+        const rel = logRatio(m.visits || 0, maxVisits);
         ctx.beginPath(); ctx.arc(x, y, r0, 0, 7);
-        ctx.fillStyle = heatColor(t);
+        ctx.fillStyle = heatFill(rel);
         ctx.fill();
       }
       ctx.restore();
     }
 
-    // --- 数値(探索した手のみ) ---
+    // --- 数値(探索した手のみ / 塗りは heat と共通) ---
     if (style !== 'heat') {
-      const list = overlay.moves || [];
-      let maxW = 0, minW = Infinity;
-      for (const m of list) { maxW = Math.max(maxW, m.visits); minW = Math.min(minW, m.visits); }
       ctx.save();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       for (const m of list) {
         const [x, y] = pos(m.move);
-        const t = maxW > minW ? (m.visits - minW) / (maxW - minW) : 1;
-        ctx.globalAlpha = 0.85;
-        ctx.beginPath(); ctx.arc(x, y, r0 * 0.95, 0, 7);
-        ctx.fillStyle = heatColor(t);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = t > 0.55 ? '#0b2a15' : '#3a0d0d';
-        ctx.font = `bold ${Math.max(7, cell * 0.19)}px system-ui, sans-serif`;
-        const label = useWinrate ? (m.value * 100).toFixed(0) : shortNum(m.visits);
-        ctx.fillText(label, x, y);
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.font = `bold ${Math.max(7, cell * 0.20)}px system-ui, sans-serif`;
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+        ctx.lineWidth = 2.5;
+        ctx.strokeText(shortNum(m.visits), x, y);
+        ctx.fillText(shortNum(m.visits), x, y);
       }
       ctx.restore();
     }
@@ -194,12 +211,6 @@
     if (n >= 10000) return (n / 1000).toFixed(1) + 'k';
     if (n >= 1000) return (n / 1000).toFixed(2).replace(/\.?0+$/, '') + 'k';
     return String(n);
-  }
-  // 0(悪い)→赤, 0.5→黄, 1(良い)→緑
-  function heatColor(t) {
-    t = Math.max(0, Math.min(1, t));
-    const hue = 120 * t;
-    return `hsl(${hue}, 88%, 52%)`;
   }
 
   function syncUi() {
@@ -231,7 +242,6 @@
     const toggle = document.getElementById('debugOverlayToggle');
     if (toggle) toggle.onchange = () => { showOverlay = toggle.checked; if (typeof render === 'function') render(); };
     const modeSel = document.getElementById('debugOverlayMode');
-    if (modeSel) modeSel.onchange = () => { overlayMode = modeSel.value; if (typeof render === 'function') render(); };
     const styleSel = document.getElementById('debugOverlayStyle');
     if (styleSel) styleSel.onchange = () => { overlayStyle = styleSel.value; if (typeof render === 'function') render(); };
     syncUi();
@@ -245,7 +255,6 @@
     clear,
     drawOverlay,
     syncPanel,
-    mode: () => overlayMode,
     style: () => overlayStyle,
     setStyle: (v) => { overlayStyle = v; if (typeof render === 'function') render(); }
   };

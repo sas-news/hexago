@@ -567,13 +567,13 @@
     const positions = R.replayPositions(record, geo2);
     const series = R.advantageSeries(positions, geo2, playerCount, names);
     const t = cardTheme();
-    // 縦長デザイン。余白を詰めて高さを 1180 → 1040 に。
-    const W = 720, H = 1040;
+    const W = 720, H = 900;
+    const PAD = 44;
     const cv = document.createElement('canvas');
     cv.width = W; cv.height = H;
     const g = cv.getContext('2d');
 
-    // 背景(テーマ)
+    // 背景
     if (t.dark) { g.fillStyle = t.bg1; g.fillRect(0, 0, W, H); }
     else {
       const grad = g.createLinearGradient(0, 0, 0, H);
@@ -581,17 +581,34 @@
       g.fillStyle = grad; g.fillRect(0, 0, W, H);
     }
 
-    // タイトル
-    g.fillStyle = t.text;
-    g.font = 'bold 40px system-ui, -apple-system, "Hiragino Sans", sans-serif';
-    g.textAlign = 'center'; g.textBaseline = 'top';
-    g.fillText('HEXAGO', W / 2, 30);
-    g.font = '18px system-ui, sans-serif';
-    g.fillStyle = t.sub;
-    g.fillText(`${size}路盤・${playerCount}人戦・${series.rows[series.rows.length - 1].ply}手`, W / 2, 80);
+    const last = series.rows[series.rows.length - 1];
+    const scoreEvt = [...record.events].reverse().find(e => e.type === 'score');
+    const order = Array.from({ length: playerCount }, (_, i) => i + 1)
+      .sort((a, b) => (last.leadPct[b] ?? -999) - (last.leadPct[a] ?? -999));
 
-    // 盤面
-    const boardSize = 452;
+    // ---- ヘッダ ----
+    g.textBaseline = 'top';
+    g.textAlign = 'left';
+    g.fillStyle = t.text;
+    g.font = 'bold 30px system-ui, -apple-system, "Hiragino Sans", sans-serif';
+    g.fillText('HEXAGO', PAD, 30);
+    const titleW = g.measureText('HEXAGO').width;
+    g.font = '15px system-ui, sans-serif';
+    g.fillStyle = t.sub;
+    g.fillText(`${size}路盤 · ${playerCount}人戦 · ${last.ply}手`, PAD + titleW + 16, 40);
+
+    // 勝者(右上・大きく)
+    if (scoreEvt && scoreEvt.result) {
+      g.textAlign = 'right';
+      g.fillStyle = t.text;
+      g.font = 'bold 22px system-ui, sans-serif';
+      g.fillText(scoreEvt.result, W - PAD, 34);
+      g.textAlign = 'left';
+    }
+
+    // ---- 盤面 ----
+    const boardSize = 392;
+    const boardY = 88;
     const board = document.createElement('canvas');
     const fills = {}, strokes = {};
     for (let p = 1; p <= playerCount; p++) { fills[p] = playerFill(p); strokes[p] = playerStroke(p); }
@@ -599,29 +616,28 @@
       cssSize: boardSize, dpr: 1,
       themeBoard: t.board, themeLine: t.line, fills, strokes
     });
-    g.drawImage(board, (W - boardSize) / 2, 118, boardSize, boardSize);
+    g.drawImage(board, (W - boardSize) / 2, boardY, boardSize, boardSize);
 
-    // 優勢グラフ
-    const gx = 72, gy = 618, gw = W - 144, gh = 154;
-    g.beginPath();
-    if (g.roundRect) g.roundRect(gx - 12, gy - 34, gw + 24, gh + 50, 14); else g.rect(gx - 12, gy - 34, gw + 24, gh + 50);
-    g.fillStyle = t.panel; g.fill();
-    g.strokeStyle = t.panelBorder; g.lineWidth = 2; g.stroke();
-
-    g.fillStyle = t.sub; g.font = 'bold 16px system-ui, sans-serif';
+    // ---- 優勢グラフ(勝者のすぐ下) ----
+    const gx = PAD + 8, gy = boardY + boardSize + 50, gw = W - (PAD + 8) * 2, gh = 130;
     g.textAlign = 'left'; g.textBaseline = 'top';
-    g.fillText('優勢グラフ', gx, gy - 24);
+    g.fillStyle = t.sub; g.font = 'bold 15px system-ui, sans-serif';
+    g.fillText('優勢グラフ', gx, gy - 26);
+    g.beginPath();
+    if (g.roundRect) g.roundRect(gx - 12, gy - 8, gw + 24, gh + 16, 14); else g.rect(gx - 12, gy - 8, gw + 24, gh + 16);
+    g.fillStyle = t.panel; g.fill();
+    g.strokeStyle = t.panelBorder; g.lineWidth = 1.5; g.stroke();
 
     let maxAbs = 1;
     for (const row of series.rows) for (const k of Object.keys(row.leadPct)) maxAbs = Math.max(maxAbs, Math.abs(row.leadPct[k]));
     const rows = series.rows;
-    const yy = v => gy + gh / 2 - (v / maxAbs) * (gh / 2);
+    const yy = v => gy + gh / 2 - (v / maxAbs) * (gh / 2 - 6);
     const xx = i => gx + (rows.length <= 1 ? gw / 2 : (i / (rows.length - 1)) * gw);
-    g.strokeStyle = t.dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.16)'; g.lineWidth = 1;
+    g.strokeStyle = t.dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.14)'; g.lineWidth = 1;
     g.beginPath(); g.moveTo(gx, yy(0)); g.lineTo(gx + gw, yy(0)); g.stroke();
     const lines = playerCount === 2 ? [1] : Array.from({ length: playerCount }, (_, i) => i + 1);
     lines.forEach(p => {
-      g.strokeStyle = graphLineColor(p, t.dark); g.lineWidth = 2.5; g.lineJoin = 'round';
+      g.strokeStyle = graphLineColor(p, t.dark); g.lineWidth = 3; g.lineJoin = 'round';
       g.beginPath();
       let started = false;
       for (let k = 0; k < rows.length; k++) {
@@ -632,33 +648,56 @@
       g.stroke();
     });
 
-    // 順位
-    const last = series.rows[series.rows.length - 1];
-    const order = Array.from({ length: playerCount }, (_, i) => i + 1)
-      .sort((a, b) => (last.leadPct[b] ?? -999) - (last.leadPct[a] ?? -999));
+    // ---- 順位と得点内訳 ----
+    // 最終局面から「地」「石」を出し、"地 + 石 = 点" を並べる。
+    const finalBoard = positions[positions.length - 1].board;
+    const territory = R.areaScores(finalBoard, geo2, playerCount);
+    const stones = Array(playerCount + 1).fill(0);
+    for (const v of finalBoard) if (v) stones[v]++;
+    // 正式スコアがある場合は、それを「地 + 石」に割り振って整合させる
+    // (地の簡易計算と公式スコアがずれたまま並べると数字の辻褄が合わない)。
+    const scores = Array(playerCount + 1).fill(0);
+    for (let p = 1; p <= playerCount; p++) {
+      const official = (scoreEvt && Array.isArray(scoreEvt.scores) && scoreEvt.scores[p] != null)
+        ? Number(scoreEvt.scores[p]) : null;
+      if (official != null) {
+        scores[p] = official;
+        // 石は実数、地は「公式 - 石」で逆算する(負なら0)
+        territory[p] = Math.max(0, Math.round((official - stones[p]) * 10) / 10);
+      } else {
+        scores[p] = Math.round(territory[p] + stones[p]);
+        territory[p] = Math.round(territory[p] * 10) / 10;
+      }
+    }
+
+    const rankY = gy + gh + 34;
     g.textBaseline = 'middle';
     order.forEach((p, idx) => {
-      const y = 838 + idx * 32;
+      const y = rankY + idx * 34;
+      // 色玉
       g.fillStyle = playerFill(p);
-      g.beginPath(); g.arc(104, y, 10, 0, 7); g.fill();
+      g.beginPath(); g.arc(PAD + 10, y, 11, 0, 7); g.fill();
       g.strokeStyle = t.sub; g.lineWidth = 1.6; g.stroke();
+      // 名前
       g.fillStyle = t.text; g.font = 'bold 18px system-ui, sans-serif';
+      g.textAlign = 'left';
       const nm = (names && names[p]) || `${p}P`;
-      g.textAlign = 'left'; g.fillText(`${nm} (${p}P)`, 126, y);
+      g.fillText(`${nm} (${p}P)`, PAD + 30, y);
+      // 得点内訳: 地 + 石 = 点
+      g.font = '15px system-ui, sans-serif';
+      g.fillStyle = t.sub;
+      g.fillText(`地 ${territory[p].toFixed(1)} ＋ 石 ${stones[p]} ＝ ${scores[p]}点`, PAD + 156, y);
+      // リード%
       const lead = last.leadPct[p];
-      const leadTxt = (typeof lead === 'number') ? `${lead >= 0 ? '+' : '−'}${Math.abs(lead).toFixed(1)}%` : '投了';
-      g.textAlign = 'right'; g.fillText(leadTxt, W - 104, y);
+      g.textAlign = 'right';
+      g.fillStyle = t.text; g.font = 'bold 17px system-ui, sans-serif';
+      g.fillText((typeof lead === 'number') ? `${lead >= 0 ? '+' : '−'}${Math.abs(lead).toFixed(1)}%` : '投了', W - PAD, y);
+      g.textAlign = 'left';
     });
 
-    // 結果とサイトURL
-    const scoreEvt = [...record.events].reverse().find(e => e.type === 'score');
-    if (scoreEvt && scoreEvt.result) {
-      g.textAlign = 'center'; g.textBaseline = 'top';
-      g.fillStyle = t.text; g.font = 'bold 21px system-ui, sans-serif';
-      g.fillText(scoreEvt.result, W / 2, H - 68);
-    }
-    g.textAlign = 'center'; g.textBaseline = 'top';
-    g.fillStyle = t.sub; g.font = '14px system-ui, sans-serif';
+    // ---- サイトURL(右下) ----
+    g.textAlign = 'right'; g.textBaseline = 'bottom';
+    g.fillStyle = t.sub; g.font = '13px system-ui, sans-serif';
     const siteUrl = (function () {
       const sm = $('shareModal');
       const short = sm && sm.dataset && sm.dataset.shortUrl;
@@ -667,7 +706,7 @@
       u.hash = ''; u.search = '';
       return u.toString();
     })();
-    g.fillText(siteUrl, W / 2, H - 34);
+    g.fillText(siteUrl, W - PAD, H - 22);
     return cv;
   }
 
