@@ -39,14 +39,19 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 /* 横並び: 盤面を正方形のまま縦に収め、パネルを右へ
    (スマホ横持ちの低い画面ではパネルが入らないので縦積みのまま) */
 @media (min-width:900px) and (orientation:landscape) and (min-height:560px){
+  /* この状態では中身が1画面に収まるので、上に寄らず縦中央へ置く
+     (body の justify-between がヘッダーと盤面を上下に引き離すため) */
+  body.replaying{justify-content:center}
   /* 盤面+パネルを1組のブロックとして中央に置く(盤面だけ左に寄らない)。
      盤面は「パネル幅を除いた残り」と「画面の高さ」の小さい方に収める。
      高さだけで決めると、幅が足りない画面でブロックが画面からはみ出し、
-     全体が右へずれて見える。 */
+     全体が右へずれて見える。
+     ※ 上限はプレイ時と同じ 520px。リプレイで急に巨大になると違和感があり、
+       対局中の盤面と同じ見た目で再生できるほうが自然。 */
   /* ページ本体は max-w-xl なので、そのままだとブロックが入りきらず右へずれる */
   body.replaying #appShell{max-width:none}
   body.replaying #playArea{justify-content:center;align-items:center;margin-left:auto;margin-right:auto;
-    --rp-board:min(calc(100vw - min(360px,34vw) - 14px - 24px), 88vh, 720px)}
+    --rp-board:min(calc(100vw - min(360px,34vw) - 14px - 24px), 78vh, 520px)}
   body.replaying #cv{width:var(--rp-board);height:var(--rp-board);max-height:none;min-width:0;flex:0 0 auto}
   body.replaying #boardWrap{min-width:0}
   body.replaying #replaySide{display:flex;flex-direction:column;justify-content:center;flex:0 0 auto;width:min(360px,34vw);max-height:min(92vh,640px);min-width:0}
