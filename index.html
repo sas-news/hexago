@@ -39,10 +39,17 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 /* 横並び: 盤面を正方形のまま縦に収め、パネルを右へ
    (スマホ横持ちの低い画面ではパネルが入らないので縦積みのまま) */
 @media (min-width:900px) and (orientation:landscape) and (min-height:560px){
-  /* 盤面+パネルを1組のブロックとして中央に置く(盤面だけ左に寄らない) */
-  body.replaying #playArea{justify-content:center;align-items:center;margin-left:auto;margin-right:auto;max-width:calc(min(88vh,720px) + min(360px,34vw) + 14px)}
-  body.replaying #cv{width:min(88vh,720px);height:min(88vh,720px);max-height:none;flex:0 0 auto}
-  body.replaying #replaySide{display:flex;flex-direction:column;justify-content:center;flex:0 0 auto;width:min(360px,34vw);max-height:min(92vh,640px)}
+  /* 盤面+パネルを1組のブロックとして中央に置く(盤面だけ左に寄らない)。
+     盤面は「パネル幅を除いた残り」と「画面の高さ」の小さい方に収める。
+     高さだけで決めると、幅が足りない画面でブロックが画面からはみ出し、
+     全体が右へずれて見える。 */
+  /* ページ本体は max-w-xl なので、そのままだとブロックが入りきらず右へずれる */
+  body.replaying #appShell{max-width:none}
+  body.replaying #playArea{justify-content:center;align-items:center;margin-left:auto;margin-right:auto;
+    --rp-board:min(calc(100vw - min(360px,34vw) - 14px - 24px), 88vh, 720px)}
+  body.replaying #cv{width:var(--rp-board);height:var(--rp-board);max-height:none;min-width:0;flex:0 0 auto}
+  body.replaying #boardWrap{min-width:0}
+  body.replaying #replaySide{display:flex;flex-direction:column;justify-content:center;flex:0 0 auto;width:min(360px,34vw);max-height:min(92vh,640px);min-width:0}
   /* パネルは画面の高さいっぱいに使えるので、中身はスクロールさせない */
   body.replaying #replayBar{width:100%}
 }
@@ -94,15 +101,15 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 
 /* ===== リプレイの凡例(1席1行) =====
    固定グリッドで数値列を右寄せに揃える。名前だけ省略して伸びる。
-   これまで要素が左に詰まって見えていたのを、得点内訳の列も含めて幅いっぱいに並べる。 */
+   これまで要素が左に詰まって見えていたのを、幅いっぱいに並べる。 */
 #replayLegend{display:flex;flex-direction:column;gap:1px}
-.replay-row{display:grid;grid-template-columns:auto minmax(3.5em,1fr) 4.6em auto 1.75em;align-items:center;gap:0 .375rem;padding:1px 0;font-size:11px;line-height:1.5}
+.replay-row{display:grid;grid-template-columns:auto minmax(3.5em,1fr) 4.6em 1.75em;align-items:center;gap:0 .375rem;padding:1px 0;font-size:11px;line-height:1.5}
 .replay-row > span:nth-child(2){min-width:0}
 .replay-row strong{font-weight:800}
 </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-6 select-none">
-<div class="w-full max-w-xl flex flex-col items-center gap-4 sm:gap-5">
+<div id="appShell" class="w-full max-w-xl flex flex-col items-center gap-4 sm:gap-5">
   <header class="w-full grid grid-cols-[1fr_auto_1fr] items-center pt-1">
     <div aria-hidden="true"></div>
     <h1 class="text-2xl sm:text-3xl font-extrabold tracking-wider text-center">HEXAGO</h1>
@@ -6975,22 +6982,16 @@ window.addEventListener('offline', () => {
     const pc = data.playerCount;
     const prevRow = cur > 0 ? data.series.rows[cur - 1] : null;
     // 1席1行の表。数値は固定幅・等幅フォントで、値が変わっても幅が揺れない。
-    // 列は「印+AI/人 ／ 名前 ／ 形勢 ／ 内訳(地+石=点) ／ 切替バッジ」の固定グリッド。
     // 名前だけが伸び、数値列は右寄せで幅が揃うので左に寄って見えない。
     const rows = Array.from({ length: pc }, (_, i) => i + 1).map(p => {
       const isAi = !!(row.aiSeats && row.aiSeats[p]);
       const changed = prevRow && prevRow.aiSeats && !!prevRow.aiSeats[p] !== isAi;
       const v = row.leadPct[p];
       const leadTxt = v === undefined ? '投了' : `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}%`;
-      const sc = row.score && row.score[p];
-      const scoreTxt = sc
-        ? `地${sc.terr}＋石${sc.stones}＝<strong>${sc.total}</strong>点`
-        : '終局';
       return `<div class="replay-row${changed ? ' font-bold' : ''}">
         <span class="flex items-center gap-1">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span></span>
         <span class="truncate">${esc(seatName(p))}</span>
         <span class="text-right tabular-nums font-mono whitespace-nowrap">${leadTxt}</span>
-        <span class="text-right tabular-nums whitespace-nowrap">${scoreTxt}</span>
         <span class="text-left">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
       </div>`;
     });

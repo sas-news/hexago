@@ -105,22 +105,16 @@
     const pc = data.playerCount;
     const prevRow = cur > 0 ? data.series.rows[cur - 1] : null;
     // 1席1行の表。数値は固定幅・等幅フォントで、値が変わっても幅が揺れない。
-    // 列は「印+AI/人 ／ 名前 ／ 形勢 ／ 内訳(地+石=点) ／ 切替バッジ」の固定グリッド。
     // 名前だけが伸び、数値列は右寄せで幅が揃うので左に寄って見えない。
     const rows = Array.from({ length: pc }, (_, i) => i + 1).map(p => {
       const isAi = !!(row.aiSeats && row.aiSeats[p]);
       const changed = prevRow && prevRow.aiSeats && !!prevRow.aiSeats[p] !== isAi;
       const v = row.leadPct[p];
       const leadTxt = v === undefined ? '投了' : `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}%`;
-      const sc = row.score && row.score[p];
-      const scoreTxt = sc
-        ? `地${sc.terr}＋石${sc.stones}＝<strong>${sc.total}</strong>点`
-        : '終局';
       return `<div class="replay-row${changed ? ' font-bold' : ''}">
         <span class="flex items-center gap-1">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span></span>
         <span class="truncate">${esc(seatName(p))}</span>
         <span class="text-right tabular-nums font-mono whitespace-nowrap">${leadTxt}</span>
-        <span class="text-right tabular-nums whitespace-nowrap">${scoreTxt}</span>
         <span class="text-left">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
       </div>`;
     });
