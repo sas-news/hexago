@@ -103,19 +103,21 @@
     const el = $('replayLegend'), row = data.series.rows[cur];
     if (!el || !row) return;
     const pc = data.playerCount;
-    // 直前の局面とAI状態が変わった席を強調する(途中の切替を視覚的に示す)
     const prevRow = cur > 0 ? data.series.rows[cur - 1] : null;
-    const parts = Array.from({ length: pc }, (_, i) => i + 1).map(p => {
+    // 1席1行の表。数値は固定幅・等幅フォントで、値が変わっても幅が揺れない。
+    const rows = Array.from({ length: pc }, (_, i) => i + 1).map(p => {
       const isAi = !!(row.aiSeats && row.aiSeats[p]);
       const changed = prevRow && prevRow.aiSeats && !!prevRow.aiSeats[p] !== isAi;
       const v = row.leadPct[p];
       const leadTxt = v === undefined ? '投了' : `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}%`;
-      const mark = changed
-        ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>`
-        : '';
-      return `<span class="inline-flex items-center gap-1 whitespace-nowrap${changed ? ' font-bold' : ''}">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span><span>${esc(seatName(p))}</span><span class="font-normal opacity-70">${leadTxt}</span>${mark}</span>`;
+      return `<div class="grid grid-cols-[auto_1fr_auto_auto] items-center gap-x-2 py-0.5${changed ? ' font-bold' : ''}">
+        <span class="flex items-center gap-1">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span></span>
+        <span class="truncate">${esc(seatName(p))}</span>
+        <span class="text-right tabular-nums font-mono">${leadTxt}</span>
+        <span class="w-8 text-center">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
+      </div>`;
     });
-    el.innerHTML = parts.join('<span class="opacity-40 mx-1">·</span>');
+    el.innerHTML = rows.join('');
   }
 
   // ===== 優勢グラフ =====

@@ -318,6 +318,10 @@ function maybeAI() {
     document.getElementById('aiOv').classList.add('hidden');
     if (G.over || G.phase !== 'playing' || G.turn !== turn || !aiSeatOf(turn)) return;
     lastAIStats = result || null;
+    // デバッグモード時のみ、AI の評価分布を棋譜に記録する(共有には含めない)
+    if (window.HexagoDebug && window.HexagoDebug.enabled() && result) {
+      try { window.HexagoDebug.recordAI(turn, result); } catch (e) { }
+    }
     let move = result && Number.isInteger(result.move) ? result.move : -3;
     if (move === -2) { resign(); after(); return; }
     // エンジンのパス判定(-1)は最終決定として尊重する（旧統合ではレガシーAIの

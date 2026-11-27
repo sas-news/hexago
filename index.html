@@ -98,6 +98,9 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
       <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
     </button>
     <button id="btnOpenRules" type="button" title="ルールを見る" aria-label="ルールを見る" class="w-9 h-9 flex items-center justify-center rounded-full text-current opacity-35 hover:opacity-70 hover:bg-black/5 active:scale-95 transition-all text-2xl font-semibold">ⓘ</button>
+    <button id="btnDebugMode" type="button" title="デバッグモード(AI評価の可視化)" aria-label="デバッグモード" class="w-9 h-9 flex items-center justify-center rounded-full text-current opacity-50 hover:opacity-90 hover:bg-black/5 active:scale-95 transition-all">
+      <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3v2M5 8l1.5 1M19 8l-1.5 1M7 13H4M20 13h-3M8 19l1-1.5M16 19l-1-1.5"/><circle cx="12" cy="13" r="4.5"/></svg>
+    </button>
     <button id="btnOpenSettings" type="button" title="設定" aria-label="設定" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-black/5 active:scale-95 transition-all">
       <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
     </button>
@@ -145,6 +148,19 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
       <button id="btnDeadCancel" class="flex-1 py-1.5 px-3 bg-white border border-amber-300 font-bold rounded-lg hover:bg-amber-100 text-amber-900">対局再開</button>
       <button id="btnDeadOk" class="flex-1 py-1.5 px-3 bg-amber-900 text-white font-bold rounded-lg hover:bg-amber-800">死に石を除去して集計</button>
     </div>
+  </div>
+
+  <div id="debugPanel" class="hidden w-full card rounded-xl p-3 text-xs flex flex-col gap-2 shadow-sm">
+    <div class="flex items-center justify-between">
+      <span class="font-bold">デバッグモード <span id="debugToggleState" class="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[10px]">OFF</span></span>
+      <label class="flex items-center gap-1.5 cursor-pointer"><input id="debugOverlayToggle" type="checkbox" checked class="w-3.5 h-3.5 accent-emerald-600"> 盤面に表示</label>
+    </div>
+    <label class="flex items-center gap-1.5">表示内容
+      <select id="debugOverlayMode" class="px-2 py-1 rounded-lg border border-current/20 bg-transparent text-xs font-bold">
+        <option value="visits">訪問数(探索の集中)</option>
+        <option value="winrate">勝率(形勢)</option>
+      </select>
+    </label>
   </div>
 
   <div id="bnResult" class="hidden w-full flex items-center justify-between py-2 px-3 card text-xs sm:text-sm rounded-lg">
@@ -341,7 +357,7 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
     </span>
   </div>
   <p id="replayEvt" class="text-sm text-center min-h-5 font-medium" aria-live="polite"></p>
-  <p id="replayLegend" class="text-xs text-center flex flex-wrap justify-center gap-y-1"></p>
+  <div id="replayLegend" class="text-xs w-full"></div>
   <div class="flex items-center gap-1.5">
     <button id="replayFirst" type="button" title="最初へ" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5v14l-11-7z"/></svg></button>
     <button id="replayPrev" type="button" title="1手戻る" aria-label="1手戻る" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5v14L5 12z"/></svg></button>
@@ -5334,6 +5350,10 @@ function maybeAI() {
     document.getElementById('aiOv').classList.add('hidden');
     if (G.over || G.phase !== 'playing' || G.turn !== turn || !aiSeatOf(turn)) return;
     lastAIStats = result || null;
+    // デバッグモード時のみ、AI の評価分布を棋譜に記録する(共有には含めない)
+    if (window.HexagoDebug && window.HexagoDebug.enabled() && result) {
+      try { window.HexagoDebug.recordAI(turn, result); } catch (e) { }
+    }
     let move = result && Number.isInteger(result.move) ? result.move : -3;
     if (move === -2) { resign(); after(); return; }
     // エンジンのパス判定(-1)は最終決定として尊重する（旧統合ではレガシーAIの
@@ -5515,6 +5535,13 @@ function renderReplay(pos) {
     ctx.beginPath(); ctx.arc(x, y, r0, 0, 7);
     ctx.fillStyle = 'rgba(34,197,94,.38)'; ctx.fill();
     ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 3; ctx.stroke();
+  }
+  // デバッグモード: その局面で AI が評価した分布を重ねる
+  if (window.HexagoDebug && window.HexagoDebug.enabled()) {
+    const rec = pos.note && pos.note.kind === 'play'
+      ? window.HexagoDebug.getRecord(pos.ply - 1, pos.note.player)
+      : null;
+    if (rec) window.HexagoDebug.drawOverlay(cv, ctx, { cell, pos: point }, rec);
   }
 }
 
@@ -6883,19 +6910,21 @@ window.addEventListener('offline', () => {
     const el = $('replayLegend'), row = data.series.rows[cur];
     if (!el || !row) return;
     const pc = data.playerCount;
-    // 直前の局面とAI状態が変わった席を強調する(途中の切替を視覚的に示す)
     const prevRow = cur > 0 ? data.series.rows[cur - 1] : null;
-    const parts = Array.from({ length: pc }, (_, i) => i + 1).map(p => {
+    // 1席1行の表。数値は固定幅・等幅フォントで、値が変わっても幅が揺れない。
+    const rows = Array.from({ length: pc }, (_, i) => i + 1).map(p => {
       const isAi = !!(row.aiSeats && row.aiSeats[p]);
       const changed = prevRow && prevRow.aiSeats && !!prevRow.aiSeats[p] !== isAi;
       const v = row.leadPct[p];
       const leadTxt = v === undefined ? '投了' : `${v >= 0 ? '+' : '−'}${fmt(Math.abs(v))}%`;
-      const mark = changed
-        ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>`
-        : '';
-      return `<span class="inline-flex items-center gap-1 whitespace-nowrap${changed ? ' font-bold' : ''}">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span><span>${esc(seatName(p))}</span><span class="font-normal opacity-70">${leadTxt}</span>${mark}</span>`;
+      return `<div class="grid grid-cols-[auto_1fr_auto_auto] items-center gap-x-2 py-0.5${changed ? ' font-bold' : ''}">
+        <span class="flex items-center gap-1">${dotHtml(p)}<span class="opacity-60">${isAi ? ICON_AI : ICON_HUMAN}</span></span>
+        <span class="truncate">${esc(seatName(p))}</span>
+        <span class="text-right tabular-nums font-mono">${leadTxt}</span>
+        <span class="w-8 text-center">${changed ? `<span class="px-1 rounded text-[10px] font-bold ${isAi ? 'bg-sky-600 text-white' : 'bg-amber-500 text-white'}">${isAi ? 'AI' : '人'}</span>` : ''}</span>
+      </div>`;
     });
-    el.innerHTML = parts.join('<span class="opacity-40 mx-1">·</span>');
+    el.innerHTML = rows.join('');
   }
 
   // ===== 優勢グラフ =====
@@ -11086,6 +11115,127 @@ window.__hexagoDebug = {
     return { territory: t, stones, total: t.map((v, i) => v + stones[i]) };
   },
 };
+
+// --- ./js/ui/ai-debug.js ---
+// ===== デバッグモード =====
+// AI が各手をどう評価したか(訪問数・勝率)を記録し、盤面にヒートマップで重ねる。
+// 記録はこのモードが ON のときだけ。共有URLや棋譜JSONには含めない。
+(function () {
+  'use strict';
+  const KEY = 'hexago-debug';
+  let enabled = false;
+  // 手数(ply) → { player, moves: [{move, visits, value}], visits, winrate }
+  const records = new Map();
+  let overlayMode = 'visits';   // 'visits' | 'winrate'
+  let showOverlay = true;
+
+  try { enabled = localStorage.getItem(KEY) === '1'; } catch (e) { }
+
+  function enabledNow() { return enabled; }
+
+  function setEnabled(on) {
+    enabled = !!on;
+    try { localStorage.setItem(KEY, enabled ? '1' : '0'); } catch (e) { }
+    if (!enabled) records.clear();
+    syncUi();
+  }
+
+  // AI の手番で選んだ結果を記録する。ply は「その手を打つ前」の手数。
+  function recordAI(player, result) {
+    if (!enabled || !result) return;
+    const list = Array.isArray(result.rootMoves) ? result.rootMoves
+      : (Array.isArray(result.bestMoves) ? result.bestMoves : []);
+    const moves = list
+      .filter(m => m && Number.isInteger(m.move) && m.move >= 0)
+      .map(m => ({ move: m.move, visits: Math.max(1, m.visits | 0), value: Number(m.value) || 0 }));
+    if (!moves.length) return;
+    const ply = (G && G.hist) ? G.hist.length : 0;
+    const key = ply + ':' + player;
+    records.set(key, {
+      player,
+      ply,
+      visits: result.visits || 0,
+      winrate: result.winrate,
+      moves,
+      at: Date.now()
+    });
+  }
+
+  function getRecord(ply, player) {
+    return records.get(ply + ':' + player) || null;
+  }
+
+  function clear() { records.clear(); }
+
+  // 盤面に評価値のヒートマップを描く(メイン盤面の上に重ねる)
+  function drawOverlay(canvas, ctx, metrics, overlay) {
+    if (!enabled || !showOverlay || !overlay) return;
+    const { cell, pos } = metrics;
+    const r0 = cell * 0.42;
+    let maxV = 0, minV = Infinity, maxW = 0;
+    for (const m of overlay.moves) {
+      maxV = Math.max(maxV, m.visits);
+      minV = Math.min(minV, m.visits);
+      maxW = Math.max(maxW, m.value);
+    }
+    const useWinrate = overlayMode === 'winrate';
+    overlay.moves.forEach(m => {
+      const [x, y] = pos(m.move);
+      let t;
+      if (useWinrate) t = maxW > 0 ? Math.max(0, m.value) / maxW : 0;
+      else t = maxV > minV ? (m.visits - minV) / (maxV - minV) : 1;
+      // 赤(弱) → 黄 → 緑(強)
+      const hue = 120 * t;
+      ctx.save();
+      ctx.globalAlpha = 0.35 + 0.4 * t;
+      ctx.beginPath(); ctx.arc(x, y, r0, 0, 7);
+      ctx.fillStyle = `hsl(${hue}, 85%, 50%)`;
+      ctx.fill();
+      ctx.globalAlpha = 0.95;
+      ctx.strokeStyle = `hsl(${hue}, 70%, 35%)`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // 数値
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = t > 0.55 ? '#10301a' : '#2a1010';
+      ctx.font = `bold ${Math.max(8, cell * 0.22)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const label = useWinrate ? (m.value * 100).toFixed(0) : String(m.visits > 999 ? Math.round(m.visits / 100) / 10 + 'k' : m.visits);
+      ctx.fillText(label, x, y);
+      ctx.restore();
+    });
+  }
+
+  function syncUi() {
+    document.body.classList.toggle('debug-on', enabled);
+    const t = document.getElementById('debugToggleState');
+    if (t) t.textContent = enabled ? 'ON' : 'OFF';
+    const panel = document.getElementById('debugPanel');
+    if (panel) panel.classList.toggle('hidden', !enabled);
+    const btn = document.getElementById('btnDebugMode');
+    if (btn) btn.classList.toggle('text-emerald-600', enabled);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('btnDebugMode');
+    if (btn) btn.onclick = () => { setEnabled(!enabled); if (typeof render === 'function') render(); };
+    const toggle = document.getElementById('debugOverlayToggle');
+    if (toggle) toggle.onchange = () => { showOverlay = toggle.checked; if (typeof render === 'function') render(); };
+    const modeSel = document.getElementById('debugOverlayMode');
+    if (modeSel) modeSel.onchange = () => { overlayMode = modeSel.value; if (typeof render === 'function') render(); };
+    syncUi();
+  });
+
+  window.HexagoDebug = {
+    enabled: enabledNow,
+    setEnabled,
+    recordAI,
+    getRecord,
+    clear,
+    drawOverlay,
+    mode: () => overlayMode
+  };
+})();
 
 // --- ./js/main.js ---
 // ===== 起動 =====

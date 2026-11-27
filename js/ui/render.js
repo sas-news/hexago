@@ -121,4 +121,11 @@ function renderReplay(pos) {
     ctx.fillStyle = 'rgba(34,197,94,.38)'; ctx.fill();
     ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 3; ctx.stroke();
   }
+  // デバッグモード: その局面で AI が評価した分布を重ねる
+  if (window.HexagoDebug && window.HexagoDebug.enabled()) {
+    const rec = pos.note && pos.note.kind === 'play'
+      ? window.HexagoDebug.getRecord(pos.ply - 1, pos.note.player)
+      : null;
+    if (rec) window.HexagoDebug.drawOverlay(cv, ctx, { cell, pos: point }, rec);
+  }
 }

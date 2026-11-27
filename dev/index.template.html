@@ -25,6 +25,9 @@
       <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
     </button>
     <button id="btnOpenRules" type="button" title="ルールを見る" aria-label="ルールを見る" class="w-9 h-9 flex items-center justify-center rounded-full text-current opacity-35 hover:opacity-70 hover:bg-black/5 active:scale-95 transition-all text-2xl font-semibold">ⓘ</button>
+    <button id="btnDebugMode" type="button" title="デバッグモード(AI評価の可視化)" aria-label="デバッグモード" class="w-9 h-9 flex items-center justify-center rounded-full text-current opacity-50 hover:opacity-90 hover:bg-black/5 active:scale-95 transition-all">
+      <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 3v2M5 8l1.5 1M19 8l-1.5 1M7 13H4M20 13h-3M8 19l1-1.5M16 19l-1-1.5"/><circle cx="12" cy="13" r="4.5"/></svg>
+    </button>
     <button id="btnOpenSettings" type="button" title="設定" aria-label="設定" class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-black/5 active:scale-95 transition-all">
       <svg class="w-6 h-6" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
     </button>
@@ -72,6 +75,19 @@
       <button id="btnDeadCancel" class="flex-1 py-1.5 px-3 bg-white border border-amber-300 font-bold rounded-lg hover:bg-amber-100 text-amber-900">対局再開</button>
       <button id="btnDeadOk" class="flex-1 py-1.5 px-3 bg-amber-900 text-white font-bold rounded-lg hover:bg-amber-800">死に石を除去して集計</button>
     </div>
+  </div>
+
+  <div id="debugPanel" class="hidden w-full card rounded-xl p-3 text-xs flex flex-col gap-2 shadow-sm">
+    <div class="flex items-center justify-between">
+      <span class="font-bold">デバッグモード <span id="debugToggleState" class="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[10px]">OFF</span></span>
+      <label class="flex items-center gap-1.5 cursor-pointer"><input id="debugOverlayToggle" type="checkbox" checked class="w-3.5 h-3.5 accent-emerald-600"> 盤面に表示</label>
+    </div>
+    <label class="flex items-center gap-1.5">表示内容
+      <select id="debugOverlayMode" class="px-2 py-1 rounded-lg border border-current/20 bg-transparent text-xs font-bold">
+        <option value="visits">訪問数(探索の集中)</option>
+        <option value="winrate">勝率(形勢)</option>
+      </select>
+    </label>
   </div>
 
   <div id="bnResult" class="hidden w-full flex items-center justify-between py-2 px-3 card text-xs sm:text-sm rounded-lg">
@@ -268,7 +284,7 @@
     </span>
   </div>
   <p id="replayEvt" class="text-sm text-center min-h-5 font-medium" aria-live="polite"></p>
-  <p id="replayLegend" class="text-xs text-center flex flex-wrap justify-center gap-y-1"></p>
+  <div id="replayLegend" class="text-xs w-full"></div>
   <div class="flex items-center gap-1.5">
     <button id="replayFirst" type="button" title="最初へ" aria-label="最初へ" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM19 5v14l-11-7z"/></svg></button>
     <button id="replayPrev" type="button" title="1手戻る" aria-label="1手戻る" class="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg border border-current/20 hover:bg-black/5 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none"><svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16 5v14L5 12z"/></svg></button>
@@ -468,6 +484,7 @@
 <script src="./js/photo/store.js"></script>
 <script src="./js/photo/ui.js"></script>
 <script src="./js/ui/debug.js"></script>
+<script src="./js/ui/ai-debug.js"></script>
 <script src="./js/main.js"></script>
 </body>
 </html>
