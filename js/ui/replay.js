@@ -382,13 +382,10 @@
       const e = eventOfEvent(ev);
       if (e) events.push(e);
     });
+    // 再開地点のAI状態。この局面を開始点にするので、
+    // 新しい棋譜の初期局面はこちらが正しい(元の棋譜の最初の状態ではない)。
     const initAi = [];
     for (let p = 1; p <= pc; p++) initAi[p] = !!(pos.aiSeats && pos.aiSeats[p]);
-    // 元の棋譜の「最初のAI状態」。過去を書き換えないよう、初期局面はこちらを使う。
-    const sourceRec = data.shareRecord || {};
-    const origInitAi = Array.isArray(sourceRec.initial && sourceRec.initial.aiSeats)
-      ? sourceRec.initial.aiSeats.slice()
-      : initAi.slice();
 
     if (typeof cancelAI === 'function') cancelAI();
     if (typeof clearAutoPass === 'function') clearAutoPass();
@@ -426,15 +423,23 @@
 
     if (gameFeatures) {
       G.record = gameFeatures.createRecord(G);
+      // 末尾の席切替は、初期局面に反映済みのものと重複することがある
+      // (再開地点で切り替わったばかりの席)。同じ状態なら落として記録を素直にする。
+      while (events.length) {
+        const last = events[events.length - 1];
+        if (!last || last.type !== 'seat') break;
+        if ((initAi[last.player] ? 'ai' : 'human') === (last.ai ? 'ai' : 'human')) events.pop();
+        else break;
+      }
       G.record.events = events;
-      // 序盤(空盤)から再生できるよう、初期局面は空盤にして手順ぶんを events に持たせる
-      // 初期局面のAI状態は「元の棋譜の最初の状態」にする。
-      // ここに切り替え後の状態を入れると、最初から人間だったことに
-      // なってしまい過去を書き換えることになる(切替は下の seat イベントで表現)。
+      // 序盤(空盤)から再生できるよう、初期局面は空盤にして手順ぶんを events に持たせる。
+      // AI状態は「再開した地点の状態」を初期値にする(強制切替は下の seat イベントで記録)。
+      // 元の棋譜の最初の状態を入れると、再開地点より前に起きた切替を
+      // 取り込めず、実際と違う記録になる。
       G.record.initial = {
         board: new Array(P.length).fill(0), turn: 1, passes: 0,
         out: Array(pc + 1).fill(false),
-        aiSeats: Array.from({ length: pc + 1 }, (_, p) => p > 0 ? !!origInitAi[p] : false)
+        aiSeats: Array.from({ length: pc + 1 }, (_, p) => p > 0 ? !!initAi[p] : false)
       };
       G.record.complete = true;
     }
