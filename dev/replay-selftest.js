@@ -102,6 +102,30 @@ function buildScenario(record) {
     }
     ok(!bad3, '3人戦でも turn は次の人' + (bad3 ? ' ' + JSON.stringify(bad3) : ''));
   }
+  // 途中で人間に切り替えた席が「最初から人間」に書き換わらないこと(過去改変の検出)。
+  // 開始局面(全員人間) → 途中で2P/3PがAI → 共有 → 復元、で往復させる。
+  {
+    const rec = Features.createRecord({ playerCount: 3, size: 9, board: empty3.slice(), turn: 1, passes: 0, aiSeats: [false, false, false, false], out: [false, false, false, false] });
+    const b2 = empty3.slice(); let turn = 1;
+    const bb = [];
+    for (let k = 0; k < 4; k++) {
+      const mv = b2.findIndex((v, i) => !v && R.simulateOnBoard(b2, geo3, i, turn));
+      if (mv < 0) break;
+      const r = R.simulateOnBoard(b2, geo3, mv, turn);
+      b2.splice(0, b2.length, ...r.a); bb.push([turn, mv]);
+      rec.events.push({ type: 'play', player: turn, point: mv, captured: r.cap });
+      turn = (turn % 3) + 1;
+    }
+    rec.events.push({ type: 'seat', player: 2, ai: true });
+    rec.events.push({ type: 'seat', player: 3, ai: true });
+    const dec = R.decodeShare(R.encodeShare(rec, 9, 3, {}));
+    ok(dec.record.initial.aiSeats.slice(1, 4).every(v => v === false),
+      '共有往復しても開始局面は「全員人間」のまま(過去を書き換えない)');
+    const pdec = R.replayPositions(dec.record, geo3, 3);
+    ok(pdec[0].aiSeats.slice(1, 4).every(v => v === false), '復元した開始局面の aiSeats も全て人間');
+    ok(pdec[pdec.length - 1].aiSeats[2] === true && pdec[pdec.length - 1].aiSeats[3] === true,
+      '切替はイベントとして効いている(末尾で2P/3PがAI)');
+  }
 
   // アタリ(呼吸点1)の連は弱石として評価から減じる
   const b4 = new Array(geo3.points.length).fill(0);

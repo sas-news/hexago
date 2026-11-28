@@ -4408,16 +4408,20 @@ function resign() {
   //   { v:1, s:盤サイズ, p:人数, n:[名前...], m:[[点, 手番], ...], x:{t:結果, sc:[点...]}, o:[投了席...] }
   // フラグメント(#)に置くので、サーバーへは送られない。
   const SHARE_VERSION = 1;
+  // 共有ペイロードの手リストで「席切替」を表す点番号(実在の交点と衝突しない負値)
+  const SEAT_MARK = -2;
 
   function toSharePayload(record, size, playerCount, names) {
-    const moves = [], seatChanges = [];
+    // 手の並び。席の切替は「その時点」に効くので、位置を保つ必要がある。
+    // → 3要素目で種別を表す: [point, player] / [-1, player](パス) / [-2, player, ai?1:0](席切替)
+    const moves = [];
     let resign = [], score = null;
     for (const e of (record && record.events) || []) {
       if (!e) continue;
       if (e.type === 'play') moves.push([e.point, e.player]);
       else if (e.type === 'pass') moves.push([-1, e.player]);
       else if (e.type === 'resign') resign.push(e.player);
-      else if (e.type === 'seat') seatChanges.push([e.player, e.ai ? 1 : 0]);
+      else if (e.type === 'seat') moves.push([SEAT_MARK, e.player, e.ai ? 1 : 0]);
       else if (e.type === 'score') score = { t: e.result || '', sc: e.scores ? e.scores.slice() : null };
     }
     const payload = { v: SHARE_VERSION, s: size, p: playerCount, m: moves };
@@ -4425,10 +4429,11 @@ function resign() {
     for (let p = 1; p <= playerCount; p++) nm.push((names && names[p]) || '');
     if (nm.some(Boolean)) payload.n = nm;
     if (resign.length) payload.o = resign;
-    if (seatChanges.length) payload.seat = seatChanges;
+    // 開始局面のAI状態。全員人間でも必ず入れる
+    // (省略すると復元側で空配列になり、以降の aiSeats が壊れる)
     const ai = [];
     for (let p = 1; p <= playerCount; p++) ai[p] = !!(record && record.initial && record.initial.aiSeats && record.initial.aiSeats[p]);
-    if (ai.some((v, i) => i > 0 && v)) payload.ai = ai.map(v => v ? 1 : 0);
+    payload.ai = ai.map(v => v ? 1 : 0);
     if (score) payload.x = score;
     return payload;
   }
@@ -4465,16 +4470,22 @@ function resign() {
       id: 'shared-' + Date.now().toString(36),
       startedAt: null,
       complete: true,
-      initial: { board: new Array(points).fill(0), turn: 1, passes: 0, out: Array(playerCount + 1).fill(false), aiSeats: (data.ai || []).map(v => !!v) },
+      initial: {
+        board: new Array(points).fill(0), turn: 1, passes: 0, out: Array(playerCount + 1).fill(false),
+        // ai が無い旧データでも長さを席数にそろえる(空配列だと以降の aiSeats 参照が壊れる)
+        aiSeats: Array.from({ length: playerCount + 1 }, (_, p) => p > 0 ? !!(data.ai && data.ai[p]) : false)
+      },
       events: []
     };
     for (const mv of data.m || []) {
       if (!Array.isArray(mv)) continue;
-      const [pt, player] = mv;
-      if (pt === -1) record.events.push({ type: 'pass', player });
+      const [pt, player, aiFlag] = mv;
+      if (pt === SEAT_MARK) record.events.push({ type: 'seat', player, ai: !!aiFlag });
+      else if (pt === -1) record.events.push({ type: 'pass', player });
       else record.events.push({ type: 'play', player, point: pt });
     }
     for (const player of data.o || []) record.events.push({ type: 'resign', player });
+    // 旧形式(席切替を別配列に持つ)の共有リンクは末尾に足す
     for (const sc of data.seat || []) record.events.push({ type: 'seat', player: sc[0], ai: !!sc[1] });
     if (data.x) record.events.push({ type: 'score', removed: [], scores: data.x.sc, result: data.x.t });
     const names = {};
@@ -7490,6 +7501,11 @@ window.addEventListener('offline', () => {
     });
     const initAi = [];
     for (let p = 1; p <= pc; p++) initAi[p] = !!(pos.aiSeats && pos.aiSeats[p]);
+    // 元の棋譜の「最初のAI状態」。過去を書き換えないよう、初期局面はこちらを使う。
+    const sourceRec = data.shareRecord || {};
+    const origInitAi = Array.isArray(sourceRec.initial && sourceRec.initial.aiSeats)
+      ? sourceRec.initial.aiSeats.slice()
+      : initAi.slice();
 
     if (typeof cancelAI === 'function') cancelAI();
     if (typeof clearAutoPass === 'function') clearAutoPass();
@@ -7529,9 +7545,13 @@ window.addEventListener('offline', () => {
       G.record = gameFeatures.createRecord(G);
       G.record.events = events;
       // 序盤(空盤)から再生できるよう、初期局面は空盤にして手順ぶんを events に持たせる
+      // 初期局面のAI状態は「元の棋譜の最初の状態」にする。
+      // ここに切り替え後の状態を入れると、最初から人間だったことに
+      // なってしまい過去を書き換えることになる(切替は下の seat イベントで表現)。
       G.record.initial = {
         board: new Array(P.length).fill(0), turn: 1, passes: 0,
-        out: Array(pc + 1).fill(false), aiSeats: aiSeats.slice()
+        out: Array(pc + 1).fill(false),
+        aiSeats: Array.from({ length: pc + 1 }, (_, p) => p > 0 ? !!origInitAi[p] : false)
       };
       G.record.complete = true;
     }

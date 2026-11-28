@@ -384,6 +384,11 @@
     });
     const initAi = [];
     for (let p = 1; p <= pc; p++) initAi[p] = !!(pos.aiSeats && pos.aiSeats[p]);
+    // 元の棋譜の「最初のAI状態」。過去を書き換えないよう、初期局面はこちらを使う。
+    const sourceRec = data.shareRecord || {};
+    const origInitAi = Array.isArray(sourceRec.initial && sourceRec.initial.aiSeats)
+      ? sourceRec.initial.aiSeats.slice()
+      : initAi.slice();
 
     if (typeof cancelAI === 'function') cancelAI();
     if (typeof clearAutoPass === 'function') clearAutoPass();
@@ -423,9 +428,13 @@
       G.record = gameFeatures.createRecord(G);
       G.record.events = events;
       // 序盤(空盤)から再生できるよう、初期局面は空盤にして手順ぶんを events に持たせる
+      // 初期局面のAI状態は「元の棋譜の最初の状態」にする。
+      // ここに切り替え後の状態を入れると、最初から人間だったことに
+      // なってしまい過去を書き換えることになる(切替は下の seat イベントで表現)。
       G.record.initial = {
         board: new Array(P.length).fill(0), turn: 1, passes: 0,
-        out: Array(pc + 1).fill(false), aiSeats: aiSeats.slice()
+        out: Array(pc + 1).fill(false),
+        aiSeats: Array.from({ length: pc + 1 }, (_, p) => p > 0 ? !!origInitAi[p] : false)
       };
       G.record.complete = true;
     }
