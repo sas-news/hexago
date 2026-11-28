@@ -1,0 +1,30 @@
+# HEXAGO
+
+> 六角形の盤で打つ囲碁風ゲーム。このページの window.__hexagoAgent から全操作を関数呼び出しで行えます。スクリーンショットやマウス操作は不要です。
+
+## エージェント向けAPI
+
+このサイトはブラウザ上で動作します。エージェントは `window.__hexagoAgent` から
+関数呼び出しだけで対局できます（スクリーンショットやマウス操作は不要）。
+
+- 仕様(機械可読): ./agent.json
+- 仕様(人間向け): ./agent.html
+- ゲーム本体: ./
+- 仕様の取得: `window.__hexagoAgent.help()`
+
+## 主要API
+
+state, legalMoves, move, pass, resign, awaitAI, setBoardSize, setPlayerCount, setSeats, newGame, setTheme, setSound, think, shareUrl, exportRecord, importRecord, replay.open, replay.seek, replay.info, replay.resume, replay.close
+
+## 1手の流れ
+
+1. `state()` — 盤面と手番を取得
+2. `legalMoves()` — 置ける交点の一覧
+3. `move(point)` — 着手
+4. `awaitAI()` — AIの応答を待つ
+
+## 注意
+
+- 認証はありません。スコアは自己申告として扱ってください。
+- ブラウザ上で動作するため、エージェント側にブラウザ自動化(Playwright等)が必要です。
+- 1つのページを同時に複数のエージェントで操作すると状態が干渉します。

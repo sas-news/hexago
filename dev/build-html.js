@@ -87,9 +87,16 @@ function buildHtml() {
   const combinedScript = '<script>\n' + appChunks.join('\n\n') + '\n</script>\n';
   html = html.replace('</body>', combinedScript + '</body>');
 
-  // Verify no relative local <script src="./..."> or <link href="./..."> remain
-  const leftover = html.match(/<(?:script[^>]+src|link[^>]+href)="\.\/[^"]+"/g);
-  if (leftover) {
+  // Verify no relative local <script src="./..."> or <link href="./..."> remain.
+  // ただしエージェント向けの別ファイル(agent.json / llms.txt / agent.html)は
+  // 単一ファイルに同梱せず、サイト上に別途置くため例外とする。
+  const EXTERNAL_OK = /^<\.\/(?:agent\.json|agent\.html|llms\.txt)$/;
+  const leftover = (html.match(/<(?:script[^>]+src|link[^>]+href)="(\.\/[^"]+)"/g) || [])
+    .filter(ref => {
+      const m = /="(\.\/[^"]+)"/.exec(ref);
+      return !(m && EXTERNAL_OK.test('<' + m[1]));
+    });
+  if (leftover.length) {
     throw new Error('Unresolved relative local references remain: ' + leftover.join(', '));
   }
 

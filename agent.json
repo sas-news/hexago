@@ -1,0 +1,163 @@
+{
+  "name": "HEXAGO",
+  "description": "六角形の盤で打つ囲碁風ゲーム。このページの window.__hexagoAgent から全操作を関数呼び出しで行えます。スクリーンショットやマウス操作は不要です。",
+  "usage": [
+    "1手の流れ: state() → legalMoves() → move(point) → awaitAI()",
+    "AIの手番でなければ awaitAI() は即座に返ります",
+    "設定は setBoardSize / setPlayerCount で変更し、newGame() で新しい対局として確定します"
+  ],
+  "apis": [
+    {
+      "name": "state",
+      "args": [],
+      "returns": "object",
+      "desc": "盤面(board)、手番(turn)、人数(playerCount)、盤サイズ(size)、終局(over)、席の人間/AI(seats)、AI思考中(aiBusy) を返す"
+    },
+    {
+      "name": "legalMoves",
+      "args": [],
+      "returns": "array",
+      "desc": "置ける交点の一覧 [{point, captures}]。captures はその手で取れる石の数"
+    },
+    {
+      "name": "move",
+      "args": [
+        "point:number"
+      ],
+      "returns": "boolean",
+      "desc": "交点番号を指定して石を置く。置けたら true"
+    },
+    {
+      "name": "pass",
+      "args": [],
+      "returns": "boolean",
+      "desc": "パスする"
+    },
+    {
+      "name": "resign",
+      "args": [],
+      "returns": "boolean",
+      "desc": "投了する"
+    },
+    {
+      "name": "awaitAI",
+      "args": [
+        "timeoutMs?:number"
+      ],
+      "returns": "Promise<object>",
+      "desc": "AIの思考が終わるまで待ち、そのあとの state() を返す。既定30秒でタイムアウト"
+    },
+    {
+      "name": "setBoardSize",
+      "args": [
+        "n:9|13|19|25"
+      ],
+      "returns": "boolean",
+      "desc": "盤サイズを指定する(次局から反映)"
+    },
+    {
+      "name": "setPlayerCount",
+      "args": [
+        "n:2-6"
+      ],
+      "returns": "boolean",
+      "desc": "人数を指定する"
+    },
+    {
+      "name": "setSeats",
+      "args": [
+        "arr:Array"
+      ],
+      "returns": "boolean",
+      "desc": "各席を人間(\"human\")かAI(\"ai\")にする。例: [\"human\",\"ai\",\"ai\"]"
+    },
+    {
+      "name": "newGame",
+      "args": [],
+      "returns": "boolean",
+      "desc": "設定を確定して新しい対局を開始する"
+    },
+    {
+      "name": "setTheme",
+      "args": [
+        "id:string"
+      ],
+      "returns": "boolean",
+      "desc": "テーマを変更する(default / dark / go / cyber / fancy)"
+    },
+    {
+      "name": "setSound",
+      "args": [
+        "on:boolean"
+      ],
+      "returns": "boolean",
+      "desc": "効果音のオン・オフ"
+    },
+    {
+      "name": "think",
+      "args": [
+        "budgetMs?:number"
+      ],
+      "returns": "object",
+      "desc": "AIに思考させて評価結果を得る(盤面は変えない)"
+    },
+    {
+      "name": "shareUrl",
+      "args": [],
+      "returns": "string",
+      "desc": "この対局の共有URLを返す"
+    },
+    {
+      "name": "exportRecord",
+      "args": [],
+      "returns": "object",
+      "desc": "現在の対局の棋譜(JSON)を返す"
+    },
+    {
+      "name": "importRecord",
+      "args": [
+        "json:object|string"
+      ],
+      "returns": "object",
+      "desc": "棋譜を読み込む"
+    },
+    {
+      "name": "replay.open",
+      "args": [],
+      "returns": "boolean",
+      "desc": "リプレイ画面を開く"
+    },
+    {
+      "name": "replay.seek",
+      "args": [
+        "n:number"
+      ],
+      "returns": "boolean",
+      "desc": "リプレイを指定の手数へ移動する"
+    },
+    {
+      "name": "replay.info",
+      "args": [],
+      "returns": "object|null",
+      "desc": "現在のリプレイ位置(ply, 総手数, 手番)を返す"
+    },
+    {
+      "name": "replay.resume",
+      "args": [],
+      "returns": "boolean",
+      "desc": "現在位置から対局を再開する"
+    },
+    {
+      "name": "replay.close",
+      "args": [],
+      "returns": "boolean",
+      "desc": "リプレイ画面を閉じる"
+    }
+  ],
+  "notes": [
+    "認証はありません。スコアは自己申告として扱ってください。",
+    "ブラウザ上で動作するため、エージェント側にブラウザ自動化(Playwright等)が必要です。",
+    "1つのページを同時に複数のエージェントで操作すると状態が干渉します。"
+  ],
+  "generatedAt": null
+}

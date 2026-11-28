@@ -1,9 +1,18 @@
 <!DOCTYPE html>
+<!--
+  エージェント向け: このゲームはブラウザ上で API から操作できます。
+    window.__hexagoAgent.help()   … 全APIの仕様(JSON)
+    window.__hexagoAgent.state()  … 盤面と手番
+    legalMoves() / move(point) / awaitAI() で対局できます。
+  スクリーンショットやマウス操作は不要です。詳細: ./agent.html または ./agent.json
+-->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HEXAGO</title>
+<link rel="alternate" type="application/json" href="./agent.json" title="Agent API specification">
+<link rel="alternate" type="text/plain" href="./llms.txt" title="LLM summary">
 <!-- favicon: Safari/iPad は .ico と PNG を優先するので、SVG は最後に置く -->
 <link rel="icon" href="./favicon.ico" sizes="16x16 32x32 48x48">
 <link rel="icon" href="./favicon-192.png" type="image/png" sizes="192x192">
@@ -500,5 +509,7 @@
 <script src="./js/ui/debug.js"></script>
 <script src="./js/ui/ai-debug.js"></script>
 <script src="./js/main.js"></script>
+<!-- エージェントから操作方法を調べるための小さな導線(表示は控えめ) -->
+<p class="text-[10px] opacity-40 text-center pb-1"><a href="./agent.html" class="underline hover:opacity-70">エージェント向けAPI</a></p>
 </body>
 </html>

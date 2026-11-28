@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HEXAGO — エージェント向けAPI</title>
+<style>
+body{font-family:system-ui,-apple-system,"Hiragino Sans",sans-serif;max-width:900px;margin:0 auto;padding:24px 16px 64px;line-height:1.7;color:#171717;background:#fff}
+h1{font-size:26px;margin:0 0 4px}
+h2{font-size:18px;margin:28px 0 8px;padding-bottom:4px;border-bottom:1px solid #e5e5e5}
+p.lead{color:#555;margin:0 0 20px}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:8px 0 4px}
+th,td{border:1px solid #e5e5e5;padding:6px 8px;text-align:left;vertical-align:top}
+th{background:#fafafa;font-weight:700;white-space:nowrap}
+td:first-child{white-space:nowrap}
+code{background:#f4f4f4;padding:1px 5px;border-radius:4px;font-size:12px}
+pre{background:#171717;color:#f5f5f5;padding:14px 16px;border-radius:10px;overflow-x:auto;font-size:12px;line-height:1.6}
+ul{padding-left:1.3em;margin:8px 0}
+a{color:#15803d}
+.badge{display:inline-block;background:#15803d;color:#fff;border-radius:999px;padding:1px 10px;font-size:12px;font-weight:700;vertical-align:2px}
+</style>
+</head>
+<body>
+<h1>HEXAGO <span class="badge">agent API</span></h1>
+<p class="lead">六角形の盤で打つ囲碁風ゲーム。このページの window.__hexagoAgent から全操作を関数呼び出しで行えます。スクリーンショットやマウス操作は不要です。</p>
+
+<h2>使い方の流れ</h2>
+<ul>
+      <li>1手の流れ: state() → legalMoves() → move(point) → awaitAI()</li>
+      <li>AIの手番でなければ awaitAI() は即座に返ります</li>
+      <li>設定は setBoardSize / setPlayerCount で変更し、newGame() で新しい対局として確定します</li>
+</ul>
+
+<h2>API一覧</h2>
+<table>
+  <thead><tr><th>API</th><th>引数</th><th>戻り値</th><th>説明</th></tr></thead>
+  <tbody>
+      <tr><td><code>state</code></td><td>—</td><td><code>object</code></td><td>盤面(board)、手番(turn)、人数(playerCount)、盤サイズ(size)、終局(over)、席の人間/AI(seats)、AI思考中(aiBusy) を返す</td></tr>
+      <tr><td><code>legalMoves</code></td><td>—</td><td><code>array</code></td><td>置ける交点の一覧 [{point, captures}]。captures はその手で取れる石の数</td></tr>
+      <tr><td><code>move</code></td><td>`point:number`</td><td><code>boolean</code></td><td>交点番号を指定して石を置く。置けたら true</td></tr>
+      <tr><td><code>pass</code></td><td>—</td><td><code>boolean</code></td><td>パスする</td></tr>
+      <tr><td><code>resign</code></td><td>—</td><td><code>boolean</code></td><td>投了する</td></tr>
+      <tr><td><code>awaitAI</code></td><td>`timeoutMs?:number`</td><td><code>Promise&lt;object&gt;</code></td><td>AIの思考が終わるまで待ち、そのあとの state() を返す。既定30秒でタイムアウト</td></tr>
+      <tr><td><code>setBoardSize</code></td><td>`n:9|13|19|25`</td><td><code>boolean</code></td><td>盤サイズを指定する(次局から反映)</td></tr>
+      <tr><td><code>setPlayerCount</code></td><td>`n:2-6`</td><td><code>boolean</code></td><td>人数を指定する</td></tr>
+      <tr><td><code>setSeats</code></td><td>`arr:Array`</td><td><code>boolean</code></td><td>各席を人間(&quot;human&quot;)かAI(&quot;ai&quot;)にする。例: [&quot;human&quot;,&quot;ai&quot;,&quot;ai&quot;]</td></tr>
+      <tr><td><code>newGame</code></td><td>—</td><td><code>boolean</code></td><td>設定を確定して新しい対局を開始する</td></tr>
+      <tr><td><code>setTheme</code></td><td>`id:string`</td><td><code>boolean</code></td><td>テーマを変更する(default / dark / go / cyber / fancy)</td></tr>
+      <tr><td><code>setSound</code></td><td>`on:boolean`</td><td><code>boolean</code></td><td>効果音のオン・オフ</td></tr>
+      <tr><td><code>think</code></td><td>`budgetMs?:number`</td><td><code>object</code></td><td>AIに思考させて評価結果を得る(盤面は変えない)</td></tr>
+      <tr><td><code>shareUrl</code></td><td>—</td><td><code>string</code></td><td>この対局の共有URLを返す</td></tr>
+      <tr><td><code>exportRecord</code></td><td>—</td><td><code>object</code></td><td>現在の対局の棋譜(JSON)を返す</td></tr>
+      <tr><td><code>importRecord</code></td><td>`json:object|string`</td><td><code>object</code></td><td>棋譜を読み込む</td></tr>
+      <tr><td><code>replay.open</code></td><td>—</td><td><code>boolean</code></td><td>リプレイ画面を開く</td></tr>
+      <tr><td><code>replay.seek</code></td><td>`n:number`</td><td><code>boolean</code></td><td>リプレイを指定の手数へ移動する</td></tr>
+      <tr><td><code>replay.info</code></td><td>—</td><td><code>object|null</code></td><td>現在のリプレイ位置(ply, 総手数, 手番)を返す</td></tr>
+      <tr><td><code>replay.resume</code></td><td>—</td><td><code>boolean</code></td><td>現在位置から対局を再開する</td></tr>
+      <tr><td><code>replay.close</code></td><td>—</td><td><code>boolean</code></td><td>リプレイ画面を閉じる</td></tr>
+  </tbody>
+</table>
+
+<h2>サンプル（Playwright / Node）</h2>
+<pre>const { chromium } = require('playwright');
+
+const browser = await chromium.launch();
+const page = await browser.newPage();
+await page.goto('https://sas-news.github.io/hexago/');
+await page.waitForFunction(() => !!window.__hexagoAgent);
+
+// AIと対戦する（1P=人間, 2P=AI）
+await page.evaluate(() => {
+  const a = window.__hexagoAgent;
+  a.setPlayerCount(2);
+  a.setSeats(['human', 'ai']);
+  a.newGame();
+});
+
+// 自分の手番がくるまで繰り返す
+for (let turn = 0; turn < 100; turn++) {
+  const state = await page.evaluate(() => window.__hexagoAgent.state());
+  if (state.over) break;
+  if (state.aiBusy) { await page.evaluate(() => window.__hexagoAgent.awaitAI(30000)); continue; }
+
+  const moves = await page.evaluate(() => window.__hexagoAgent.legalMoves());
+  if (!moves.length) { await page.evaluate(() => window.__hexagoAgent.pass()); continue; }
+
+  // 取れる石が多い手を選ぶ（お好みで戦略を変えてください）
+  const best = moves.reduce((x, y) => (y.captures > x.captures ? y : x), moves[0]);
+  await page.evaluate(pt => window.__hexagoAgent.move(pt), best.point);
+}
+
+// 棋譜を取得して評価に使う
+const record = await page.evaluate(() => window.__hexagoAgent.exportRecord());
+console.log(record);
+
+await browser.close();</pre>
+
+<h2>注意</h2>
+<ul>
+      <li>認証はありません。スコアは自己申告として扱ってください。</li>
+      <li>ブラウザ上で動作するため、エージェント側にブラウザ自動化(Playwright等)が必要です。</li>
+      <li>1つのページを同時に複数のエージェントで操作すると状態が干渉します。</li>
+</ul>
+
+<p><a href="./">← HEXAGO に戻る</a></p>
+</body>
+</html>
