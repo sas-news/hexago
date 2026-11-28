@@ -25,6 +25,32 @@ function readRel(relPath) {
   return fs.readFileSync(full, 'utf8');
 }
 
+// 配信サイズを抑えるため、コメント行と空行を落としてから埋め込む。
+// ソース側のコメントは可読性のため残し、ビルド時のみ除去する。
+// ※ 行末コメント(`x = 1; // ...`)の除去は字句解析が必要で
+//    正規表現リテラル等を誤って壊す危険があるため行わない。
+//    ここでは「行頭が // の行」「行頭が * の行(ブロックコメント内)」「空行」
+//    「行頭 /* ... */ の1行コメント」だけを対象にする。
+function stripComments(src) {
+  const out = [];
+  let inBlock = false;
+  for (const raw of src.split('\n')) {
+    const t = raw.trim();
+    if (inBlock) {
+      if (t.includes('*/')) inBlock = false;
+      continue;
+    }
+    if (!t) continue;
+    if (t.startsWith('//')) continue;
+    if (t.startsWith('/*')) {
+      if (!t.includes('*/')) inBlock = true;
+      continue;
+    }
+    out.push(raw.replace(/\s+$/, ''));
+  }
+  return out.join('\n');
+}
+
 function assertSafeForScriptTag(content, label) {
   if (/<\/script/i.test(content)) {
     throw new Error('Unsafe </script sequence found in ' + label);
@@ -73,9 +99,11 @@ function buildHtml() {
   });
 
   // 4. Inline local classic scripts in exact dependency order: <script src="./..."></script>
+  //    配信サイズを抑えるため、行コメントと行末コメントを落としてから埋め込む。
+  //    (ソース側のコメントは可読性のため残し、ビルド時のみ除去する)
   const appChunks = [];
   html = html.replace(/<script\s+src="(\.\/[^"]+)"><\/script>\s*/g, (_, rel) => {
-    const code = readRel(rel).trim();
+    const code = stripComments(readRel(rel).trim());
     assertSafeForScriptTag(code, rel);
     appChunks.push('// --- ' + rel + ' ---\n' + code);
     return '';

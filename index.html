@@ -3507,7 +3507,6 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
 <p class="text-[10px] opacity-40 text-center pb-1"><a href="./agent.html" class="underline hover:opacity-70">エージェント向けAPI</a></p>
 <script>
 // --- ./js/core/features.js ---
-// ===== 棋譜保存 (hexago-kifu v1) & 連続パス制御 =====
 (function (root, factory) {
   'use strict';
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -3518,7 +3517,6 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
   const isMove = event => ['play', 'pass', 'resign'].includes(event.type);
   const signature = state => JSON.stringify([state.size, state.playerCount, state.board, state.turn, state.passes, state.out]);
   const position = state => ({ board: state.board.slice(), turn: state.turn, passes: state.passes || 0, out: (state.out || []).slice(), damage: (state.damage || []).slice(), seen: (state.seen || []).slice(), aiSeats: (state.aiSeats || []).slice() });
-
   function createRecord(state) {
     const complete = state.turn === 1 && !state.passes && !state.board.some(Boolean) && !(state.out || []).some(Boolean) && !(state.seen || []).length;
     return {
@@ -3531,7 +3529,6 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
       endKey: signature(state)
     };
   }
-
   function infer(before, after, player, terminal) {
     if (!Number.isInteger(player) || player < 1) return null;
     const outBefore = before.out || [], outAfter = after.out || [];
@@ -3550,7 +3547,6 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
     if (!changed.includes(point) || changed.some(i => i !== point && (!before.board[i] || after.board[i]))) return null;
     return { type: 'play', player, point, captured: changed.filter(i => i !== point) };
   }
-
   function ensureRecord(state) {
     const old = state.record;
     if (old && old.version === 1 && typeof old.id === 'string' && Array.isArray(old.events) && old.initial?.board?.length === state.board.length && old.endKey === signature(state)) return old;
@@ -3582,13 +3578,11 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
     state.record.endKey = signature(state);
     return state.record;
   }
-
   function appendEvent(state, event) {
     if (!state.record || state.record.version !== 1) throw new Error('Record must be prepared before changing the position');
     state.record.events.push(copy(event));
     state.record.endKey = signature(state);
   }
-
   function rewindRecord(state, length) {
     if (Number.isInteger(length) && length >= 0 && length <= state.record.events.length) {
       state.record.events.length = length;
@@ -3598,7 +3592,6 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
       ensureRecord(state);
     }
   }
-
   function coordinates(size) {
     const radius = (size - 1) / 2, points = [];
     for (let r = -radius; r <= radius; r++) {
@@ -3608,7 +3601,6 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
     }
     return points;
   }
-
   function exportRecord(state, options = {}) {
     const record = ensureRecord(state), points = coordinates(state.size), names = options.names || [];
     let ply = 0;
@@ -3647,7 +3639,6 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
       }
     };
   }
-
   function toText(record) {
     const name = p => record.game.players.find(player => player.number === p)?.name || p + 'P';
     const lines = [
@@ -3683,7 +3674,6 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
     );
     return lines.join('\n') + '\n';
   }
-
   function createAutoPassController(options) {
     const schedule = options.setTimeout || setTimeout, cancel = options.clearTimeout || clearTimeout;
     const enabled = new Set();
@@ -3718,14 +3708,11 @@ body.replaying #cv{width:auto;height:auto;max-width:none;max-height:min(78vh,520
     function disable(p) { enabled.delete(p); stopTimer(); }
     return { update, toggle, disable, clear, isEnabled: p => enabled.has(p), enabledSeats: () => [...enabled] };
   }
-
   return { createRecord, ensureRecord, appendEvent, rewindRecord, exportRecord, toText, coordinates, signature, createAutoPassController };
 });
 
 // --- ./js/core/theme.js ---
-// ===== テーマごとの石色・色名（2〜6人対応） =====
 const NAMES = ['', '黒', '白', '赤', '青', '黄', '紫'];
-// テーマ未設定時のフォールバック。青/紫はテーマ同様に明度差をつける
 const PLAYER_COLORS = [{fill:'#171717',stroke:'#333333'},{fill:'#ffffff',stroke:'#333333'},{fill:'#e4471f',stroke:'#333333'},{fill:'#0B4C9A',stroke:'#333333'},{fill:'#d68910',stroke:'#333333'},{fill:'#BE63F0',stroke:'#333333'}];
 function playerFill(p){ const o = (typeof G !== 'undefined' && G && G.photoColors && G.photoColors[p]); return (o && o.fill) || (theme.fill[p] || PLAYER_COLORS[p-1]?.fill || '#888888'); }
 function playerStroke(p){ const o = (typeof G !== 'undefined' && G && G.photoColors && G.photoColors[p]); return (o && o.stroke) || (theme.stroke[p] || PLAYER_COLORS[p-1]?.stroke || '#333333'); }
@@ -3736,8 +3723,6 @@ const mk = (id, name, bg, tx, board, line, card, bd, fills, edge, names) => ({
   names: ['', ...names]
 });
 const THEMES = {
-  // 青と紫は色相だけだと小さい石では見分けづらいので、明度でも差をつける
-  // (序盤の盤面で隣り合っても判別できるように。色覚特性でも分離するよう紫は赤寄りに)
   default: mk('default', '五行思想（白背景）', '#ffffff', '#171717', '#ffffff', '#777777', '#fafafa', '#e5e5e5',
     ['#111111', '#F4F4F4', '#E53935', '#0B4C9A', '#F0A000', '#BE63F0'], '#555555', ['黒', '白', '赤', '青', '黄', '紫']),
   dark: mk('dark', 'ダークモード', '#171717', '#f5f5f5', '#202020', '#777777', '#262626', '#3a3a3a',
@@ -3752,7 +3737,6 @@ const THEMES = {
 let theme = THEMES.default;
 
 // --- ./js/core/sound.js ---
-// ===== サウンド =====
 const snd = {
   ctx: null, on: true,
   init() { if (!this.ctx) { const A = window.AudioContext || window.webkitAudioContext; if (A) this.ctx = new A(); } if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
@@ -3766,7 +3750,6 @@ const snd = {
 };
 
 // --- ./js/core/geometry.js ---
-// ===== 盤ジオメトリ (六角形・軸座標) =====
 const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
 let SIDE = 5, P = [], M = {}, NB = [];
 function build(n) {
@@ -3776,13 +3759,10 @@ function build(n) {
 }
 
 // --- ./js/core/state.js ---
-// ===== 状態 =====
 const gameFeatures = (typeof window !== 'undefined' && window.HexagoGameFeatures) || null;
 let autoPassController = null, autoPassOfferSeat = 0;
 let G, seenSet = new Set();
 let onlineAI = false, pendingSize = 9, mode = 'local', playerCount = 3, seats = [0, 'human', 'human', 'human', 'human', 'human', 'human'];
-// 設定画面で「選択中」のモード。モードボタンを押しただけでは mode を変えず、
-// 新規対局を始めるときに確定する(選んだだけで盤面が消えないように)。
 let selectedMode = 'local';
 let aiMode = 'fast'; // 'fast'(高速・盤サイズ別自動最適) / 'deep'(長考・盤サイズ別自動最適)
 try {
@@ -3796,7 +3776,6 @@ let peer = null, conns = [], hostConn = null, myRole = null, isHost = false, roo
 let seatOwners = Array(7).fill(null), seatNicknames = ['', '', '', '', '', '', ''];
 let roomPool = Object.create(null), disconnectedNicknames = Object.create(null), myNickname = '';
 const LOCAL_HOST_ID = '__local_host__';
-
 function newG(n) {
   const count = playerCount, aiSeats = Array(count + 1).fill(false);
   for (let p = 1; p <= count; p++) aiSeats[p] = seats[p] !== 'human' || (mode === 'online' && !seatOwners[p]);
@@ -3835,14 +3814,12 @@ function load() {
 }
 
 // --- ./js/core/rules.js ---
-// ===== ルール =====
 function group(b, i) {
   const c = b[i], seen = new Set([i]), q = [i];
   while (q.length) { const x = q.pop(); for (const n of NB[x]) if (b[n] === c && !seen.has(n)) { seen.add(n); q.push(n); } }
   return [...seen];
 }
 const libCount = (b, g) => { const s = new Set(); g.forEach(x => NB[x].forEach(n => { if (!b[n]) s.add(n); })); return s.size; };
-// 着手シミュレーション: 違法なら null
 function sim(b, i, p) {
   if (b[i]) return null;
   const a = b.slice(); a[i] = p; const cap = [], done = new Set();
@@ -3893,7 +3870,6 @@ function territory() {
   }
   return t;
 }
-// 任意の盤面の地を計算。AIの仮想着手評価にも使う。
 function territoryForBoard(board) {
   const t = Array((G?.playerCount || playerCount || 3) + 1).fill(0), vis = new Set();
   for (let i = 0; i < P.length; i++) if (!board[i] && !vis.has(i)) {
@@ -3906,7 +3882,6 @@ function territoryForBoard(board) {
   }
   return t;
 }
-// 終局時の死に石を保守的に自動推定。明らかな弱い包囲連のみ初期選択し、確認画面で修正可能。
 function detectDeadStones() {
   const b = G.board, seen = new Set(), dead = [];
   for (let i = 0; i < b.length; i++) {
@@ -3927,10 +3902,6 @@ function detectDeadStones() {
   }
   return [...new Set(dead)];
 }
-// 終局時の死に石を自動推定する（強化版・画面用）。
-// 盤面の各連について、相手がその呼吸点を順に埋めて実際に取れるか（ローカル捕獲探索）を調べる。
-// 2眼がある連は埋められないので生き、セキのように埋めると自滅する連も生きとして残る。
-// 自動判定はあくまで候補。終局確認画面で人間がタップして修正できる。
 function playStoneOnBoard(board, i, p) {
   if (board[i]) return null;
   const a = board.slice();
@@ -3957,7 +3928,6 @@ function canEnemyCaptureGroup(board, group0, color, pc) {
     const enemyColors = new Set();
     for (let c = 1; c <= pc; c++) if (c !== color) enemyColors.add(c);
     for (const l of [...libs]) {
-      // その点の周囲にいる敵色を優先し、いなければ他の敵色も試す
       const colors = [];
       for (const n of NB[l]) if (b[n] && b[n] !== color) colors.push(b[n]);
       for (const c of enemyColors) if (!colors.includes(c)) colors.push(c);
@@ -3980,8 +3950,6 @@ function detectDeadStonesSmart() {
   const b = G.board;
   const pc = G.playerCount || playerCount || 2;
   const seen = new Set(), dead = [];
-  // 空点の連結領域。敵に囲まれた小さな領域の中の連だけを死の候補にする
-  // （開けた中央の石や、自分の地に囲まれた石を誤って死にしないため）。
   const { id, regs } = regionInfo(b);
   for (let i = 0; i < b.length; i++) {
     if (!b[i] || seen.has(i)) continue;
@@ -4010,7 +3978,6 @@ function detectDeadStonesSmart() {
 function finishScore() {
   if (typeof ensureGameRecord === 'function') ensureGameRecord();
   const removedForRecord = G.dead.slice();
-  // 選択された死に石を盤上から除去する（捕獲数による減点はしない）。
   G.dead.forEach(i => { if (G.board[i]) G.board[i] = 0; });
   G.dead = []; G.phase = 'ended'; G.over = true;
   const t = territory();
@@ -4039,27 +4006,14 @@ function resign() {
 }
 
 // --- ./js/core/replay.js ---
-// ===== リプレイ & 優勢度グラフ (hexago-replay v1) =====
-// 棋譜(hexago-kifu v1)から局面を復元し、「その時点でどのプレイヤーが優勢か」を
-// 単純な得点計算ではなく局面的な評価で系列化する。UI (js/ui/replay.js) から利用し、
-// Node の自己テスト (dev/replay-selftest.js) からも require できる。
-//
-// 優勢度の考え方(単純な得点計算との差別化):
-//   1. 一色に囲まれた空点は「確定地」として加算
-//   2. 複数色に囲まれた「争点」は接する石の数で按分(模様・勢力の取り合いを表現)
-//   3. 呼吸点1以下の連(アタリ)は取られる可能性として評価から減ずる
-//   4. 終局の score イベントでは確定スコアに接続し、終局時の激変を見える化する
-//   5. lead = 評価値 - 出場プレイヤーの平均値(2人戦なら常に +x / -x の対称線)
 (function (root, factory) {
   'use strict';
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.HexagoReplay = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
-
   const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
   const MOVE_TYPES = ['play', 'pass', 'resign'];
-
   function buildGeometry(size) {
     const side = (size + 1) / 2, radius = side - 1, points = [], map = Object.create(null);
     for (let r = -radius; r <= radius; r++) for (let q = -radius; q <= radius; q++) {
@@ -4068,9 +4022,7 @@ function resign() {
     const NB = points.map(([q, r]) => DIRS.map(([a, b]) => map[(q + a) + ',' + (r + b)]).filter(v => v !== undefined));
     return { size, points, map, NB, radius };
   }
-
   function isMoveEvent(event) { return !!event && MOVE_TYPES.includes(event.type); }
-
   function groupOn(board, geo, i) {
     const color = board[i], seen = new Set([i]), stack = [i], list = [];
     while (stack.length) {
@@ -4079,14 +4031,11 @@ function resign() {
     }
     return list;
   }
-
   function libertiesOfGroup(board, geo, list) {
     const libs = new Set();
     for (const x of list) for (const n of geo.NB[x]) if (!board[n]) libs.add(n);
     return libs;
   }
-
-  // 着手シミュレーション(石を置いてから取られる判定)。コウ参照なし: 記録済み棋譜の再現用。
   function simulateOnBoard(board, geo, i, p) {
     if (!Number.isInteger(i) || i < 0 || i >= board.length || board[i]) return null;
     if (!Number.isInteger(p) || p < 1) return null;
@@ -4100,8 +4049,6 @@ function resign() {
     if (!libertiesOfGroup(a, geo, groupOn(a, geo, i)).size) return null; // 自殺手
     return { a, cap };
   }
-
-  // 空点領域の分類。cols = 接する石の色、points = 属する空点のインデックス。
   function emptyRegions(board, geo) {
     const regions = [], id = new Array(board.length).fill(-1);
     for (let i = 0; i < board.length; i++) {
@@ -4119,16 +4066,11 @@ function resign() {
     }
     return regions;
   }
-
-  // その時点の「地+石」の絶対値。争点は接する石の数で按分して将来の取り込みを見積もる。
-  // (グラフの目盛り・ツールチップ用。優劣の判定には下の shareScores を使う)
   function areaScores(board, geo, playerCount) {
     const scores = Array(playerCount + 1).fill(0);
     board.forEach(v => { if (v) scores[v]++; });
     for (const reg of emptyRegions(board, geo)) {
       if (reg.cols.length === 1) {
-        // 一色に囲まれた空点はその色の地。ただし序盤の広い空間は
-        // まだ「囲まれた」とは言い切れないので、advantageOf と同じ信頼度で按分する
         const c = reg.cols[0];
         const filled = board.reduce((n, v) => n + (v ? 1 : 0), 0) / Math.max(1, board.length);
         const evidence = Math.min(1, reg.points.reduce((n, i) => n + geo.NB[i].filter(x => board[x] === c).length, 0) / 4);
@@ -4137,7 +4079,6 @@ function resign() {
         const rest = reg.size * (1 - trust) / Math.max(1, playerCount);
         for (let p = 1; p <= playerCount; p++) scores[p] += rest;
       } else if (reg.cols.length > 1) {
-        // 争点: 接する石の多い色が将来取り込むとみて按分する(模様・勢力の取り合い)
         const touch = reg.cols.map(() => 0);
         for (const i of reg.points) for (const n of geo.NB[i]) if (board[n]) touch[reg.cols.indexOf(board[n])]++;
         const sum = touch.reduce((a, b) => a + b, 0);
@@ -4146,8 +4087,6 @@ function resign() {
     }
     return scores;
   }
-
-  // 安全でない石: 呼吸点1以下の連は取られる可能性として評価から減ずる。
   function weakStoneLoss(board, geo) {
     const loss = new Map(), seen = new Set();
     for (let i = 0; i < board.length; i++) {
@@ -4157,48 +4096,24 @@ function resign() {
     }
     return loss;
   }
-
-  // 序盤なほど疑わしい「争点」の見積もりを鈍らせる重み。
-  //   1手目 ≒ 0.12 … 盤が埋まるほど 1.0 に近づく(終盤はほぼ確定地で見る)。
   function contestedWeight(board, geo) {
     const filled = board.reduce((n, v) => n + (v ? 1 : 0), 0) / Math.max(1, board.length);
     return 0.12 + 0.88 * Math.pow(Math.min(1, Math.max(0, filled)), 0.75);
   }
-
   const EPS = 1e-9;
-  // 局面の「優劣」。0 = 互角、±1 = 完全に支配。
-  //
-  // 分母は「盤面の総点数」で固定する(試合の総取り=試合の総量は変わらない)。
-  //   未確定の空点(序盤の広い空間)は、まだ誰のものでもないので
-  //   「出場者の均等な持ち分」として扱う = 序盤は互角付近を淡々と動く。
-  //
-  //   持ち点(p) = 石 + 確定地(囲いが強く証拠もある領域) - 弱石(アタリ)
-  //             + 未確定領域 × (その記録の取り分)
-  //
-  // これにより、石を1つ置いても「総面積に対する1点」の重みしか動かない。
-  // 単純な得点計算との違い:
-  //   - 序盤の広い空点を「まだ誰のものでもない」として中立に扱う
-  //   - 争点(複数色が接する空間)は接する石の数で按分 = 模様・勢力の取り合い
-  //   - アタリの連は取られる可能性として減点
-  //   - 盤が埋まるほど、未確定分が減って確定分の差が効いてくる
   function advantageOf(board, geo, playerCount, out) {
     const active = Array.from({ length: playerCount }, (_, i) => i + 1).filter(p => !(out && out[p]));
     const raw = Array(playerCount + 1).fill(0);
     if (active.length <= 1) return { values: active.map(() => 1), raw, active };
-
     const total = Math.max(1, board.length);
     const w = contestedWeight(board, geo);
     board.forEach(v => { if (v) raw[v]++; });
-
-    // 未確定の空点は出場者で等分した「持ち分」
     const base = 1 / active.length;
     active.forEach(p => { raw[p] += 0; });
-
     for (const reg of emptyRegions(board, geo)) {
       if (reg.cols.length === 1) {
         const c = reg.cols[0];
         const enclosed = 1 / (1 + Math.max(0, reg.size - 5) / 3);
-        // 囲いの証拠: 空点に接するその色の石が多いほど「囲っている」確度が高い
         const borders = new Set();
         for (const i of reg.points) for (const n of geo.NB[i]) if (board[n] === c) borders.add(n);
         const evidence = Math.min(1, borders.size / 4);
@@ -4210,22 +4125,15 @@ function resign() {
         const touch = reg.cols.map(() => 0);
         for (const i of reg.points) for (const n of geo.NB[i]) if (board[n]) touch[reg.cols.indexOf(board[n])]++;
         const sum = touch.reduce((a, b) => a + b, 0);
-        // 争点のうち「有利な側が将来取る」分だけ実勢力として加点し、
-        // 残りはまだ誰のものでもないので等分
         const claimed = Math.min(1, w);
         if (sum > 0) reg.cols.forEach((c, k) => { raw[c] += reg.size * claimed * (touch[k] / sum); });
         active.forEach(p => { raw[p] += reg.size * (1 - claimed) * base; });
       }
     }
-
     const weak = weakStoneLoss(board, geo);
     const held = active.map(p => Math.max(0, raw[p] - (weak.get(p) || 0)));
-    // 総面積で正規化(0..1)。合計はおおよそ 1 になる
     return { values: held.map(v => v / total), raw, active };
   }
-
-  // 優勢度(2人戦は +x / -x の対称線、多人数は平均との差)。
-  // シェアの平均との差 = 0 を互角とした対称値。序盤は総面積に比べて小さい。
   function leadValues(adv) {
     const vals = adv.values;
     if (vals.length <= 1) return { lead: vals.map(() => 0), leadPct: vals.map(() => 0) };
@@ -4233,10 +4141,6 @@ function resign() {
     const lead = vals.map(v => v - avg);
     return { lead, leadPct: lead.map(v => v * 100) };
   }
-
-  // 棋譜レコード → 手数ごとの局面リスト(先頭 = 初期局面)。
-  // 手数(ply) は play/pass/resign を数える。score イベントは死に石の除去を適用する。
-  // 次に打つ席。打った人の「次」で、投了済みの席は飛ばす。
   function nextTurnAfter(player, outArr, playerCount) {
     const n = Math.max(1, playerCount | 0);
     for (let k = 1; k <= n; k++) {
@@ -4245,16 +4149,12 @@ function resign() {
     }
     return player;
   }
-
-  // playerCount を渡すと手番計算を正確に行う(省略時は initial.out の長さから推定)
   function replayPositions(record, geo, playerCount) {
     const initial = record && record.initial && record.initial.board ? record.initial.board : new Array(geo.points.length).fill(0);
     const pc = Math.max(2, Math.min(6, Number(playerCount) || (record && record.playerCount) || (Array.isArray(record && record.initial && record.initial.out) && record.initial.out.length > 2 ? record.initial.out.length - 1 : 2)));
     if (initial.length !== geo.points.length) throw new Error('盤面サイズと初期局面の石配列が一致しません');
     const events = (record && Array.isArray(record.events) ? record.events : []).filter(e => e && (isMoveEvent(e) || e.type === 'score' || e.type === 'seat'));
     const initAi = (record && record.initial && Array.isArray(record.initial.aiSeats)) ? record.initial.aiSeats.slice() : [];
-    // turn = 次に打つ席 ／ eventIndex = この局面に至るまでに消化したイベント数。
-    // 「この局面から再開」で手番と履歴の切り方を決めるのに使う。
     const firstTurn = (record && record.initial && Number.isInteger(record.initial.turn)) ? record.initial.turn : 1;
     const positions = [{ board: initial.slice(), last: -1, passes: (record && record.initial && record.initial.passes) || 0, out: (record && record.initial && record.initial.out) ? record.initial.out.slice() : [], note: null, ply: 0, aiSeats: initAi, turn: firstTurn, eventIndex: 0 }];
     let ply = 0, evIndex = 0;
@@ -4277,7 +4177,6 @@ function resign() {
         if (Number.isInteger(event.player) && event.player >= 1 && event.player < out.length) out[event.player] = true;
         next = { board, last: prev.last, passes: 0, out, aiSeats, note: { kind: 'resign', player: event.player }, ply, turn: prev.turn, eventIndex: evIndex };
       } else if (event.type === 'seat') {
-        // 途中で人間⇔AIを切り替えた記録。盤面と手数は変えない。
         if (Number.isInteger(event.player) && event.player >= 1 && event.player < aiSeats.length) {
           aiSeats[event.player] = !!event.ai;
         }
@@ -4290,11 +4189,6 @@ function resign() {
     }
     return positions;
   }
-
-  // 優勢度系列(手ごと)。
-  //   lead     = 各プレイヤーの持ち点シェア - 出場者の平均(2人戦は対称、単位は「盤面比」)
-  //   leadPct  = 上記を百分率に(グラフの主役。序盤は数%で振り切れない)
-  //   evals    = 参考値(地+石の絶対数。終局の score イベントで公式確定スコアに接続)
   function advantageSeries(positions, geo, playerCount, names) {
     const rows = [];
     for (const pos of positions) {
@@ -4304,10 +4198,6 @@ function resign() {
       const evals = Array(playerCount + 1).fill(0);
       let lead = {}, leadPct = {};
       if (finalScores) {
-        // 終局(score イベント)は死に石を盤から除いただけの局面なので、
-        // 直前の形勢値をそのまま引き継ぐ。
-        // ※ ここで公式スコア(点)のシェアに切り替えると、%系列が最後の1点で
-        //   桁違いに飛んでしまう(グラフの「ありえない変化」の原因)。
         for (let p = 1; p <= playerCount; p++) { evals[p] = Math.max(0, Number(finalScores[p]) || 0); }
         const lv = leadValues(adv);
         active.forEach((p, k) => { lead[p] = lv.lead[k]; leadPct[p] = lv.leadPct[k]; });
@@ -4318,11 +4208,9 @@ function resign() {
         active.forEach((p, k) => { lead[p] = lv.lead[k]; leadPct[p] = lv.leadPct[k]; });
       }
       const area = areaScores(pos.board, geo, playerCount);
-      // 地と石の内訳(整数)。地は「空点のうち按分でその色に入る量」を四捨五入したもの。
       const stones = Array(playerCount + 1).fill(0), terr = Array(playerCount + 1).fill(0);
       pos.board.forEach(v => { if (v) stones[v]++; });
       for (let p = 1; p <= playerCount; p++) terr[p] = Math.max(0, Math.round(area[p] - stones[p]));
-      // 終局の公式スコアがあればそちらを優先(死に石除去後の最終値)
       const useOfficial = !!(finalScores && !pos.out.some(() => false));
       let breakdown = null;
       if (useOfficial) {
@@ -4351,14 +4239,10 @@ function resign() {
     }
     return { rows, swing, names: names || null };
   }
-
-  // 盤面の描画(リプレイ画面用)。devicePixelRatio を考慮する。
   function drawBoard(canvas, geo, pos, options) {
     const g = canvas.getContext && canvas.getContext('2d');
     if (!g) return;
     const cssW = Math.max(200, (options && options.cssSize) || Math.min(480, canvas.clientWidth || 480));
-    // dpr=1 を明示すると、生成した canvas をそのまま drawImage で貼れる
-    // (画面表示用は devicePixelRatio、オフスクリーン生成時は 1 を渡す)
     const dpr = (options && Number.isFinite(options.dpr)) ? options.dpr
       : ((typeof window !== 'undefined' && window.devicePixelRatio) || 1);
     canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssW * dpr);
@@ -4389,7 +4273,6 @@ function resign() {
     });
     g.closePath();
     g.stroke();
-    // 星
     g.fillStyle = (options && options.themeLine) || 'rgba(90,70,50,0.45)';
     const star = Math.round(s * 2 / 3);
     [[0, 0], [1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]].forEach(([q, r]) => {
@@ -4413,18 +4296,9 @@ function resign() {
       g.strokeStyle = '#16a34a'; g.lineWidth = 2.4; g.stroke();
     }
   }
-
-  // ===== URL 共有 (hexago-share v1) =====
-  // 棋譜を URL フラグメントに詰められる最小形式へ変換する。
-  //   { v:1, s:盤サイズ, p:人数, n:[名前...], m:[[点, 手番], ...], x:{t:結果, sc:[点...]}, o:[投了席...] }
-  // フラグメント(#)に置くので、サーバーへは送られない。
   const SHARE_VERSION = 1;
-  // 共有ペイロードの手リストで「席切替」を表す点番号(実在の交点と衝突しない負値)
   const SEAT_MARK = -2;
-
   function toSharePayload(record, size, playerCount, names) {
-    // 手の並び。席の切替は「その時点」に効くので、位置を保つ必要がある。
-    // → 3要素目で種別を表す: [point, player] / [-1, player](パス) / [-2, player, ai?1:0](席切替)
     const moves = [];
     let resign = [], score = null;
     for (const e of (record && record.events) || []) {
@@ -4440,15 +4314,12 @@ function resign() {
     for (let p = 1; p <= playerCount; p++) nm.push((names && names[p]) || '');
     if (nm.some(Boolean)) payload.n = nm;
     if (resign.length) payload.o = resign;
-    // 開始局面のAI状態。全員人間でも必ず入れる
-    // (省略すると復元側で空配列になり、以降の aiSeats が壊れる)
     const ai = [];
     for (let p = 1; p <= playerCount; p++) ai[p] = !!(record && record.initial && record.initial.aiSeats && record.initial.aiSeats[p]);
     payload.ai = ai.map(v => v ? 1 : 0);
     if (score) payload.x = score;
     return payload;
   }
-
   function utf8ToB64Url(str) {
     const bytes = new TextEncoder().encode(str);
     let bin = '';
@@ -4462,12 +4333,9 @@ function resign() {
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return new TextDecoder().decode(bytes);
   }
-
   function encodeShare(record, size, playerCount, names) {
     return utf8ToB64Url(JSON.stringify(toSharePayload(record, size, playerCount, names)));
   }
-
-  // 共有文字列 → 通常のヘルパーが扱える棋譜レコードに戻す。
   function decodeShare(text, geo) {
     const data = JSON.parse(b64UrlToUtf8(String(text)));
     if (!data || data.v !== SHARE_VERSION) throw new Error('この共有データの形式には対応していません');
@@ -4483,7 +4351,6 @@ function resign() {
       complete: true,
       initial: {
         board: new Array(points).fill(0), turn: 1, passes: 0, out: Array(playerCount + 1).fill(false),
-        // ai が無い旧データでも長さを席数にそろえる(空配列だと以降の aiSeats 参照が壊れる)
         aiSeats: Array.from({ length: playerCount + 1 }, (_, p) => p > 0 ? !!(data.ai && data.ai[p]) : false)
       },
       events: []
@@ -4496,20 +4363,16 @@ function resign() {
       else record.events.push({ type: 'play', player, point: pt });
     }
     for (const player of data.o || []) record.events.push({ type: 'resign', player });
-    // 旧形式(席切替を別配列に持つ)の共有リンクは末尾に足す
     for (const sc of data.seat || []) record.events.push({ type: 'seat', player: sc[0], ai: !!sc[1] });
     if (data.x) record.events.push({ type: 'score', removed: [], scores: data.x.sc, result: data.x.t });
     const names = {};
     (data.n || []).forEach((n, i) => { if (n) names[i + 1] = n; });
     return { record, size, playerCount, names };
   }
-
   return { version: 1, buildGeometry, isMoveEvent, replayPositions, simulateOnBoard, emptyRegions, areaScores, contestedWeight, advantageOf, leadValues, weakStoneLoss, advantageSeries, drawBoard, SHARE_VERSION, toSharePayload, encodeShare, decodeShare };
 });
 
 // --- ./js/ai/heuristic.js ---
-// ===== AI (囲碁風の局面評価・戦術判断) =====
-// 3人制なので「自分の地を増やす」だけでなく、両者の勢力・弱い石・終盤の空点を評価する。
 function regionInfo(b) {
   const id = Array(P.length).fill(-1), regs = [];
   for (let i = 0; i < P.length; i++) if (!b[i] && id[i] < 0) {
@@ -4526,7 +4389,6 @@ function hexDist(i, j) {
   const dq = P[i][0] - P[j][0], dr = P[i][1] - P[j][1];
   return Math.max(Math.abs(dq), Math.abs(dr), Math.abs(dq + dr));
 }
-// 連の眼を数える（六方向の隣接点がすべて自石で囲まれた空点を眼とみなす）。
 function countEyes(b, g, color) {
   const own = new Set(g), eyes = new Set();
   for (const stone of g) for (const n of NB[stone]) {
@@ -4537,27 +4399,20 @@ function countEyes(b, g, color) {
   return eyes.size;
 }
 function territoryNowForAI(b, p, regs) {
-  // 「新しく確保できる地」の候補。すでに自分の確定地になっている空間は含めず、
-  // 無所属の大きな空間、または複数色が接している争い中の大きな空間だけを見る。
   return regs.some(r => r.size >= 6 && (r.cols.size === 0 || r.cols.size > 1));
 }
 function aiChoose() {
   const b = G.board, p = G.turn, radius = SIDE - 1;
   const occupied = b.reduce((n, v) => n + (v ? 1 : 0), 0);
   const fill = occupied / b.length;
-  // 10手目以降は盤面の占有率にかかわらず中盤の展開評価へ移る。
   const moveNumber = Math.max((G.seen || []).length, occupied) + 1;
   const opening = moveNumber < 10 && fill < 0.30;
   const midgame = moveNumber >= 10;
   const endgame = fill > 0.62;
-  // プレイヤーごとに性格を固定。1=堅実、2=大模様、3=攻撃型。
   const style = p % 3 === 1 ? 'territory' : p % 3 === 2 ? 'framework' : 'fighter';
   const { id, regs } = regionInfo(b);
   const stones = Array.from({length:(G.playerCount||3)+1},()=>[]);
   b.forEach((v, i) => { if (v) stones[v].push(i); });
-
-  // 序盤の展開方向を6辺から選ぶ。自石が比較的多く、敵石が少ない辺を1〜2辺選び、
-  // その辺側の半分〜約70%を主な展開範囲にする。盤面の反対側へ散りすぎる手を抑える。
   const edgeDefs = [
     {name:'+q', coord:([q,r])=>q}, {name:'+r', coord:([q,r])=>r},
     {name:'q+r+', coord:([q,r])=>q+r}, {name:'-q', coord:([q,r])=>-q},
@@ -4570,16 +4425,12 @@ function aiChoose() {
       const d=radius-edge.coord(P[j]);
       if(d<=2) { if(v===p) { own+=1; ownNear += d===0?1.5:d===1?1.2:1; } else { enemy+=1; enemyNear += d===0?1.5:d===1?1.2:1; } }
     }
-    // 自石の足場を優先しつつ、敵石の少ない辺を選ぶ。まだ自石がない場合は敵の薄い辺へ。
     const score = ownNear*2.2 - enemyNear*1.45 + (own===0 && enemy===0 ? 0.15 : 0);
     return {ei, score, own, enemy};
   });
   edgeStats.sort((a,b)=>b.score-a.score);
-  // 序盤は1〜2辺だけに偏らず、上位4辺を候補にして盤面の複数方向へ布石を広げる。
-  // 上位辺の評価差は後段のソフトな加点で扱い、展開先を固定しすぎない。
   const preferredEdges = edgeStats.slice(0, 4).map(e => e.ei);
   const preferredCoords = preferredEdges.map(ei=>edgeDefs[ei].coord);
-  // 六つの頂点から3線ずつ内側に入った「三三」候補。盤サイズに合わせて自動計算する。
   const sanOffset = Math.max(0, radius - 3);
   const sanSanTargets = [...new Set([
     [ sanOffset, 0], [ sanOffset,-sanOffset], [0,-sanOffset],
@@ -4590,7 +4441,6 @@ function aiChoose() {
     !b.some((v,j) => v && hexDist(t,j) <= sanClaimRadius)
   );
   const openingSanTargets = unclaimedSanTargets.length ? unclaimedSanTargets : sanSanTargets;
-  // 各三三周辺の混み具合を数え、石が少ない方向ほど次の布石候補として優先する。
   const sanTargetLoads = sanSanTargets.map(t => ({
     target: t,
     load: b.reduce((n, v, j) => n + (v && hexDist(t, j) <= 2 ? 1 : 0), 0)
@@ -4599,7 +4449,6 @@ function aiChoose() {
   const balancedSanTargets = sanTargetLoads
     .filter(x => x.load <= minSanLoad + 1)
     .map(x => x.target);
-  // 初手は空いている三三周辺から選び、同程度ならランダムにして定型化を避ける。
   const openingSanFocusPool = balancedSanTargets.length ? balancedSanTargets : openingSanTargets;
   const openingSanFocus = openingSanFocusPool.length
     ? openingSanFocusPool[Math.floor(Math.random() * openingSanFocusPool.length)] : null;
@@ -4614,7 +4463,6 @@ function aiChoose() {
     for (const j of list) d = Math.min(d, hexDist(i, j));
     return d;
   };
-  // 二眼のある連を持たず、二眼を作る見込みも価値ある領域も尽きた場合は投了候補にする。
   const ownGroups = new Map();
   for (let i = 0; i < b.length; i++) if (b[i] === p && !ownGroups.has(i)) {
     const g = group(b, i);
@@ -4626,7 +4474,6 @@ function aiChoose() {
   let canCreateEye = false, canCreateTwoEyeGroup = false, canMakeNewSixLand = false;
   const currentTerr = territoryForBoard(b);
   if (!hasOwnTwoEyeGroup && fill > 0.50) {
-    // 眼を1つ作れるだけでは生きているとはみなさず、二眼を作れる候補を探す。
     for (let i = 0; i < P.length && !canCreateTwoEyeGroup; i++) {
       if (b[i]) continue;
       const test = sim(b, i, p);
@@ -4636,7 +4483,6 @@ function aiChoose() {
       if (afterEyes > 0 || (adjacentOwn >= Math.max(2, NB[i].length - 1) && NB[i].every(n => !b[n] || b[n] === p))) canCreateEye = true;
       if (afterEyes >= 2) canCreateTwoEyeGroup = true;
     }
-    // 6目以上の新しい地：合法手の結果、現在より自分の地が6目以上増える場合。
     for (let i = 0; i < P.length && !canMakeNewSixLand; i++) {
       if (b[i]) continue;
       const test = sim(b, i, p);
@@ -4650,25 +4496,20 @@ function aiChoose() {
   const hasValuableArea = hasLargeUnclaimedLand || hasValuableEnemyArea;
   const resignationEligible = midgame && !hasOwnTwoEyeGroup && !canCreateTwoEyeGroup &&
     !canMakeNewSixLand && !hasValuableArea;
-
   let best = -1, bestScore = -Infinity;
   const distTo = (i, list) => {
     let d = 99;
     for (const j of list) { const x = hexDist(i, j); if (x < d) d = x; }
     return d;
   };
-  // 現在の厳密な地。終盤は地を埋める手より、境界・ダメ・侵入を優先する。
   const territoryNow = territory();
   for (let i = 0; i < P.length; i++) {
     if (b[i]) continue;
     const move = sim(b, i, p);
     if (!move) continue;
-    // reg は中盤の展開評価でも参照するため、すべての使用箇所より前に初期化する。
     const reg = regs[id[i]];
     const ownGroup = group(move.a, i), libsAfter = libCount(move.a, ownGroup);
     let score = 0;
-    // 捕獲は最優先。アタリの救出と相手の弱い石への圧力。
-    // 取れる石は取るが、確定捕獲を過剰に優先して他の大場を逃さない。
     score += move.cap.length * (endgame ? 100 : 125);
     const adjacentGroups = new Set();
     for (const n of NB[i]) if (b[n]) {
@@ -4678,7 +4519,6 @@ function aiChoose() {
       if (info.color === p) {
         if (info.libs === 1 && libsAfter > 1) score += 195;
         else if (info.libs === 2 && libsAfter > 2) score += 65;
-        // 切断や捕獲を防ぐ接続を大きく評価する。
         if (info.libs <= 2) score += 35;
       } else {
         if (info.libs === 1) score += 78;
@@ -4689,14 +4529,10 @@ function aiChoose() {
     if (libsAfter === 1) score -= 145 + ownGroup.length * 30;
     else if (libsAfter === 2) score -= 28 + ownGroup.length * 6;
     else if (libsAfter === 3) score -= 4 + ownGroup.length * 1.5;
-
-    // 眼づくり：自分の石に囲まれた空点を眼候補として評価。
-    // とくに呼吸点の少ない大きな連を守る眼は、単なる地の拡張より優先する。
     const adjacentOwn = NB[i].filter(n => b[n] === p).length;
     const adjacentEnemy = NB[i].filter(n => b[n] && b[n] !== p).length;
     const degree = NB[i].length;
     const eyeLike = adjacentOwn >= Math.max(2, degree - 1) && adjacentEnemy === 0;
-    // この手で隣接する空点が眼として完成する数を数える。
     let eyesCreated = 0;
     for (const n of NB[i]) if (!b[n]) {
       const around = NB[n];
@@ -4710,16 +4546,11 @@ function aiChoose() {
     if (eyeLike) score += 3; // 眼候補点への無意味な着手自体は強く優遇しない
     if (eyesCreated) score += eyesCreated * (threatenedOwn.size ? 42 : 28);
     if (threatenedOwn.size && eyesCreated) score += 22 + threatenedOwn.size * 8;
-
-    // 着手後の自連に実際にいくつ眼ができるかを確認。二眼を作れる手は最優先級にする。
     const postEyes = countEyes(move.a, ownGroup, p);
     const beforeEyes = countEyes(b, ownGroup.filter(x => b[x] === p), p);
     if (postEyes >= 2 && beforeEyes < 2) score += 260 + (postEyes - 2) * 35;
     else if (postEyes === 1 && beforeEyes === 0) score += 95;
     if (postEyes < 2 && ownGroup.length >= 3 && libsAfter <= 3) score -= 18;
-
-    // 多人数戦の1手先読み：次に動く相手だけでなく、全相手の合法応手を検査する。
-    // 眼の中で色を変えながら取り返されるような「取っても維持できない捕獲」を強く避ける。
     if (libsAfter <= 4 && move.cap.length === 0) {
       const libs = new Set();
       for (const stone of ownGroup) for (const n of NB[stone]) if (!move.a[n]) libs.add(n);
@@ -4735,8 +4566,6 @@ function aiChoose() {
       if (immediateCapture) score -= 1050 + ownGroup.length * 90;
       else if (libsAfter === 2) score -= ownGroup.length >= 4 ? 85 : 38;
     }
-    // 捕獲直後に自分の石が取り返される形も検査する。取った石の解放点に
-    // すぐ相手が打てて、捕獲した自連が落ちるなら「捕獲点数」を評価しない。
     if (move.cap.length > 0 && libsAfter <= 5) {
       const libs = new Set();
       for (const stone of ownGroup) for (const n of NB[stone]) if (!move.a[n]) libs.add(n);
@@ -4748,8 +4577,6 @@ function aiChoose() {
       }
       if (recaptured) score -= 1100 + ownGroup.length * 95;
     }
-    // 1線（最外周）は、眼の完成・捕獲/救出・終盤のヨセ以外では大きく抑制。
-
     const nearestAll = distTo(i, stones.slice(1).flat());
     const nearestOwn = distTo(i, stones[p]);
     const [q, r] = P[i], radial = Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) / Math.max(1, radius);
@@ -4758,21 +4585,15 @@ function aiChoose() {
       (Math.abs(q) === starDist && r === 0) || (Math.abs(r) === starDist && q === 0) ||
       (q === starDist && r === -starDist) || (q === -starDist && r === starDist) ||
       (q === 0 && r === 0);
-
-    // 各プレイヤーの初手は、他の石でまだ使われていない三三周辺へ展開する。
-    // 三三点そのものだけでなく、周囲1〜数マスも候補にし、相手石の隣への反射的な着手を防ぐ。
     if (opening && stones[p].length === 0 && openingSanFocus !== null) {
       const sanDist = hexDist(i, openingSanFocus);
       if (sanDist <= 1) {
-        // 三三の中心と隣接1マスを同程度に高くし、毎局同じ点へ固定されないよう揺らす。
         score += 135 + Math.random() * 45 + (sanDist === 0 ? 5 : 0);
       } else {
         score -= Math.min(190, 55 + Math.max(0, sanDist - 2) * 28);
       }
     }
-
     if (opening) {
-      // 序盤は塊の隣を埋めず、盤面全体へ展開。辺に寄りすぎず、星付近を評価する。
       const target = style === 'territory' ? (radius <= 4 ? 2.3 : 3.0)
         : style === 'framework' ? (radius <= 4 ? 3.0 : 4.2) : (radius <= 4 ? 2.5 : 3.5);
       score += 18 - Math.abs(nearestAll - target) * (style === 'framework' ? 5 : 7);
@@ -4780,14 +4601,10 @@ function aiChoose() {
       const idealRadial = style === 'territory' ? 0.68 : style === 'framework' ? 0.48 : 0.58;
       score += (0.70 - Math.abs(radial - idealRadial)) * (style === 'framework' ? 24 : 20);
       if (star) score += style === 'framework' ? 10 : 5;
-
-      // 選んだ1〜2辺を足場にする。辺から盤面中央を越えて反対側へ行くほど減点し、
-      // 辺から少し内側（約30〜70%）に散らばる手を優先する。
       const edgeDepths = preferredCoords.map(coord => radius - coord(P[i]));
       const bestDepth = Math.min(...edgeDepths);
       const sideCoord = Math.max(...preferredCoords.map(coord => coord(P[i])));
       if (sideCoord >= 0) {
-        // 複数方向へ展開できるよう、選好辺の内側は緩やかに加点し、中心越えも過度には罰しない。
         const depthRatio = bestDepth / Math.max(1, 2*radius);
         if (depthRatio <= 0.70) score += 10 - depthRatio*6;
         else score -= 5 + (depthRatio-0.70)*22;
@@ -4795,18 +4612,12 @@ function aiChoose() {
       } else {
         score -= 6 + Math.abs(sideCoord)*1.2;
       }
-
-      // 三三の各方向の混雑差を評価。空いている方向への布石に最大18点を加点する。
       if (sanTargetLoads.length) {
         const nearestTarget = sanTargetLoads.reduce((best, x) =>
           hexDist(i, x.target) < hexDist(i, best.target) ? x : best, sanTargetLoads[0]);
         const loadAdvantage = Math.max(0, minSanLoad + 2 - nearestTarget.load);
         score += Math.min(18, loadAdvantage * 7);
       }
-
-      // 序盤の「点」ではなく「境界線」を作る評価。
-      // 自石から2〜4間ほど離れ、敵の勢力にも近すぎず遠すぎない場所を、
-      // 囲いの輪郭を描く候補として評価する。
       const ownD = nearestOwn;
       let nearestEnemy = 99;
       for (const enemy of Array.from({length:G.playerCount||3},(_,i)=>i+1)) if (enemy !== p) {
@@ -4816,43 +4627,29 @@ function aiChoose() {
         const markerDistance = style === 'framework' ? 4 : style === 'territory' ? 2.5 : 3;
         score += 12 - Math.abs(ownD - markerDistance) * (style === 'framework' ? 3 : 4);
       }
-      // 相手の石がある側へも目を配るが、無防備な接触や相手の地の中には突っ込まない。
       if (nearestEnemy <= 5) {
         score += Math.max(0, 6 - nearestEnemy) * (style === 'fighter' ? 2.5 : 1.8);
         if (nearestEnemy === 1) score -= style === 'fighter' ? 0 : 8;
       }
-      // 自石と敵石の間に位置し、境界を押さえる着手を加点。
       if (ownD < 99 && nearestEnemy < 99) {
         const balancedFrontier = Math.abs(ownD - nearestEnemy);
         if (ownD >= 2 && ownD <= 5 && nearestEnemy >= 2 && nearestEnemy <= 5)
           score += Math.max(0, 8 - balancedFrontier * 2);
       }
       if (NB[i].some(n => b[n] === p)) score -= style === 'territory' ? 3 : 11;
-      // 直接接触より、相手との境界を一間〜数間あけて先に形作る。
       if (NB[i].some(n => b[n] && b[n] !== p)) score -= style === 'fighter' ? 0 : 9;
-
-      // 3線相当の地点から境界を組み、後で囲い切れる形を優先する。
       if (style === 'territory') score += (0.70 - Math.abs(radial - 0.70)) * 18;
       if (style === 'framework') score += (0.48 - Math.abs(radial - 0.48)) * 15;
-
-      // すでに相手が伸びている側を完全に無視して遠方へ散らばるのを防ぐ。
-      // 近くに敵の勢力がある場合、自石との連携が取れる境界候補を少し優先。
       if (nearestEnemy <= 4 && ownD <= 5 && ownD >= 2) score += 5;
       if (nearestEnemy > 6 && ownD > 5) score -= 8;
     } else {
-      // 中盤も「隣に置くほど良い」評価にしない。石の密集を抑え、地の輪郭を広げる。
       score += Math.min(nearestOwn, 5) * (endgame ? 0.8 : style === 'framework' ? 3.5 : 2.8);
       if (!endgame && nearestOwn === 1) score -= style === 'fighter' ? 4 : 13;
       if (!endgame && nearestOwn === 2) score += style === 'framework' ? 5 : 3;
       if (midgame && stones[p].length > 0) {
-        // 10手目以降は自石から2〜4間の「ヒラキ」を使い、空いた地の輪郭を作る。
         if (nearestOwn >= 2 && nearestOwn <= 4) score += 30 + (nearestOwn === 2 ? 9 : nearestOwn === 3 ? 20 : 5);
         else if (nearestOwn === 5) score += 4;
-        // 自石から遠く、敵の戦術にも関わらない孤立点は大幅に抑える。
         if (nearestOwn > 5 && move.cap.length === 0) score -= 58 + Math.min(28, (nearestOwn - 5) * 7);
-
-        // 周囲が空いている方向へ二間程度の間隔で進み、新しい地の輪郭を作る手を強く評価。
-        // 近くに敵がいないこと、盤端に追い込まれすぎないこと、空点が十分残っていることを確認。
         const nearbyEmpty = NB[i].filter(n => !b[n]).length;
         let openSecondRing = 0;
         for (let j = 0; j < b.length; j++) {
@@ -4870,18 +4667,14 @@ function aiChoose() {
       }
       const midIdeal = style === 'territory' ? 0.70 : style === 'framework' ? 0.48 : 0.60;
       score += (0.70 - Math.abs(radial - midIdeal)) * (endgame ? 4 : style === 'framework' ? 13 : 10);
-      // 攻撃型は相手の石の切断点や薄い連の近くを狙う。
       if (style === 'fighter') {
         for (const n of NB[i]) if (b[n] && b[n] !== p) {
           const info = groups.get(n);
           if (info && info.libs <= 3) score += info.libs === 1 ? 45 : info.libs === 2 ? 18 : 8;
         }
       }
-      // 境界をつなぐ展開：堅実型は短いノビ・ハネ、大模様型は広いヒラキを評価。
       if (style === 'territory' && nearestOwn >= 2 && nearestOwn <= 3) score += 7;
       if (style === 'framework' && nearestOwn >= 3 && nearestOwn <= 5) score += 7;
-      // 相手の勢力が近いのに自分の石から遠すぎる場所へ打つのは控え、
-      // 自石と相手の間で境界を支える着手を選びやすくする。
       let frontierEnemyDist = 99;
       for (const enemy of Array.from({length:G.playerCount||3},(_,i)=>i+1)) if (enemy !== p) {
         frontierEnemyDist = Math.min(frontierEnemyDist, distTo(i, stones[enemy]));
@@ -4897,30 +4690,22 @@ function aiChoose() {
           if (info && info.libs <= 3) nearestWeak = Math.min(nearestWeak, hexDist(i, j));
         }
         if (nearestWeak <= 3) {
-          // 近づくだけの接触戦を避け、攻撃型でも安全な距離から圧力をかける。
           score += (4 - nearestWeak) * (endgame ? 2 : style === 'fighter' ? 4 : 1.5);
         }
       }
     }
-
     if (reg) {
-      // 1〜2目の相手の確定地は、捕獲や二眼形成などの明確な利益がない限り埋めない。
-      // 小さな眼の中で多人数が順番に取り返す無意味な連鎖を防ぐ。
       if (reg.cols.size === 1 && !reg.cols.has(p) && reg.size <= 2 && move.cap.length === 0 && postEyes < 2) {
         score -= 210 + (libsAfter <= 2 ? 100 : 0);
       }
       if (reg.cols.size === 1) {
         const owner = [...reg.cols][0];
         if (owner === p) {
-          // 自分の確定地を埋めるのは原則損。生き石の眼を埋める手も避ける。
           score -= reg.size <= 2 ? 75 : 22;
         } else {
-          // 相手の地への侵入は、小さな領域への自殺的な手を避けて選別する。
           if (reg.size <= 2) score -= 90;
           else if (reg.size <= 5) score -= endgame ? 8 : 16;
           else score += endgame ? 2 : style === 'fighter' ? -3 : -12;
-          // 相手の地への侵入は「生き残れる見込み」がある場合だけ選ぶ。
-          // 味方から遠く、眼がなく、呼吸点も少ない単独侵入は双方の損なので大幅減点。
           const isolatedInvasion = adjacentEnemy === 0 && nearestOwn > 3 && move.cap.length === 0;
           if (isolatedInvasion) score -= reg.size >= 3 ? (endgame ? 35 : 42) : 24;
           if (isolatedInvasion && postEyes < 2 && libsAfter <= 5)
@@ -4930,31 +4715,21 @@ function aiChoose() {
           if (style === 'fighter' && reg.size >= 6 && libsAfter >= 4 && nearestOwn <= 3) score += 10;
         }
       } else if (reg.cols.size >= 2) {
-        // 中立地・境界の空点。終盤に残ったダメを埋める。
         score += endgame ? 10 : 3;
         if (reg.size === 1) score += endgame ? 9 : 2;
       } else {
-        // まだ誰の地でもない大きな空間は、序中盤の布石候補。
         score += opening ? 0 : Math.min(reg.size, 12) * (endgame ? 0.15 : 0.45);
       }
     }
-
-    // 味方へつながらず、二眼を作る余地もない敵領域への単独侵入は強く減点する。
-    // 大きな領域や、捕獲・連絡・二眼形成が見込める手はこの条件から除外する。
     if (reg && reg.cols.size >= 1 && !reg.cols.has(p) && reg.size < 9 &&
         adjacentOwn === 0 && nearestOwn > 3 && postEyes < 2 && move.cap.length === 0) {
       score -= 230 + (reg.size <= 5 ? 90 : 0) + Math.max(0, 4 - libsAfter) * 24;
       if (libsAfter <= 3) score -= 100;
     }
-    // 相手の確定地・勢力内で、味方につながらず二眼を作る空間もない侵入は致命的に減点。
-    // この手を選ぶくらいなら、後段の中立点（ダメ）を詰める方がよい。
     if (reg && reg.cols.size === 1 && !reg.cols.has(p) && reg.size < 12 &&
         adjacentOwn === 0 && nearestOwn > 2 && postEyes < 2 && move.cap.length === 0) {
       score -= 520 + (reg.size <= 6 ? 180 : 0) + (libsAfter <= 3 ? 130 : 0);
     }
-
-    // 他色同士が戦っている場所への、味方とつながらない割り込みを抑制する。
-    // 捕獲・救出・眼づくりの明確な狙いがないなら、戦場から離れて自分の地を広げる。
     let fightDistance = 99;
     for (let enemy = 1; enemy <= (G.playerCount || 3); enemy++) if (enemy !== p)
       fightDistance = Math.min(fightDistance, distTo(i, stones[enemy]));
@@ -4965,28 +4740,19 @@ function aiChoose() {
     if (fightingNearby && !hasOwnConnection && nearestOwn > 2 && !clearTacticalPurpose) {
       score -= fightDistance <= 1 ? 245 : 170;
     }
-    // 相手石に接するだけで、自分の石とはつながらない着手は特に避ける。
     if (adjacentEnemy > 0 && adjacentOwn === 0 && move.cap.length === 0 &&
         postEyes < 2 && !threatenedOwn.size) score -= 210;
-
-    // ===== 接続・切断・眼・境界の急所 =====
     const ownAdjacentInfos = [...adjacentGroups].map(k => groups.get(k)).filter(g => g && g.color === p);
     const enemyAdjacentInfos = [...adjacentGroups].map(k => groups.get(k)).filter(g => g && g.color !== p);
     const edgeDistance = radius - Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r));
     const nearestEnemyStrategic = Math.min(...Array.from({length:G.playerCount||3},(_,j)=>j+1)
       .filter(c => c !== p).map(c => distanceToStones(i, stones[c])), 99);
-
-    // 序盤の最初の4手程度は、自石から7マス以内を探索範囲にし、
-    // その中で最も敵石から離れた「到達不能極」的な空点へ展開する。
-    // 敵石が複数色ある場合は、最も近い敵石までの距離を使って安全度を測る。
     if (occupied <= 4 && stones[p].length > 0 && nearestOwn <= 7 && !endgame) {
       const safeDistance = Math.min(8, nearestEnemyStrategic);
       score += safeDistance * 13;
       if (nearestEnemyStrategic >= 5) score += 16;
       if (nearestEnemyStrategic <= 2) score -= 18;
     }
-
-    // 大きい連を壁へつなぐ：壁に近づき、かつ大きな自連からも遠くない着手を加点。
     if (edgeDistance <= 2) {
       for (const g of uniqueGroups) if (g.color === p && g.stones.length >= 3) {
         const toGroup = distanceToStones(i, g.stones);
@@ -4999,13 +4765,9 @@ function aiChoose() {
         }
       }
     }
-
-    // 自分の弱い連（まだ二眼がなく、呼吸点が少ない）を強い自連へつなぐ。
-    // 1手で合流する点は大きく、そこへ向かう中継点も距離が縮むほど評価する。
     for (const weak of uniqueGroups) {
       if (weak.color !== p || weak.eyes >= 2 || weak.libs > 5) continue;
       const weakD = distanceToStones(i, weak.stones);
-      // 中盤以降、二眼のない自連が二眼を作れる形へ進む手を最優先級にする。
       if (midgame && weakD <= 2 && postEyes > weak.eyes) {
         score += (postEyes >= 2 ? 310 : 155) + (weak.libs <= 3 ? 95 : 35)
           + Math.min(weak.stones.length, 8) * 8;
@@ -5024,8 +4786,6 @@ function aiChoose() {
         }
       }
     }
-
-    // 接続急所：ここを相手に占められると自分の連同士が分断されやすい点を急いで押さえる。
     if (ownAdjacentInfos.length >= 2) {
       const weakAmong = ownAdjacentInfos.some(g => g.eyes < 2 && g.libs <= 4);
       const cutThreat = ownAdjacentInfos.some(g => g.libs <= 2);
@@ -5034,8 +4794,6 @@ function aiChoose() {
       if (cutThreat) score += 65;
       if (nearestEnemyStrategic <= 2) score += 28;
     }
-
-    // 相手の同色の別々の連がこの点を使ってつながれる場合は、先回りして接続点を占める。
     const enemyBridgeColors = new Map();
     for (const g of enemyAdjacentInfos) {
       const arr = enemyBridgeColors.get(g.color) || [];
@@ -5046,45 +4804,29 @@ function aiChoose() {
       score += 48 + Math.min(arr.reduce((n,g)=>n+g.stones.length,0), 10) * 2;
       if (arr.some(g => g.eyes < 2 && g.libs <= 4)) score += 14;
     }
-
-    // 相手の弱い連が二眼を作るのに使える候補点・周辺点を押さえる。
-    // 既に二眼がある連や、確定した小さな眼を無意味に埋める手は対象外。
     for (const enemyGroup of uniqueGroups) {
       if (enemyGroup.color === p || enemyGroup.eyes >= 2 || enemyGroup.libs > 5) continue;
       const d = distanceToStones(i, enemyGroup.stones);
       if (d <= 2 && enemyGroup.eyes === 1) score += d === 1 ? 30 : 15;
       else if (d <= 2 && enemyGroup.eyes === 0 && enemyGroup.libs <= 3) score += d === 1 ? 16 : 8;
     }
-
-    // 自分の地と相手の地が接する境界・中立地を埋める。境界の急所は特に優先。
     if (reg && reg.cols.has(p) && [...reg.cols].some(c => c !== p)) {
       if (nearestOwn <= 3 && nearestEnemyStrategic <= 3) score += endgame ? 32 : 25;
       else score += endgame ? 20 : 12;
-      // 中立点は、眼の作れない敵地への侵入より安全で実利のある候補。
       if (midgame && libsAfter >= 2 && !eyeLike) score += 18;
       if (endgame && libsAfter >= 2 && !eyeLike) score += 24;
     }
-
-    // 周囲（六角距離5以内）に敵石がない開けた地点を評価する。
     if (nearestEnemyStrategic > 5) score += opening ? 20 : endgame ? 4 : 12;
-
-    // 自石から画面上の直線距離√3となる斜め位置（軸座標差の二乗和 q²+qr+r²=3）。
-    // 一間の隣接ではないが、次の連絡・展開につながる斜めの形を評価する。
     const diagonalSqrt3 = stones[p].some(j => {
       const dq = q - P[j][0], dr = r - P[j][1];
       return dq*dq + dq*dr + dr*dr === 3;
     });
     if (diagonalSqrt3) score += opening ? 18 : endgame ? 5 : 14;
-
-    // 終盤は現在の地を直接埋めるより、相手の地を減らす/中立点を取る手を優先。
     if (endgame) {
       if (reg && reg.cols.size === 1 && reg.cols.has(p)) score -= 18;
       if (reg && reg.cols.size === 1 && !reg.cols.has(p) && reg.size >= 3) score += 5;
       if (G.passes > 0) score += 2;
     }
-    // 終盤は、自分の確定地の外に残った「眼がなく、まだ殺せる相手の連」を
-    // 放置せず、呼吸点を詰めて捕獲する。自分の地を埋める手は対象外。
-    // 取り返し合いを防ぐため、着手後の相手連の呼吸点と自連の安全性も確認する。
     if (endgame && !(reg && reg.cols.size === 1 && reg.cols.has(p))) {
       const checkedEnemyGroups = new Set();
       for (const n of NB[i]) {
@@ -5100,18 +4842,14 @@ function aiChoose() {
         if (!afterEnemyGroup.length) continue;
         const enemyLibsAfter = libCount(move.a, afterEnemyGroup);
         if (enemyLibsAfter < enemyLibsBefore) {
-          // 眼のない弱い連を実際に追い詰める手を高く評価。
           score += (enemyEyes === 0 ? 34 : 12) + Math.max(0, enemyLibsBefore - enemyLibsAfter) * 12;
           if (enemyLibsAfter === 1) score += 72 + Math.min(enemyGroup.length, 8) * 9;
           else if (enemyLibsAfter === 2) score += 30;
-          // 大きな死に石候補を殺す価値を反映。ただし自分も取られる手は除外。
           if (enemyEyes === 0 && enemyLibsBefore <= 5) score += Math.max(0, 6 - enemyLibsAfter) * 14;
         }
       }
       if (move.cap.length) score += move.cap.length * 80;
-      // ダメ埋め：中立の空点に安全に石を残せるなら、石1個分の得点を見込んで優先。
       if (reg && reg.cols.size >= 2 && libsAfter >= 2) score += 16 + (reg.size === 1 ? 8 : 0);
-      // 呼吸点が少なく眼のない敵連への安全な詰めを、終盤はさらに優先する。
       for (const n of NB[i]) {
         const enemy = b[n];
         if (!enemy || enemy === p || G.out[enemy]) continue;
@@ -5123,11 +4861,6 @@ function aiChoose() {
         }
       }
     }
-
-    // 自石から横方向（画面上で同じ段）に空地が伸びている場合、
-    // 内側へ寄せるだけの手より、横へ展開して地の輪郭を広げる手を少し優先する。
-    // 同じ r 座標にある自石との距離が 2〜4 で、その間に石がなく、
-    // 着手点のさらに横方向にも空点が続く場合だけ加点する。
     if (!endgame && stones[p].length > 0) {
       let horizontalExpansion = false;
       for (const j of stones[p]) {
@@ -5155,9 +4888,6 @@ function aiChoose() {
       }
       if (horizontalExpansion && adjacentEnemy === 0 && move.cap.length === 0) score += 12;
     }
-
-    // 局所密集ペナルティ：近傍に石が多すぎる点は、眼/戦術手以外では避ける。
-    // これにより相手の隣へ反射的に打ち続ける「ギュウギュウ」を抑える。
     const nearOwn2 = stones[p].filter(j => hexDist(i, j) <= 2).length;
     const nearEnemy2 = Array.from({length:G.playerCount||3},(_,i)=>i+1).filter(c => c !== p)
       .reduce((n, c) => n + stones[c].filter(j => hexDist(i, j) <= 2).length, 0);
@@ -5167,25 +4897,17 @@ function aiChoose() {
       score -= Math.max(0, nearOwn2 - 2) * (style === 'framework' ? 3 : 4);
       score -= Math.max(0, nearEnemy2 - 3) * (style === 'fighter' ? 1.5 : 3);
     }
-
-    // 盤面端の石は囲える地が小さくなりやすい。最外周（1線）は原則避ける。
-    // 例外：眼候補、捕獲/アタリ救出、終盤の実利あるヨセ。
     const tactical = move.cap.length > 0 || [...adjacentGroups].some(key => {
       const info = groups.get(key);
       return info && info.libs <= 2;
     });
     if (radial >= 0.96 && !eyeLike && !tactical && !endgame) score -= 28;
     else score -= Math.max(0, radial - 0.82) * (endgame ? 3 : 9);
-    // 相手の地の中で即座に取られる手は、捕獲などの明確な狙いがなければ避ける。
     if (libsAfter <= 1 && move.cap.length === 0 && !eyeLike) score -= 65;
     score += Math.random() * (style === 'fighter' ? 2.0 : 0.9);
     if (score > bestScore) { bestScore = score; best = i; }
   }
-
-  // 投了条件を満たす場合でも、まずは合法手を評価する。明確な得点手・延命手があれば打つ。
   if (resignationEligible && (best < 0 || bestScore < 18)) return -2;
-  // 終盤は中立点（ダメ）を埋め、弱い相手連を攻める手を優先。
-  // エリア得点では、中立点に安全に石を置くことは石1点の獲得になる。
   if (best < 0) return -1;
   if (endgame && bestScore < 12) return -1;
   if (G.passes > 0 && bestScore < (endgame ? 16 : -4)) return -1;
@@ -5194,26 +4916,16 @@ function aiChoose() {
 const aiSeatOf = p => mode === 'online' ? !!(G.aiSeats ? G.aiSeats[p] : G.aiSeat === p) : seats[p] !== 'human';
 
 // --- ./js/ai/pool.js ---
-// ===== AI 制御（MCTS エンジン / Web Worker プール） =====
-// エンジン本体は js/ai/engine.js（dev/ai-engine.js の同期コピー）。
-// 単一HTML配信（GASプロキシ等）時は index.html 内の <script id="ai-engine-src" type="text/plain">
-// から Blob Worker を生成し、外部ファイル読み込みなしで並列探索（root parallel MCTS）を行う。
-// 開発用の分割読み込み時は js/ai/worker.js を直接起動する。
-// Worker が使えない環境（file:// や厳しいサンドボックス）ではメインスレッド MCTS にフォールバックし、
-// それも失敗した場合だけ従来の1手読み AI (aiChoose) にフォールバックする。
-// AI 設定: テンポ（'fast' 高速・盤サイズ別自動最適 / 'deep' 長考・盤サイズ別自動最適）。棋風は最強の balanced に統一。
 let aiTestBudgetMs = null, lastAIStats = null;
 let aiGeneration = 0, aiWorkerError = '', aiMsgSeq = 0, aiWaiters = new Map();
 let aiPool = [];   // [{ index, worker, url, failed }]
 let aiMainAPI = null, aiMainEngines = Object.create(null);
-
 const AI_WORKER_URL = (function () {
   try {
     const here = document.currentScript && document.currentScript.src;
     return here ? new URL('worker.js', here).href : './js/ai/worker.js';
   } catch (e) { return './js/ai/worker.js'; }
 })();
-
 const AI_WORKER_GLUE = [
   'var __hexEngines = Object.create(null);',
   'self.onmessage = function (e) {',
@@ -5241,7 +4953,6 @@ const AI_WORKER_GLUE = [
   '};',
   ''
 ].join('\n');
-
 function aiEngineSourceText() {
   const el = typeof document !== 'undefined' && document.getElementById('ai-engine-src');
   return el ? el.textContent.trim() : '';
@@ -5275,7 +4986,6 @@ function setSeatAIMode(p, nextMode) {
   }
   return m;
 }
-// 強さ曲線の実測に基づき、盤サイズごとに最適な思考時間を自動設定する（プレイヤーに秒数を意識させない）。
 function aiBudgetMs(seat) {
   if (aiTestBudgetMs != null) return aiTestBudgetMs;
   const pts = (typeof P !== 'undefined' && P.length) || 61;
@@ -5406,9 +5116,7 @@ function aiThinkOnSlot(slot, state, budgetMs) {
     slot.worker.postMessage({ id: id, state: state, options: { budgetMs: budgetMs, style: 'balanced', returnAllMoves: true, resignThreshold: 0.02 } });
   });
 }
-// root parallel MCTS: 各 Worker のルート直下の訪問数を合算して着手を選ぶ。
 function mergeAIResults(results, state) {
-  // 全 Worker が即パス／投了を返した場合はそのまま尊重する
   if (results.every(r => r && r.move === -2)) return Object.assign({}, results[0], { workers: results.length });
   if (results.every(r => r && r.move === -1)) return Object.assign({}, results[0], { workers: results.length });
   const acc = new Map();
@@ -5430,7 +5138,6 @@ function mergeAIResults(results, state) {
     const v = c.wn ? c.wsum / c.wn : 0;
     if (!best || c.visits > best.visits || (c.visits === best.visits && v > bestVal)) { best = c; bestVal = v; }
   }
-  // 複数 Worker の訪問数合算で、全員一致でないのに不用意なパスが選ばれないよう保護する
   if (best && best.move === -1 && state && !state.passes && !results.every(r => r && r.move === -1)) {
     let placement = null;
     for (const c of acc.values()) {
@@ -5443,7 +5150,6 @@ function mergeAIResults(results, state) {
   const totalVisits = results.reduce((n, r) => n + (r.visits || 0), 0);
   const totalPlayouts = results.reduce((n, r) => n + (r.playouts || 0), 0);
   const totalW = results.reduce((n, r) => n + (r.winrate || 0) * (r.visits || 0), 0);
-  // 上位8手は従来どおり bestMoves として返しつつ、デバッグ用に全候補も返す
   const allMoves = [...acc.values()]
     .map(c => ({ move: c.move, visits: c.visits, value: c.wn ? c.wsum / c.wn : 0 }))
     .sort((a, b) => b.visits - a.visits);
@@ -5481,7 +5187,6 @@ function aiThink(state, budgetMs) {
       return ok.length === 1 ? ok[0] : mergeAIResults(ok, state);
     });
   }
-  // フォールバック: Worker が使えない（file:// や厳格なサンドボックス等）ときはメインスレッドで。
   return runMainThreadAI(state, budgetMs);
 }
 function cancelAI() {
@@ -5516,14 +5221,11 @@ function maybeAI() {
     document.getElementById('aiOv').classList.add('hidden');
     if (G.over || G.phase !== 'playing' || G.turn !== turn || !aiSeatOf(turn)) return;
     lastAIStats = result || null;
-    // デバッグモード時のみ、AI の評価分布を棋譜に記録する(共有には含めない)
     if (window.HexagoDebug && window.HexagoDebug.enabled() && result) {
       try { window.HexagoDebug.recordAI(turn, result); } catch (e) { }
     }
     let move = result && Number.isInteger(result.move) ? result.move : -3;
     if (move === -2) { resign(); after(); return; }
-    // エンジンのパス判定(-1)は最終決定として尊重する（旧統合ではレガシーAIの
-    // 着手で上書きされ、終盤に際限なく石を置き続ける原因だった）。
     if (move === -1) { doPass(); after(); return; }
     if (move < 0 || !play(move)) {
       const fb = aiFallbackMove();
@@ -5542,7 +5244,6 @@ function maybeAI() {
 }
 
 // --- ./js/ui/input.js ---
-// ===== 入力 =====
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d');
 function mine() { return mode === 'online' ? Number.isInteger(myRole) && G.turn === myRole && !aiSeatOf(myRole) : seats[G.turn] === 'human'; }
@@ -5556,7 +5257,6 @@ function hit(e) {
   for (let i = 0; i < P.length; i++) { const [px, py] = pos(i), d = Math.hypot(px - x, py - y); if (d < bd) { bd = d; bi = i; } }
   return bi;
 }
-// リプレイ中はメイン盤面をそのまま再生に使うので、着手入力は受け付けない
 const replayShown = () => typeof HexagoReplayView !== 'undefined' && HexagoReplayView.active();
 cv.addEventListener('pointerdown', e => { if (replayShown()) return; ptype = e.pointerType || 'mouse'; });
 cv.addEventListener('pointermove', e => { if (replayShown()) return; ptype = e.pointerType || 'mouse'; });
@@ -5579,9 +5279,6 @@ cv.addEventListener('click', e => {
 });
 
 // --- ./js/ui/render.js ---
-// ===== 描画 =====
-// 盤面(cv)の実寸は CSS が決める。ここは「CSS 上の大きさにバッキングストアを合わせる」だけ。
-// サイズ変更でバッキングストアが消えるため、必ず描き直す。
 let canvasSyncTimer = null;
 function resizeCanvas() {
   const rc = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
@@ -5590,8 +5287,6 @@ function resizeCanvas() {
   ctx.setTransform(d, 0, 0, d, 0, 0);
   render();
 }
-// リプレイ開始/終了でレイアウトが切り替わった直後は、画面の再描画が来るまで
-// 盤面の実寸が古いまま(＝大きさが変わらない)。いくつかのタイミングで強制的に測り直す。
 function syncCanvasSoon() {
   resizeCanvas();
   if (canvasSyncTimer) clearTimeout(canvasSyncTimer);
@@ -5606,7 +5301,6 @@ function stone(x, y, r, p, alpha) {
   ctx.fillStyle = playerFill(p); ctx.fill(); ctx.strokeStyle = playerStroke(p); ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
 }
 function render() {
-  // リプレイ中はメイン盤面に「その手の局面」を描く(ポップアップしない)
   const rp = (typeof HexagoReplayView !== 'undefined' && HexagoReplayView.active()) ? HexagoReplayView.position() : null;
   if (rp) return renderReplay(rp);
   const { w, cell, pos } = metrics(), s = SIDE - 1, r0 = cell * 0.44;
@@ -5617,10 +5311,8 @@ function render() {
   ctx.lineWidth = 2; ctx.beginPath();
   [[s, 0], [0, s], [-s, s], [-s, 0], [0, -s], [s, -s]].forEach(([q, r], k) => { const i = M[q + ',' + r], [x, y] = pos(i); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
   ctx.closePath(); ctx.stroke();
-  // 星
   ctx.fillStyle = theme.line; const d = Math.round(s * 2 / 3);
   [[0, 0], ...DIRS.map(([a, b]) => [a * d, b * d])].forEach(k => { const i = M[k[0] + ',' + k[1]]; if (i === undefined) return; const [x, y] = pos(i); ctx.beginPath(); ctx.arc(x, y, 3.2, 0, 7); ctx.fill(); });
-  // 石
   G.board.forEach((p, i) => {
     if (!p) return; const [x, y] = pos(i), dead = G.dead.includes(i);
     stone(x, y, r0, p, dead ? 0.35 : 1);
@@ -5692,9 +5384,6 @@ function makeBoardThumb(entry) {
   }
   try { return c.toDataURL('image/png'); } catch (e) { return ''; }
 }
-
-// リプレイ局面のメイン盤面描画。render() と同じ座標系で盤線はそのまま、
-// 石と最終手マーカーだけを再生中の局面で置き換える。
 function renderReplay(pos) {
   const { w, cell, pos: point } = metrics(), s = SIDE - 1, r0 = cell * 0.44;
   ctx.fillStyle = theme.board; ctx.fillRect(0, 0, w, w);
@@ -5718,7 +5407,6 @@ function renderReplay(pos) {
     ctx.fillStyle = 'rgba(34,197,94,.38)'; ctx.fill();
     ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 3; ctx.stroke();
   }
-  // デバッグモード: その局面で AI が評価した分布を重ねる
   if (window.HexagoDebug && window.HexagoDebug.enabled()) {
     const rec = pos.note && pos.note.kind === 'play'
       ? window.HexagoDebug.getRecord(pos.ply - 1, pos.note.player)
@@ -5728,7 +5416,6 @@ function renderReplay(pos) {
 }
 
 // --- ./js/ui/ui.js ---
-// ===== UI =====
 function canUndo() {
   if (G.over || G.phase !== 'playing' || !G.hist.length || aiBusy) return false;
   const top = G.hist[G.hist.length - 1];
@@ -5770,10 +5457,6 @@ function updateUI() {
   $('bnResult').classList.toggle('hidden', !G.over);
   render();
 }
-
-// ===== モードバッジ(ローカル 人・AI の切り替え) =====
-// 「ローカル 人・人・AI」の各項目を押すと、その席の人間/AIを切り替える。
-// 席の順に並ぶので、どの項目が誰かは位置で分かる(色名は出さない)。
 function seatToggleEnabled() {
   if (!G) return false;
   if (mode === 'online') return !!isHost;
@@ -5793,8 +5476,6 @@ function renderModeBadge() {
   for (let p = 1; p <= pc; p++) {
     const isAi = seats[p] === 'ai';
     const turn = (p === G.turn && !G.over) ? ' is-turn' : '';
-    // 色は小さな点だけで示す(ボタン全体を塗るとカラフルで落ち着かないため)。
-    // 席のコマと同じ色・同じ縁取りなので、どれが誰かは点で分かる。
     const fill = playerFill(p), edge = playerStroke(p);
     parts.push(`<button type="button" class="seat-pill${isAi ? ' is-ai' : ''}${turn}" data-seat="${p}"`
       + ` aria-pressed="${isAi}"${enabled ? '' : ' disabled'}`
@@ -5811,8 +5492,6 @@ document.addEventListener('click', e => {
   if (!p || !seatToggleEnabled()) return;
   if (typeof setSeatMode === 'function') setSeatMode(p, seats[p] === 'ai' ? 'human' : 'ai');
 });
-
-// ===== 盤面・棋譜の保存/読み込み と 連続パス =====
 function ensureGameRecord() { return gameFeatures ? gameFeatures.ensureRecord(G) : null; }
 function recordGameEvent(event) { if (gameFeatures) gameFeatures.appendEvent(G, event); }
 function exportCurrentRecord() {
@@ -5854,8 +5533,6 @@ function saveCurrentBoardToLibrary() {
     }
     const record = ensureGameRecord();
     const moves = (record?.events || []).filter(e => ['play', 'pass', 'resign'].includes(e.type)).length;
-    // 盤面だけでなく手順も保存する。これがあると開いたときにリプレイできる。
-    // 終局済みなら終局状態(結果・死に石)も一緒に残す。
     const kifu = gameFeatures ? gameFeatures.exportRecord(G, { names: Array.from({ length: pc + 1 }, (_, p) => p ? playerName(p) : '') }) : null;
     const ended = !!(G.over && G.result);
     const finished = ended || G.phase === 'dead';
@@ -5884,9 +5561,6 @@ function saveCurrentBoardToLibrary() {
     $('recordExportStatus').textContent = 'ライブラリへの保存に失敗しました。';
   }
 }
-// 盤面・棋譜・ライブラリ・写真から局面を読み込むときは、必ずリプレイ表示を解除する。
-// 解除しないと body.replaying が残り、盤面が古いリプレイ局面を描き続けて
-// 「読み込んだのに画面が切り替わらない」状態になる。
 function exitReplayForLoad() {
   if (typeof window.HexagoReplayUI !== 'undefined' && window.HexagoReplayUI && window.HexagoReplayUI.reset) {
     window.HexagoReplayUI.reset();
@@ -5908,7 +5582,6 @@ function applyImportedKifu(data) {
   if (!cur || !Array.isArray(cur.board)) throw new Error('盤面データがありません');
   const expectedPts = 3 * ((size + 1) / 2) * ((size - 1) / 2) + 1;
   if (cur.board.length !== expectedPts) throw new Error('盤面サイズと石配列の長さが一致しません');
-
   if (aiBusy) cancelAI();
   if (mode === 'online') closePeer();
   clearAutoPass();
@@ -5968,11 +5641,9 @@ function applyImportedKifu(data) {
 }
 function importBoardOrKifuJSON(text) {
   const data = JSON.parse(text);
-  // 1. hexago-kifu JSON
   if (data && data.format === 'hexago-kifu') {
     return applyImportedKifu(data);
   }
-  // 2. ライブラリ配列 JSON（複数局面）
   if (Array.isArray(data)) {
     if (!window.HexagoPhotoStore) throw new Error('ライブラリ機能が利用できません');
     const added = window.HexagoPhotoStore.importJSON(text);
@@ -5981,7 +5652,6 @@ function importBoardOrKifuJSON(text) {
     if (window.HexagoPhotoUI && window.HexagoPhotoUI.openLibrary) window.HexagoPhotoUI.openLibrary();
     return { kind: 'library', added };
   }
-  // 3. 単一局面 JSON（写真保存・ライブラリエントリ形式）
   if (data && Array.isArray(data.board) && [9, 13, 19, 25].includes(Number(data.size))) {
     if (window.HexagoPhotoUI && window.HexagoPhotoUI.applyToGame) {
       exitReplayForLoad();
@@ -6124,7 +5794,6 @@ if ($('recordFile')) $('recordFile').onchange = () => {
 };
 
 // --- ./js/ui/modals.js ---
-// ===== モーダル共通: 背景クリック / Esc / 閉じるボタンで閉じる =====
 const MODAL_IDS = ['recordModal', 'setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal', 'shareModal'];
 function modalEl(id) { return document.getElementById(id); }
 function visibleModals() {
@@ -6133,7 +5802,6 @@ function visibleModals() {
 function closeModal(el) {
   if (!el || el.classList.contains('hidden')) return false;
   el.classList.add('hidden');
-  // 設定を閉じたら「その場だけの表示」は捨てる(開き直すと対局中の状態に戻る)
   if (el.id === 'setModal' && typeof clearTransientSettings === 'function') clearTransientSettings();
   if (G && typeof autoPass === 'function' && autoPass()) autoPass().update();
   return true;
@@ -6147,18 +5815,12 @@ window.addEventListener('keydown', e => {
   const open = visibleModals();
   if (open.length) { e.preventDefault(); closeModal(open[open.length - 1]); }
 });
-
-// 結果モーダルの中身を更新して表示する。
-// 終局時はこれが開いたまま、背後でリプレイ画面へ切り替わる。
-// リプレイ画面の「結果」ボタンからも開き直せる。
 function showResult() {
   if (!G || !G.result) return;
   $('resTitle').textContent = G.result.title;
   $('resDet').innerHTML = G.result.details;
   $('resModal').classList.remove('hidden');
 }
-
-// 終局したらリプレイ画面へ切り替える(結果モーダルは開いたまま重ねる)。
 let autoReplayTimer = null;
 function autoOpenReplayOnEnd() {
   if (autoReplayTimer) clearTimeout(autoReplayTimer);
@@ -6209,7 +5871,6 @@ $('btnDeadRecheck').onclick = () => { snd.click(); G.dead = detectDeadStonesSmar
 $('btnDeadClear').onclick = () => { snd.click(); G.dead = []; updateUI(); save(); sync(); };
 
 // --- ./js/ui/settings.js ---
-// ===== プレイヤー設定 =====
 const SEAT_MODES = ['human', 'ai'];
 const SEAT_LABELS = { human: '人間', ai: 'AI' };
 const AI_MODE_LABELS = { fast: '高速', deep: '長考' };
@@ -6235,8 +5896,6 @@ function setSeatMode(p, nextMode, quiet=false) {
   if (typeof setSeatAIMode === 'function') setSeatAIMode(p, null);
   seats[p] = nextMode;
   setSeatAIFlag(p);
-  // AI → 人間に切り替えたら、その席の思考は残り秒数に関係なく即座に打ち切る。
-  // 思考中は Worker を terminate し、結果は捨てる(盤面を汚さない)。
   if (nextMode === 'human' && typeof aiBusy !== 'undefined' && aiBusy) {
     const thinkingSeat = (typeof G !== 'undefined' && G && Number.isInteger(G.turn)) ? G.turn : 0;
     if (!thinkingSeat || thinkingSeat === p) {
@@ -6244,7 +5903,6 @@ function setSeatMode(p, nextMode, quiet=false) {
       const ov = document.getElementById('aiOv'); if (ov) ov.classList.add('hidden');
     }
   }
-  // 途中で人間⇔AIを切り替えたことを棋譜に残す(リプレイで表示する)
   if (typeof recordGameEvent === 'function' && typeof ensureGameRecord === 'function' && G && G.record) {
     try { recordGameEvent({ type: 'seat', player: p, ai: seats[p] !== 'human' }); } catch (e) { }
   }
@@ -6261,18 +5919,10 @@ function setAllSeatModes(value) {
   if (mode === 'online' && isHost) sync();
   after();
 }
-// 設定画面に出す「人数・盤面サイズ」。
-// 対局中は今の対局の設定を出し、変えた値は次局の予約として持っておく。
-// そうしないと、開き直したときに現在の盤面と食い違う値が選択されて見える。
 function shownPlayerCount() { return isMatchRunning() ? (G.playerCount || playerCount) : playerCount; }
 function shownSize() { return isMatchRunning() ? G.size : pendingSize; }
-// 対局中に選んだ「その場だけの表示」。保存せず、設定を開き直すと捨てる。
-// (対局中の盤面と食い違う値を残さないため)
 let transientPc = null, transientSize = null, transientMode = null;
 function clearTransientSettings() { transientPc = null; transientSize = null; transientMode = null; }
-
-// overridePc / overrideSize / overrideMode は「その場だけの表示」。
-// 対局中に選んでも確定させないため、保存せず見た目だけ切り替える。
 function syncSettings(overridePc, overrideSize, overrideMode) {
   if (overridePc != null) transientPc = overridePc;
   if (overrideSize != null) transientSize = overrideSize;
@@ -6287,7 +5937,6 @@ function syncSettings(overridePc, overrideSize, overrideMode) {
     b.classList.toggle('on', +b.dataset.v === showSize);
     b.disabled = mode === 'online' && !!roomCode && !isHost;
   });
-  // 対局中は「いま対局中のモード」を出す。選んだだけの予約は次局で反映される。
   const showMode = transientMode || (isMatchRunning() ? mode : selectedMode);
   document.querySelectorAll('#modeBtns .opt').forEach(b => b.classList.toggle('on', b.dataset.v === showMode));
   $('onlineBox').classList.toggle('hidden', showMode !== 'online');
@@ -6352,7 +6001,6 @@ document.querySelectorAll('#playerCountBtns .opt').forEach(b => b.onclick = () =
   snd.click();
   const next = +b.dataset.count;
   if (isMatchRunning()) {
-    // 対局中は確定させない。その場で表示だけ切り替え、開き直すと対局中の値に戻る。
     syncSettings(next);
     return;
   }
@@ -6368,9 +6016,6 @@ document.querySelectorAll('#sizeBtns .opt').forEach(b => b.onclick = () => {
   if (isMatchRunning()) { syncSettings(null, next); return; } // 対局中は表示だけ
   pendingSize = next; syncSettings(); save(); if (mode === 'online' && isHost) sync();
 });
-// モードの選択は「予約」に留める。ここで対局や接続に手を出すと、
-// まだ何も決めていないのに盤面が消えたり切断されたりする。
-// 実際の切り替えは「ニューゲームスタート」(reset) のときに確定する。
 document.querySelectorAll('#modeBtns .opt').forEach(b => b.onclick = () => {
   snd.click();
   if (isMatchRunning()) { syncSettings(null, null, b.dataset.v); return; } // 対局中は表示だけ
@@ -6396,9 +6041,6 @@ $('btnRulesDone').onclick = () => closeModal($('rulesModal'));
 $('btnCloseSettings').onclick = () => { clearTransientSettings(); closeModal($('setModal')); };
 $('btnCloseResult').onclick = () => closeModal($('resModal'));
 $('btnNew').onclick = () => { snd.click(); if (reset()) closeModal($('setModal')); };
-
-// リプレイUIの強調色。テーマの文字色を基調に、背景との差を確保する。
-// hover は文字色を薄く重ねる(黒固定だとダーク系で見えなくなるため)。
 function themeAccent(th) {
   return {
     accent: th.id === 'default' ? '#15803d' : th.tx,
@@ -6425,24 +6067,19 @@ function buildThemes() {
 }
 function reset() {
   if (mode === 'online' && !isHost) { $('roomSt').textContent = '新規対局はホストが開始します'; return false; }
-  // 対局中に選んだ「その場だけの表示」をここで確定する。
-  // 表示だけ変えて新規対局を押した場合は、その選択で始めたいのが自然なため。
   if (transientPc != null) { playerCount = transientPc; for (let p = 1; p <= playerCount; p++) if (!seats[p]) seats[p] = 'human'; }
   if (transientSize != null) pendingSize = transientSize;
   if (transientMode != null) selectedMode = transientMode;
   clearTransientSettings();
-  // 選択中のモードをここで確定する(モードを選んだだけでは対局に影響しない)
   if (selectedMode !== mode) {
     if (aiBusy) cancelAI();
     if (mode === 'online') closePeer();
     mode = (isHost || !roomCode) ? selectedMode : mode;
     if (mode === 'local' && roomCode) { roomCode = null; isHost = false; }
   }
-  // リプレイ表示中なら先に解除する(盤面がリプレイのまま裏で対局が始まるのを防ぐ)
   if (typeof window.HexagoReplayUI !== 'undefined' && window.HexagoReplayUI.reset) window.HexagoReplayUI.reset();
   if (typeof clearAutoPass === 'function') clearAutoPass();
   build(pendingSize); G = newG(pendingSize);
-  // 未着席の人間席は対局中だけAIが代打し、席は後から着席可能なまま維持する。
   if (mode === 'online') {
     G.aiSeats = Array.from({length: playerCount + 1}, (_, p) => p > 0 && (seats[p] === 'ai' || !seatOwners[p]));
     G.aiSeat = G.aiSeats.findIndex((v, p) => p > 0 && v);
@@ -6452,7 +6089,6 @@ function reset() {
 }
 
 // --- ./js/ui/online.js ---
-// ===== オンライン（PeerJS / WebRTC）：入室後はプール、着席は別操作 =====
 const PFX = 'hexago-';
 const BLOCKED_NICK_WORDS = ['くそ', 'しね', '死ね', '殺す', 'ばか', 'バカ', 'うんこ', 'ちんこ', 'まんこ', 'fuck', 'shit', 'bitch', 'asshole'];
 function validateNickname(raw) {
@@ -6490,11 +6126,6 @@ function closePeer() {
   if ($('roomPool')) $('roomPool').innerHTML = '';
   if ($('roomSeatBtns')) $('roomSeatBtns').innerHTML = '';
 }
-
-// ===== 接続の安定化：自動再接続 / ハートビート / セッション復元 =====
-// GitHub Pages（サーバーなし）で動かすため、PeerJS の公開シグナリングサーバーだけを使い、
-// 切断時はクライアント側で同じルームIDへ自動再接続する。ホスト端末のスリープ復帰や
-// タブのリロードでも、席と対局状態を復元できるようにする。
 const ONLINE_SESSION_KEY = 'hexago-online-session-v1';
 const NET_PING_MS = 4000;
 const NET_TIMEOUT_MS = 15000;
@@ -6503,7 +6134,6 @@ let netRetryTimer = null, netRetryAttempt = 0, netConnecting = false;
 let hostPingTimer = null, guestPingTimer = null;
 let lastHostMessageAt = 0;
 let screenWakeLock = null;
-
 function setNetStatus(msg) { netStatus = msg || ''; renderRoomUI(); }
 function netDelay(attempt) { return Math.min(8000, 700 * Math.pow(1.6, Math.min(attempt, 6))) + Math.floor(Math.random() * 400); }
 function stopNetTimers() {
@@ -6550,8 +6180,6 @@ function readOnlineSession() {
   } catch (e) { return null; }
 }
 function isConnAlive(peerId) { return conns.some(c => c.peer === peerId && c.open); }
-
-// ホスト: 同じルームIDで Peer を作り直す。resume=true のときは部屋データを保持したまま復旧する。
 function startHostPeer(code, nickname, opts) {
   opts = opts || {};
   stopNetTimers();
@@ -6606,7 +6234,6 @@ function startHostPeer(code, nickname, opts) {
   });
   saveOnlineSession();
 }
-
 function scheduleHostReconnect(reason) {
   if (!isHost || !roomCode) return;
   if (reason) setNetStatus(reason);
@@ -6618,7 +6245,6 @@ function scheduleHostReconnect(reason) {
     startHostPeer(roomCode, myNickname, { resume: true });
   }, delay);
 }
-
 function startHostHeartbeat() {
   if (hostPingTimer) clearInterval(hostPingTimer);
   hostPingTimer = setInterval(() => {
@@ -6631,8 +6257,6 @@ function startHostHeartbeat() {
     });
   }, NET_PING_MS);
 }
-
-// ゲスト: シグナリング切断時は再接続し、ホスト接続が切れたら同じルームへ自動で入り直す。
 function startGuestPeer(code, nickname) {
   stopNetTimers();
   if (hostConn) { hostConn.__ignoreNet = true; try { hostConn.close(); } catch (e) { } }
@@ -6669,7 +6293,6 @@ function startGuestPeer(code, nickname) {
   });
   saveOnlineSession();
 }
-
 function connectToHost() {
   if (mode !== 'online' || isHost || !roomCode) return;
   if (!peer || peer.destroyed) { startGuestPeer(roomCode, myNickname); return; }
@@ -6707,7 +6330,6 @@ function connectToHost() {
     if (mode === 'online' && !isHost) scheduleGuestReconnect('接続エラー');
   });
 }
-
 function scheduleGuestReconnect(reason) {
   if (mode !== 'online' || isHost) return;
   if (reason) setNetStatus(reason + '。再接続しています…');
@@ -6721,7 +6343,6 @@ function scheduleGuestReconnect(reason) {
     else connectToHost();
   }, delay);
 }
-
 function startGuestHeartbeat() {
   if (guestPingTimer) clearInterval(guestPingTimer);
   guestPingTimer = setInterval(() => {
@@ -6741,8 +6362,6 @@ function startGuestHeartbeat() {
     }
   }, NET_PING_MS);
 }
-
-// ホスト/ゲスト共通: 受信データの振り分け（ping/pong は接続監視用）
 function onConnData(c, d) {
   if (!d) return;
   if (d.t === 'ping') {
@@ -6759,7 +6378,6 @@ function onConnData(c, d) {
   else if (d.t === 'snapshot') applySnapshot(d);
   else if (d.t === 'notice') $('roomSt').textContent = d.message || '部屋からの通知があります。';
 }
-
 function hostHealthCheck() {
   if (mode !== 'online' || !isHost) return;
   if (!peer || peer.destroyed) { scheduleHostReconnect('接続を復旧しています…'); return; }
@@ -6773,7 +6391,6 @@ function hostHealthCheck() {
   conns.forEach(c => { if (c.open) { try { c.send(msg); } catch (e) { } } });
   saveOnlineSession();
 }
-
 function guestHealthCheck() {
   if (mode !== 'online' || isHost || !roomCode) return;
   if (!peer || peer.destroyed) { scheduleGuestReconnect('接続を復旧しています…'); return; }
@@ -6785,7 +6402,6 @@ function guestHealthCheck() {
     scheduleGuestReconnect('ホストの応答がありません');
   }
 }
-
 function networkWake() {
   if (mode !== 'online' || !roomCode) return;
   netRetryAttempt = 0;
@@ -6793,8 +6409,6 @@ function networkWake() {
   requestWakeLock();
   if (isHost) hostHealthCheck(); else guestHealthCheck();
 }
-
-// 保存済みのオンラインセッションから復帰（リロード / スリープ復帰後の再読込）
 function resumeOnlineSession(sessionOverride) {
   const s = sessionOverride || readOnlineSession();
   if (!s || !s.roomCode || !G) return false;
@@ -6824,7 +6438,6 @@ function resumeOnlineSession(sessionOverride) {
   else startGuestPeer(roomCode, myNickname);
   return true;
 }
-
 function roomSnapshot() {
   return { t: 'snapshot', G, pendingSize, playerCount, seats: seats.slice(), seatOwners: seatOwners.slice(), seatNicknames: seatNicknames.slice(), roomPool: JSON.parse(JSON.stringify(roomPool)), disconnectedNicknames: { ...disconnectedNicknames }, roomCode };
 }
@@ -6886,7 +6499,6 @@ function handleHostMessage(data, c) {
     const checked = rawName ? validateNickname(rawName) : { ok: true, value: '__AUTO_NICK__' };
     if (!checked.ok) { c.send({ t: 'notice', message: checked.message }); c.close(); return; }
     const nickname = checked.value === '__AUTO_NICK__' ? `${Object.keys(roomPool).length + 1}p` : checked.value;
-    // 同じニックネームの古い接続・プール項目を掃除する（リロード/スリープ復帰の重複対策）
     Object.keys(roomPool).forEach(id => {
       if (id === LOCAL_HOST_ID || id === c.peer) return;
       if (String(roomPool[id]?.nickname || '').toLowerCase() !== nickname.toLowerCase()) return;
@@ -6902,7 +6514,6 @@ function handleHostMessage(data, c) {
       delete roomPool[id];
     });
     roomPool[c.peer] = { nickname, seat: null };
-    // 1) 切断時に予約された席  2) 名前が一致し、所有者の接続が死んでいる席（取り残し対策）
     let reconnectSeat = Array.from({ length: Math.min(6, playerCount) }, (_, i) => i + 1)
       .find(p => !seatOwners[p] && disconnectedNicknames[p] && disconnectedNicknames[p].toLowerCase() === nickname.toLowerCase());
     if (!reconnectSeat) {
@@ -6972,7 +6583,6 @@ function handleDisconnect(c) {
     if (G && role <= G.playerCount && G.aiSeats) { G.aiSeats[role] = true; G.aiSeat = G.aiSeats.findIndex((v, i) => i > 0 && v); }
   }
   delete roomPool[c.peer];
-  // すでに再接続してプールで待っている同一ニックネームがいれば、その場で席を戻す
   if (role > 0 && nickname) {
     const waitingId = Object.keys(roomPool).find(id => roomPool[id] && !roomPool[id].seat &&
       String(roomPool[id].nickname || '').toLowerCase() === nickname.toLowerCase());
@@ -7004,7 +6614,6 @@ function vacateSeat(p, ownerId, voluntary=true) {
   if (item) item.seat = null;
   seatOwners[p] = null;
   if (ownerId === LOCAL_HOST_ID) myRole = null;
-  // 自発的な退席では席を再募集し、切断時はAI席として保護する。
   seats[p] = voluntary ? 'human' : 'ai';
   if (voluntary) { delete disconnectedNicknames[p]; seatNicknames[p] = ''; }
   else { if (nickname) disconnectedNicknames[p] = nickname; seatNicknames[p] = nickname; }
@@ -7105,8 +6714,6 @@ $('btnJoin').onclick = () => {
   syncSettings(); updateUI();
   startGuestPeer(code, myNickname);
 };
-// スリープ / タブ移動では Peer を破棄しない（復帰時にそのまま再接続できる）。
-// 明示的にモードを変えたときは closePeer() が後始末する。
 window.addEventListener('pagehide', () => {
   save();
   saveOnlineSession();
@@ -7126,30 +6733,20 @@ window.addEventListener('offline', () => {
 });
 
 // --- ./js/ui/replay.js ---
-// ===== リプレイ UI =====
-// js/core/replay.js の計算結果を使い、メイン画面の盤面(cv)そのもので再生する。
-// ポップアップは出さず、対局中の情報バーと操作ボタンをリプレイバーへ差し替える。
 (function () {
   'use strict';
   if (!window.HexagoReplay) return;
   const R = window.HexagoReplay;
-
   let data = null, geo = null, cur = 0, timer = null, speed = 1, playing = false;
   const BASE_MS = 750;                 // ×1 で1手 750ms
   const SPEEDS = [0.5, 1, 2, 4];
-
-  // リプレイ中に隠しておく要素(対局用のUI)
   const GAME_ONLY_IDS = ['dmg', 'turnInd', 'modeBadge', 'bnAutoPass', 'bnDead', 'bnResult', 'statusCard'];
-
-  // ===== 状態 =====
   function active() { return !!data; }
-
   function stop() {
     if (timer) { clearTimeout(timer); timer = null; }
     playing = false;
     syncPlayButton();
   }
-
   function syncPlayButton() {
     const icon = $('replayPlayIcon'), label = $('replayPlayLabel');
     if (label) label.textContent = playing ? '一時停止' : '再生';
@@ -7157,23 +6754,18 @@ window.addEventListener('offline', () => {
       ? '<svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>'
       : '<svg aria-hidden="true" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
   }
-
   function dotHtml(p) { return `<span class="dot" style="background:${playerFill(p)};border-color:${playerStroke(p)}"></span>`; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); }
   const fmt = v => (Math.round(v * 10) / 10).toFixed(1);
-
-  // 表示名: ニックネームや色名に加えて席番号(nP)を併記して区別しやすくする
   function seatName(p) {
     const base = (data && data.names && data.names[p]) || playerDisplayName(p) || '';
     return base ? `${base} ${p}P` : `${p}P`;
   }
-
   function pointLabel(point) {
     if (!geo || !Number.isInteger(point) || point < 0 || !geo.points[point]) return '';
     const [q, r] = geo.points[point];
     return `(${q}, ${r})`;
   }
-
   function eventText(note) {
     if (!note) return '初期局面';
     const who = p => `${dotHtml(p)}<strong>${esc(seatName(p))}</strong>`;
@@ -7187,14 +6779,11 @@ window.addEventListener('offline', () => {
     }
     return '初期局面';
   }
-
-  // ===== 表示 =====
   function seek(index, options) {
     if (!data) return;
     const n = data.positions.length;
     cur = Math.max(0, Math.min(n - 1, Math.round(Number(index) || 0)));
     const pos = data.positions[cur], row = data.series.rows[cur];
-    // メイン盤面(cv)をリプレイ局面で描き直す
     if (typeof render === 'function') render();
     drawGraph();
     const lastPly = data.series.rows[data.series.rows.length - 1].ply;
@@ -7206,7 +6795,6 @@ window.addEventListener('offline', () => {
     $('replayNext').disabled = $('replayLast').disabled = cur === n - 1;
     updateLegend();
   }
-
   function tick() {
     if (!playing) return;
     if (!active()) { stop(); return; }
@@ -7214,7 +6802,6 @@ window.addEventListener('offline', () => {
     seek(cur + 1);
     timer = setTimeout(tick, BASE_MS / speed);
   }
-
   function togglePlay() {
     if (!data) return;
     if (playing) { stop(); return; }
@@ -7222,18 +6809,13 @@ window.addEventListener('offline', () => {
     playing = true; syncPlayButton();
     timer = setTimeout(tick, BASE_MS / speed);
   }
-
-  // AI / 人間を表すアイコン(絵文字は使わない)
   const ICON_AI = '<svg aria-label="AI" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 3v4M9 13h.01M15 13h.01M9 17h6"/></svg>';
   const ICON_HUMAN = '<svg aria-label="人" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5"/></svg>';
-
   function updateLegend() {
     const el = $('replayLegend'), row = data.series.rows[cur];
     if (!el || !row) return;
     const pc = data.playerCount;
     const prevRow = cur > 0 ? data.series.rows[cur - 1] : null;
-    // 1席1行の表。数値は固定幅・等幅フォントで、値が変わっても幅が揺れない。
-    // 名前だけが伸び、数値列は右寄せで幅が揃うので左に寄って見えない。
     const rows = Array.from({ length: pc }, (_, i) => i + 1).map(p => {
       const isAi = !!(row.aiSeats && row.aiSeats[p]);
       const changed = prevRow && prevRow.aiSeats && !!prevRow.aiSeats[p] !== isAi;
@@ -7248,43 +6830,29 @@ window.addEventListener('offline', () => {
     });
     el.innerHTML = rows.join('');
   }
-
-  // ===== 優勢グラフ =====
   function niceStep(maxAbs) {
     for (const s of [1, 2, 5, 10, 20, 25, 50, 100]) if (maxAbs / s <= 4) return s;
     return Math.ceil(maxAbs / 4);
   }
-
   function graphSize() {
-    // グラフはリプレイバー内にあるので、バー(パネル)の実幅に合わせる。
-    // 横画面ではパネルが細いので、そちらに追従して幅・高さを決める。
     const bar = $('replayBar');
     const w = bar && bar.clientWidth ? bar.clientWidth : Math.min(520, window.innerWidth - 48);
     const cssW = Math.max(200, Math.min(560, w));
     const h = Math.max(120, Math.min(190, Math.round(cssW * 0.38)));
     return { cssW, cssH: h };
   }
-
-  // グラフ線の縁取り色。盤面の石と同じストローク色を使いつつ、
-  // 白背景テーマの「白い石」でも必ず視認できるよう最低限のコントラストを確保する。
   function luminanceOf(c) {
     const m = /^#?([0-9a-f]{6})$/i.exec(c || '');
     if (!m) return 0.5;
     const n = parseInt(m[1], 16);
     return (0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) / 255;
   }
-  // グラフの線色。白い石(白背景テーマ)は盤上では縁取りで見えるが、
-  // 線上では「白い線」自体が見えないため、線専用の可視色に置き換える。
-  // 色見はテーマの石色に寄せたまま、背景とのコントラストを最低限確保する。
   const GRAPH_WHITE_LINE = { light: '#8a8a8a', dark: '#f2f2f2' };
   function graphLineColor(p, dark) {
     const fill = playerFill(p);
     const lum = luminanceOf(fill);
-    // 明るすぎる(白系)線は、淡いグレー(明テーマ)/ほぼ白(暗テーマ)へ
     if (lum > 0.78) return dark ? GRAPH_WHITE_LINE.dark : GRAPH_WHITE_LINE.light;
-    // 背景と同化する極端に明るい/暗い線も補正
     if (!dark && lum > 0.86) return '#7a7a7a';
-    // ダーク背景では黒い石の線が沈むので、明るいグレーへ持ち上げる
     if (dark && lum < 0.22) return '#b9bec4';
     return fill;
   }
@@ -7294,14 +6862,10 @@ window.addEventListener('offline', () => {
     if (luminanceOf(fill) < 0.22) return dark ? '#f0f0f0' : '#111111';
     return stroke || (dark ? '#ffffff' : '#000000');
   }
-
-  // グラフの値。終局(score)の公式確定スコアは点スケールが桁違いなので
-  // リード%の系列としては使わず、最終局面は直前の形勢を引き継ぐ。
   function graphValue(row, p) {
     const v = row.leadPct[p];
     return typeof v === 'number' && isFinite(v) ? v : null;
   }
-
   function drawGraph() {
     const cvEl = $('replayGraph');
     if (!cvEl) return;
@@ -7319,14 +6883,12 @@ window.addEventListener('offline', () => {
       const v = graphValue(row, +k);
       if (v !== null) maxAbs = Math.max(maxAbs, Math.abs(v));
     }
-    // 序盤は小さい値でも潰れないよう、最低スケールを確保しつつ数値に合わせる
     const step = niceStep(Math.max(1, maxAbs || 1));
     const range = Math.max(step, step * Math.ceil((maxAbs || 1) / step), 5);
     const y = v => padT + ih / 2 - (v / range) * (ih / 2);
     const x = i => padL + (rows.length <= 1 ? iw / 2 : (i / (rows.length - 1)) * iw);
     const dark = ['dark', 'cyber'].includes(theme.id);
     g.clearRect(0, 0, cssW, cssH);
-    // ガイド線 + 目盛(%)
     g.lineWidth = 1;
     g.fillStyle = dark ? 'rgba(255,255,255,.62)' : 'rgba(0,0,0,.55)';
     g.font = '10px system-ui, sans-serif'; g.textAlign = 'right'; g.textBaseline = 'middle';
@@ -7337,8 +6899,6 @@ window.addEventListener('offline', () => {
       g.fillText(Math.round(v) + '%', padL - 5, y(v));
     }
     g.setLineDash([]);
-    // 各プレイヤーのリード線。白い石の色は白背景と同化して見えないので、
-    // 盤面と同じく「縁取り(ストローク色) + 本体(フィル色)」の二重線で描く。
     const pc = data.playerCount;
     const lines = Array.from({ length: pc }, (_, i) => i + 1);
     const trace = (p) => {
@@ -7356,14 +6916,12 @@ window.addEventListener('offline', () => {
       g.strokeStyle = graphLineColor(p, dark); g.lineWidth = 2.5;
       trace(p);
     });
-    // 手数ラベル
     g.fillStyle = dark ? 'rgba(255,255,255,.62)' : 'rgba(0,0,0,.55)';
     g.textAlign = 'center'; g.textBaseline = 'top';
     const labelEvery = Math.max(1, Math.ceil(rows.length / 8));
     for (let k = 0; k < rows.length; k++) {
       if (k % labelEvery === 0 || k === rows.length - 1) g.fillText(String(rows[k].ply), Math.min(cssW - 8, Math.max(padL, x(k))), padT + ih + 5);
     }
-    // 現在位置カーソル
     const cx = x(cur);
     g.strokeStyle = dark ? 'rgba(255,255,255,.75)' : 'rgba(0,0,0,.65)';
     g.lineWidth = 1.4;
@@ -7377,23 +6935,16 @@ window.addEventListener('offline', () => {
     }
     data.graphGeom = { x, y, padL, padR, cssW, rows };
   }
-
-  // ===== 画面の切り替え =====
   const HIDDEN_BEFORE = new Map();
   function setGameUiHidden(hidden) {
-    // 隠す前の表示状態を覚えておき、終了時にそのまま戻す
     const targets = [...GAME_ONLY_IDS];
     if (hidden) {
-      // すでに隠している場合は記録を上書きしない。
-      // 上書きすると「隠れている」を元の状態として覚えてしまい、
-      // 解除してもパネルが戻らなくなる(二重に開いたとき等)。
       targets.forEach(id => {
         const el = $(id);
         if (!el) return;
         if (!HIDDEN_BEFORE.has(id)) HIDDEN_BEFORE.set(id, el.classList.contains('hidden'));
         el.classList.add('hidden');
       });
-      // 操作ボタンは親の行ごと隠す
       const row = $('btnUndo') && $('btnUndo').parentElement;
       if (row) {
         if (!HIDDEN_BEFORE.has('__actionRow')) HIDDEN_BEFORE.set('__actionRow', row.classList.contains('hidden'));
@@ -7408,7 +6959,6 @@ window.addEventListener('offline', () => {
       targets.forEach(id => {
         const el = $(id);
         if (!el) return;
-        // 記録が無い場合は表示に戻す(隠れたまま固まるのを防ぐ)
         el.classList.toggle('hidden', HIDDEN_BEFORE.has(id) ? !!HIDDEN_BEFORE.get(id) : false);
       });
       const row = $('btnUndo') && $('btnUndo').parentElement;
@@ -7422,22 +6972,14 @@ window.addEventListener('offline', () => {
     document.body.classList.toggle('replaying', hidden);
     if (window.HexagoDebug && window.HexagoDebug.syncPanel) window.HexagoDebug.syncPanel();
     layoutReplayBar(hidden);
-    // リプレイ用レイアウトに切り替えた直後は、盤面の実寸を取り直して
-    // キャンバスのバッキングストアを合わせる(切り替え直後にサイズが変わらない不具合の対策)
     if (typeof syncCanvasSoon === 'function') syncCanvasSoon();
   }
-
-  // 横並び(盤面の右にパネル)にする条件。CSS の @media と同じ判定にそろえる:
-  //   幅 900px 以上 かつ 横長、ただし低すぎる画面(スマホ横持ち)ではパネルに
-  //   必要な高さが取れないので下に置く。
   function useSidePanel() {
     const w = window.innerWidth || 0, h = window.innerHeight || 0;
     if (w < 900 || h < 560) return false;
     const landscape = window.matchMedia ? window.matchMedia('(orientation: landscape)').matches : w > h;
     return landscape;
   }
-
-  // 横画面では盤面の右側パネルへ、縦画面では盤面の下へバーを置く
   function layoutReplayBar(on) {
     const bar = $('replayBar'), side = $('replaySide'), area = $('playArea');
     if (!bar || !side || !area) return;
@@ -7446,15 +6988,11 @@ window.addEventListener('offline', () => {
       else { area.appendChild(bar); side.classList.add('hidden'); }
     } else {
       side.classList.add('hidden');
-      // 元の位置(playArea の最後)へ戻す
       if (bar.parentElement !== area) area.appendChild(bar);
     }
   }
-
-  // ===== 開く / 閉じる =====
   function openFromRecord(record, size, playerCount, names) {
     if (!record) return;
-    // 古い棋譜には aiSeats が無いので、現在の席設定で補完する
     if (!record.initial || !Array.isArray(record.initial.aiSeats) || !record.initial.aiSeats.length) {
       const ai = [];
       for (let p = 1; p <= playerCount; p++) ai[p] = typeof aiSeatOf === 'function' ? !!aiSeatOf(p) : false;
@@ -7478,21 +7016,11 @@ window.addEventListener('offline', () => {
       swEl.classList.remove('hidden');
       swEl.innerHTML = `最大の形勢変化: ${sw.ply}手目 ${dotHtml(sw.player)}<strong>${esc(seatName(sw.player))}</strong> ${sw.delta > 0 ? '+' : '−'}${fmt(Math.abs(sw.delta))}%`;
     } else swEl.classList.add('hidden');
-    // 対局用UIは「最初に隠したときの状態」を正しく復元できるよう、
-    // 隠すのは1回だけにする(二重に呼んでも上書きしない)。
     setGameUiHidden(true);
     seek(positions.length - 1); // まず終局(最新)局面。再生ボタンで0手目から
-    // CSS のレイアウト確定後にグラフ/盤面を測り直す
     requestAnimationFrame(() => { layoutReplayBar(true); if (typeof syncCanvasSoon === 'function') syncCanvasSoon(); seek(cur); });
     return { size, playerCount, moves: positions.length - 1 };
   }
-
-
-  // ===== この局面から対局を再開する =====
-  // リプレイの任意の地点で「ここから再開」。以降の手順は破棄し、
-  // その局面を開始点として新しい対局を始める。
-  // 開始時点で手番になる席が AI なら人間に切り替える(自分で打ちたいはずなので)。
-  // 席の AI/人間設定・名前・配色などはそのまま引き継ぐ。
   function resumeFromHere() {
     if (!data || !geo) return;
     const pos = data.positions[cur];
@@ -7501,29 +7029,22 @@ window.addEventListener('offline', () => {
     if (pos.out && pos.out.slice(1, pc + 1).length === pc && pos.out.slice(1, pc + 1).every(v => v))
       return toastResume('全員が終局しているため再開できません。');
     if (modeIsOnline()) return toastResume('オンライン対局中は再開できません。');
-
     const size = geo.size;
-    // この局面までに消化したイベントだけを残す
     const lastEv = Number.isInteger(pos.eventIndex) ? pos.eventIndex : 0;
     const events = [];
     ((data.shareRecord && data.shareRecord.events) || []).slice(0, lastEv).forEach(ev => {
       const e = eventOfEvent(ev);
       if (e) events.push(e);
     });
-    // 再開地点のAI状態。この局面を開始点にするので、
-    // 新しい棋譜の初期局面はこちらが正しい(元の棋譜の最初の状態ではない)。
     const initAi = [];
     for (let p = 1; p <= pc; p++) initAi[p] = !!(pos.aiSeats && pos.aiSeats[p]);
-
     if (typeof cancelAI === 'function') cancelAI();
     if (typeof clearAutoPass === 'function') clearAutoPass();
     if (typeof exitReplayForLoad === 'function') exitReplayForLoad();
-
     mode = 'local'; onlineAI = false; boardView = 'host';
     playerCount = pc; pendingSize = size;
     for (let p = 1; p <= pc; p++) seats[p] = initAi[p] ? 'ai' : 'human';
     for (let p = pc + 1; p <= 6; p++) seats[p] = 'human';
-
     build(size);
     G = newG(size);
     G.board = pos.board.slice();
@@ -7535,9 +7056,6 @@ window.addEventListener('offline', () => {
     G.dead = []; G.last = Number.isInteger(pos.last) ? pos.last : -1;
     G.hist = [];
     G.seen = [hash(G.board)];
-
-    // 手番の席が AI なら人間へ(開始直後に自分で打ちたいはずなので)。
-    // それ以外の席は AI/人間をそのまま引き継ぐ。
     const nextHuman = G.turn;
     const switched = initAi[nextHuman];
     if (switched) {
@@ -7548,11 +7066,8 @@ window.addEventListener('offline', () => {
     for (let p = 1; p <= pc; p++) aiSeats[p] = seats[p] === 'ai';
     G.aiSeats = aiSeats;
     G.aiSeat = aiSeats.findIndex((v, p) => p > 0 && v);
-
     if (gameFeatures) {
       G.record = gameFeatures.createRecord(G);
-      // 末尾の席切替は、初期局面に反映済みのものと重複することがある
-      // (再開地点で切り替わったばかりの席)。同じ状態なら落として記録を素直にする。
       while (events.length) {
         const last = events[events.length - 1];
         if (!last || last.type !== 'seat') break;
@@ -7560,10 +7075,6 @@ window.addEventListener('offline', () => {
         else break;
       }
       G.record.events = events;
-      // 序盤(空盤)から再生できるよう、初期局面は空盤にして手順ぶんを events に持たせる。
-      // AI状態は「再開した地点の状態」を初期値にする(強制切替は下の seat イベントで記録)。
-      // 元の棋譜の最初の状態を入れると、再開地点より前に起きた切替を
-      // 取り込めず、実際と違う記録になる。
       G.record.initial = {
         board: new Array(P.length).fill(0), turn: 1, passes: 0,
         out: Array(pc + 1).fill(false),
@@ -7571,11 +7082,9 @@ window.addEventListener('offline', () => {
       };
       G.record.complete = true;
     }
-    // 開始時点で人間へ切り替えたことを棋譜に残す(リプレイの凡例に出る)
     if (switched && typeof recordGameEvent === 'function' && G.record) {
       try { recordGameEvent({ type: 'seat', player: nextHuman, ai: false }); } catch (e) { }
     }
-
     setSeen(); prev = -1;
     if (typeof syncSettings === 'function') syncSettings();
     if (typeof updateUI === 'function') updateUI();
@@ -7584,8 +7093,6 @@ window.addEventListener('offline', () => {
     if (typeof save === 'function') save();
     toastResume(`${pos.ply}手目から対局を再開しました${switched ? `（${nextHuman}P を人間に変更）` : ''}`);
   }
-
-  // 棋譜イベントをそのまま複製(描画用の note ではなく元イベントを使う)
   function eventOfEvent(ev) {
     if (!ev || !ev.type) return null;
     const clean = { type: ev.type };
@@ -7596,15 +7103,12 @@ window.addEventListener('offline', () => {
     if (ev.ai != null) clean.ai = ev.ai;
     return clean;
   }
-
   function modeIsOnline() { return typeof mode !== 'undefined' && mode === 'online'; }
-
   function closeAllModals() {
     ['recordModal', 'setModal', 'undoModal', 'rulesModal', 'resModal', 'photoModal', 'shareModal'].forEach(id => {
       const el = $(id); if (el) el.classList.add('hidden');
     });
   }
-
   function toastResume(msg) {
     const el = $('replayStatus');
     if (el) {
@@ -7614,22 +7118,16 @@ window.addEventListener('offline', () => {
       toastResume.timer = setTimeout(() => el.classList.add('hidden'), 3000);
     }
   }
-
-  // ===== 共有 (URL / 結果カード画像) =====
   function shareBaseUrl() {
-    // 既存の #g=... を落として、現在のページURLを返す
     const u = new URL(location.href);
     u.hash = '';
     return u.toString();
   }
-
   function buildShareUrl(record, size, playerCount, names) {
-    // 共有リンクから来たなら、そのリンクをそのまま引き継ぐ
     if (inheritedShareUrl) return inheritedShareUrl;
     const code = R.encodeShare(record, size, playerCount, names);
     return shareBaseUrl() + '#g=' + code;
   }
-
   function currentShareSource() {
     if (data) {
       return { record: data.shareRecord || null, size: geo.size, playerCount: data.playerCount, names: data.names };
@@ -7642,13 +7140,8 @@ window.addEventListener('offline', () => {
     for (let p = 1; p <= pc; p++) names[p] = playerDisplayName(p);
     return { record, size: G.size, playerCount: pc, names };
   }
-
-  // 短縮URL (spoo.me)。CORS 許可されているのでブラウザから直接呼べる。
-  // 共有URLの断片が長い場合は、見た目をすっきりさせるため短縮を使う。
-  // spoo.me の v1 API(CORS 許可・レート制限が緩いレガシーAPIより緩い)を使う
   const SHORTENER = 'https://spoo.me/api/v1/shorten';
   let shareCardCache = null;
-
   async function shortenUrl(url) {
     const res = await fetch(SHORTENER, {
       method: 'POST',
@@ -7660,7 +7153,6 @@ window.addEventListener('offline', () => {
     if (!data || !data.short_url) throw new Error('短縮URLを取得できませんでした');
     return String(data.short_url).replace(/^http:/, 'https:');
   }
-
   function setShareUrlField(value, kind) {
     const field = $('shareUrl');
     if (field) field.value = value;
@@ -7669,31 +7161,21 @@ window.addEventListener('offline', () => {
     const info = $('shareLenInfo');
     if (info && kind !== 'keep') info.textContent = '';
   }
-
-  // 共有URL: 自前ドメインの ?s=短縮コード 形式に変換する。
-  //   https://sas-news.github.io/hexago/?s=Ab3xYz
-  //   開くと spoo.me に一度リダイレクトされ、元の対局URLへ戻ってくる。
-  //   自前ドメインのまま見せつつ、外部サービスは裏で使う。
   function shortCodeFromUrl(shortUrl) {
     const m = /spoo\.me\/([A-Za-z0-9_-]+)/.exec(shortUrl);
     return m ? m[1] : '';
   }
-
-  // サイトのURL(共有用のディレクトリ)
   function shareSiteUrl() {
     const u = new URL(location.href);
     u.hash = ''; u.search = '';
     return u.toString();
   }
-
   function selfShareUrl(code) {
-    // 現在のページのディレクトリ + ?s=コード (既存のクエリ・ハッシュは落とす)
     const u = new URL(location.href);
     u.hash = '';
     u.search = '?s=' + code;
     return u.toString();
   }
-
   function showShareModal(fullUrl, source) {
     const sm = $('shareModal');
     if (!sm) return openShareFallback(fullUrl);
@@ -7712,11 +7194,8 @@ window.addEventListener('offline', () => {
     sm.classList.remove('hidden');
     sm.dataset.sourceJson = JSON.stringify({ size: source.size, playerCount: source.playerCount, names: source.names });
     renderShareCard();
-    // 短縮URLを裏で取得し、完了後にカードのサイトURL部分も描き直す
     syncShareUrl().then(() => renderShareCard());
   }
-
-  // カード画像を生成してモーダル内に表示する(モーダルを開いた瞬間に実行)
   function renderShareCard() {
     const sm = $('shareModal');
     if (!sm || sm.classList.contains('hidden')) return;
@@ -7734,11 +7213,7 @@ window.addEventListener('offline', () => {
       host.appendChild(img);
     } catch (e) { /* 生成失敗時はプレビュー無しで続行 */ }
   }
-
-  // 短縮URLを取得し、自前ドメインの ?s=形式にする(失敗時は元URLのまま)
-  // 同じ対局の短縮URLは一度作ったら使い回す(開くたびに新規生成しない)
   const shortCache = new Map();
-
   async function syncShareUrl() {
     const sm = $('shareModal');
     if (!sm) return;
@@ -7746,7 +7221,6 @@ window.addEventListener('offline', () => {
     const info = $('shareLenInfo');
     const cached = shortCache.get(full);
     if (cached !== undefined) {
-      // 失敗(null)もキャッシュし、開くたびに再試行しない
       if (cached) {
         sm.dataset.shortUrl = cached;
         const code = shortCodeFromUrl(cached) || cached.split('/').pop();
@@ -7769,22 +7243,16 @@ window.addEventListener('offline', () => {
       if (info) info.textContent = '短縮できませんでした';
     }
   }
-
   function openShareFallback(url) {
     try { window.prompt('このURLをコピーしてください', url); } catch (e) { }
   }
-
-  // クリップボードへコピー。iOS Safari はクリップボードAPIが制限されるため
-  // 選択状態を作って execCommand にフォールバックする。
   async function copyText(text) {
-    // 1) 非同期クリップボードAPI
     try {
       if (navigator.clipboard && window.isSecureContext && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(text);
         return true;
       }
     } catch (e) { /* fallthrough */ }
-    // 2) 選択 + execCommand(ユーザー操作内で同期実行する必要がある)
     const field = $('shareUrl');
     if (field) {
       try {
@@ -7799,7 +7267,6 @@ window.addEventListener('offline', () => {
         if (ok) return true;
       } catch (e) { /* fallthrough */ }
     }
-    // 3) 一時 textarea
     try {
       const ta = document.createElement('textarea');
       ta.value = text;
@@ -7813,7 +7280,6 @@ window.addEventListener('offline', () => {
       return ok;
     } catch (e) { return false; }
   }
-
   function currentShareUrl() {
     const sm = $('shareModal');
     if (sm && !sm.classList.contains('hidden')) {
@@ -7823,7 +7289,6 @@ window.addEventListener('offline', () => {
     const src = currentShareSource();
     return src && src.record ? buildShareUrl(src.record, src.size, src.playerCount, src.names) : '';
   }
-
   function shareGame() {
     const src = currentShareSource();
     if (!src || !src.record) return;
@@ -7831,9 +7296,6 @@ window.addEventListener('offline', () => {
     if (!moves) { alert('まだ手がありません。着手後に共有できます。'); return; }
     showShareModal(buildShareUrl(src.record, src.size, src.playerCount, src.names), src);
   }
-
-  // ===== 結果カード画像 =====
-  // 現在のテーマ色に合わせて描く(盤・背景・文字)。グラフも同じテーマで。
   function cardTheme() {
     const id = theme.id || 'default';
     const isDark = ['dark', 'cyber'].includes(id);
@@ -7845,7 +7307,6 @@ window.addEventListener('offline', () => {
       panel: theme.card, panelBorder: theme.bd
     };
   }
-
   function drawShareCard(record, size, playerCount, names) {
     const geo2 = R.buildGeometry(size);
     const positions = R.replayPositions(record, geo2, playerCount);
@@ -7856,21 +7317,16 @@ window.addEventListener('offline', () => {
     const cv = document.createElement('canvas');
     cv.width = W; cv.height = H;
     const g = cv.getContext('2d');
-
-    // 背景
     if (t.dark) { g.fillStyle = t.bg1; g.fillRect(0, 0, W, H); }
     else {
       const grad = g.createLinearGradient(0, 0, 0, H);
       grad.addColorStop(0, t.bg1); grad.addColorStop(1, t.bg2);
       g.fillStyle = grad; g.fillRect(0, 0, W, H);
     }
-
     const last = series.rows[series.rows.length - 1];
     const scoreEvt = [...record.events].reverse().find(e => e.type === 'score');
     const order = Array.from({ length: playerCount }, (_, i) => i + 1)
       .sort((a, b) => (last.leadPct[b] ?? -999) - (last.leadPct[a] ?? -999));
-
-    // ---- ヘッダ(中央寄せ) ----
     g.textBaseline = 'top';
     g.textAlign = 'center';
     g.fillStyle = t.text;
@@ -7879,8 +7335,6 @@ window.addEventListener('offline', () => {
     g.font = '20px system-ui, sans-serif';
     g.fillStyle = t.sub;
     g.fillText(`${size}路盤・${playerCount}人戦・${last.ply}手`, W / 2, 82);
-
-    // ---- 盤面 ----
     const boardSize = 380;
     const boardY = 124;
     const board = document.createElement('canvas');
@@ -7891,8 +7345,6 @@ window.addEventListener('offline', () => {
       themeBoard: t.board, themeLine: t.line, fills, strokes
     });
     g.drawImage(board, (W - boardSize) / 2, boardY, boardSize, boardSize);
-
-    // ---- 勝者(盤面とグラフの間) ----
     const winnerY = boardY + boardSize + 22;
     if (scoreEvt && scoreEvt.result) {
       g.textAlign = 'center'; g.textBaseline = 'top';
@@ -7900,8 +7352,6 @@ window.addEventListener('offline', () => {
       g.font = 'bold 24px system-ui, sans-serif';
       g.fillText(scoreEvt.result, W / 2, winnerY);
     }
-
-    // ---- 優勢グラフ ----
     const gLabelY = winnerY + 40;
     const gx = PAD + 8, gy = gLabelY + 30, gw = W - (PAD + 8) * 2, gh = 120;
     g.textAlign = 'left'; g.textBaseline = 'top';
@@ -7911,7 +7361,6 @@ window.addEventListener('offline', () => {
     if (g.roundRect) g.roundRect(gx - 12, gy - 10, gw + 24, gh + 20, 14); else g.rect(gx - 12, gy - 10, gw + 24, gh + 20);
     g.fillStyle = t.panel; g.fill();
     g.strokeStyle = t.panelBorder; g.lineWidth = 1.5; g.stroke();
-
     let maxAbs = 1;
     for (const row of series.rows) for (const k of Object.keys(row.leadPct)) maxAbs = Math.max(maxAbs, Math.abs(row.leadPct[k]));
     const rows = series.rows;
@@ -7931,55 +7380,42 @@ window.addEventListener('offline', () => {
       }
       g.stroke();
     });
-
-    // ---- 順位と得点内訳 ----
-    // 最終局面から「地」「石」を出し、"地 + 石 = 点" を並べる。
     const finalBoard = positions[positions.length - 1].board;
     const territory = R.areaScores(finalBoard, geo2, playerCount);
     const stones = Array(playerCount + 1).fill(0);
     for (const v of finalBoard) if (v) stones[v]++;
-    // 正式スコアがある場合は、それを「地 + 石」に割り振って整合させる
-    // (地の簡易計算と公式スコアがずれたまま並べると数字の辻褄が合わない)。
     const scores = Array(playerCount + 1).fill(0);
     for (let p = 1; p <= playerCount; p++) {
       const official = (scoreEvt && Array.isArray(scoreEvt.scores) && scoreEvt.scores[p] != null)
         ? Number(scoreEvt.scores[p]) : null;
       if (official != null) {
         scores[p] = official;
-        // 石は実数、地は「公式 - 石」で逆算する(負なら0)
         territory[p] = Math.max(0, Math.round((official - stones[p]) * 10) / 10);
       } else {
         scores[p] = Math.round(territory[p] + stones[p]);
         territory[p] = Math.round(territory[p] * 10) / 10;
       }
     }
-
     const rankY = gy + gh + 36;
     g.textBaseline = 'middle';
     order.forEach((p, idx) => {
       const y = rankY + idx * 34;
-      // 色玉
       g.fillStyle = playerFill(p);
       g.beginPath(); g.arc(PAD + 10, y, 11, 0, 7); g.fill();
       g.strokeStyle = t.sub; g.lineWidth = 1.6; g.stroke();
-      // 名前
       g.fillStyle = t.text; g.font = 'bold 18px system-ui, sans-serif';
       g.textAlign = 'left';
       const nm = (names && names[p]) || `${p}P`;
       g.fillText(`${nm} (${p}P)`, PAD + 30, y);
-      // 得点内訳: 地 + 石 = 点
       g.font = '15px system-ui, sans-serif';
       g.fillStyle = t.sub;
       g.fillText(`地 ${territory[p].toFixed(1)} ＋ 石 ${stones[p]} ＝ ${scores[p]}点`, PAD + 156, y);
-      // リード%
       const lead = last.leadPct[p];
       g.textAlign = 'right';
       g.fillStyle = t.text; g.font = 'bold 17px system-ui, sans-serif';
       g.fillText((typeof lead === 'number') ? `${lead >= 0 ? '+' : '−'}${Math.abs(lead).toFixed(1)}%` : '投了', W - PAD, y);
       g.textAlign = 'left';
     });
-
-    // ---- サイトURL(右下) ----
     g.textAlign = 'right'; g.textBaseline = 'bottom';
     g.fillStyle = t.sub; g.font = '13px system-ui, sans-serif';
     const siteUrl = (function () {
@@ -7993,7 +7429,6 @@ window.addEventListener('offline', () => {
     g.fillText(siteUrl, W - PAD, H - 22);
     return cv;
   }
-
   function downloadShareCard(cv) {
     if (!cv) return;
     cv.toBlob(blob => {
@@ -8008,7 +7443,6 @@ window.addEventListener('offline', () => {
       const st = $('shareStatus'); if (st) st.textContent = '結果カード画像を保存しました。';
     }, 'image/png');
   }
-
   function openFromGame(options) {
     if (typeof ensureGameRecord !== 'function') return;
     const record = ensureGameRecord();
@@ -8022,8 +7456,6 @@ window.addEventListener('offline', () => {
     for (let p = 1; p <= pc; p++) names[p] = playerDisplayName(p);
     openFromRecord(record, G.size, pc, names);
   }
-
-  // リプレイ状態を完全に解除する(新規対局・ページ読み込み時にも呼ぶ)
   function close() {
     inheritedShareUrl = null;
     try { sessionStorage.removeItem('hexago-share-origin'); } catch (e) { }
@@ -8039,8 +7471,6 @@ window.addEventListener('offline', () => {
     if (typeof updateUI === 'function') updateUI(); // 盤面を現在の対局局面に戻す
     if (typeof syncCanvasSoon === 'function') syncCanvasSoon(); else if (typeof resizeCanvas === 'function') resizeCanvas();
   }
-
-  // ===== 配線 =====
   document.addEventListener('DOMContentLoaded', () => {
     const bar = $('replayBar'); if (!bar) return;
     $('replayPlayBtn').onclick = () => { snd.click(); togglePlay(); };
@@ -8050,7 +7480,6 @@ window.addEventListener('offline', () => {
     $('replayLast').onclick = () => { snd.click(); stop(); seek(data.positions.length - 1); };
     $('replaySpeed').onchange = e => { const v = parseFloat(e.target.value); if (SPEEDS.includes(v)) speed = v; };
     $('replaySlider').addEventListener('input', e => { stop(); seek(+e.target.value, { fromSlider: true }); });
-    // 優勢グラフのタップ/ドラッグでその手へ移動
     const graph = $('replayGraph');
     let dragging = false;
     const seekAt = e => {
@@ -8063,7 +7492,6 @@ window.addEventListener('offline', () => {
     graph.addEventListener('pointermove', e => { if (dragging) seekAt(e); });
     graph.addEventListener('pointerup', () => { dragging = false; });
     graph.addEventListener('pointercancel', () => { dragging = false; });
-    // キーボード: ←/→ で1手移動、Space で再生/一時停止
     window.addEventListener('keydown', e => {
       if (!active()) return;
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement && document.activeElement.tagName)) return;
@@ -8079,7 +7507,6 @@ window.addEventListener('offline', () => {
       seek(cur);
     });
     window.addEventListener('orientationchange', () => { if (active()) { setTimeout(() => { layoutReplayBar(true); if (typeof syncCanvasSoon === 'function') syncCanvasSoon(); seek(cur); }, 120); } });
-    // 共有
     if ($('replayShowResult')) $('replayShowResult').onclick = () => {
       if (snd.click) snd.click();
       if (typeof G !== 'undefined' && G && G.over && G.result && typeof showResult === 'function') showResult();
@@ -8116,40 +7543,25 @@ window.addEventListener('offline', () => {
       const src = currentShareSource();
       if (!src || !src.record) return;
       if (snd.click) snd.click();
-      // 開いた時点で生成済み。無ければここで生成する。
       if (!shareCardCache) shareCardCache = drawShareCard(src.record, src.size, src.playerCount, src.names);
       downloadShareCard(shareCardCache);
     };
-
-    // 入口: 結果モーダル / 終局バナー / 盤面・棋譜モーダル
     $('btnReplayGame').onclick = () => { snd.click(); closeModal($('resModal')); openFromGame(); };
     $('btnOpenReplay').onclick = () => { snd.click(); closeModal($('recordModal')); openFromGame(); };
   });
-
-  // ===== 共有URLからの起動 =====
-  //   #g=<データ>     : データ直接埋め込み(フォールバック用)
-  //   ?s=<短縮コード> : 自前ドメインの共有URL → spoo.me へ一度リダイレクトして戻る
-  // 共有リンクから開いた場合の元URL(?s= または #g=)を覚えておき、
-  // その画面から再共有するときは同じリンクを引き継ぐ。
   let inheritedShareUrl = null;
-
   function openFromShareCode(code, sourceUrl) {
     const decoded = R.decodeShare(code);
     inheritedShareUrl = sourceUrl || null;
     return openFromRecord(decoded.record, decoded.size, decoded.playerCount, decoded.names || {});
   }
-
-  // ?s=CODE を受けたら、spoo.me に遷移してリダイレクトで元URLへ戻す。
-  // ループ防止のため、一度リダイレクトしたことを sessionStorage に記録する。
   function followShortCode(code) {
     const key = 'hexago-short-followed';
     if (sessionStorage.getItem(key) === code) {
-      // 戻ってきた(またはループ)のでこれ以上追わない
       sessionStorage.removeItem(key);
       return false;
     }
     sessionStorage.setItem(key, code);
-    // リダイレクトで戻ってきたときに元の共有リンクを復元できるよう保存する
     try {
       const u = new URL(location.href);
       u.search = '?s=' + code; u.hash = '';
@@ -8159,7 +7571,6 @@ window.addEventListener('offline', () => {
     location.replace(target);
     return true;
   }
-
   function tryOpenFromLocation() {
     const hash = location.hash || '';
     const m = /[#&]g=([A-Za-z0-9_-]+)/.exec(hash);
@@ -8185,8 +7596,6 @@ window.addEventListener('offline', () => {
     if (code && /^[A-Za-z0-9_-]+$/.test(code)) return followShortCode(code);
     return false;
   }
-
-  // render() から参照される公開 API
   window.HexagoReplayView = {
     active,
     position: () => (data ? data.positions[cur] : null),
@@ -8207,17 +7616,11 @@ window.addEventListener('offline', () => {
 })();
 
 // --- ./js/photo/geom.js ---
-// ===== 写真復元: 幾何（canonical レイアウト / 6点homography） =====
-// アプリの盤ジオメトリ（core/geometry.js の build(n)）と同一の点順・座標系を使う。
-// 依存なし・classic script。window.HexagoPhotoGeom として公開する。
 (function (global) {
   'use strict';
-
   var SQ3 = Math.sqrt(3);
   var CANON_W = 1024;
   var CANON_PAD = 0.07 * CANON_W; // 71.68
-
-  // size(9/13/19/25) -> canonical 画像上の点座標・格子6隅
   function layout(size) {
     var SIDE = (size + 1) / 2;
     var s = SIDE - 1;
@@ -8241,8 +7644,6 @@ window.addEventListener('offline', () => {
       center: [cx, cy], pts: pts, qr: qr, corners: corners
     };
   }
-
-  // ---------- 3x3 行列ユーティリティ（行優先 length 9） ----------
   function mul3(A, B) {
     var C = new Array(9);
     for (var i = 0; i < 3; i++) {
@@ -8269,8 +7670,6 @@ window.addEventListener('offline', () => {
     if (Math.abs(w) < 1e-12) w = 1e-12;
     return [(m[0] * x + m[1] * y + m[2]) / w, (m[3] * x + m[4] * y + m[5]) / w];
   }
-
-  // ---------- 6点対応の homography（正規化 DLT + 最小二乗） ----------
   function normalizePts(pts) {
     var n = pts.length, cx = 0, cy = 0, i;
     for (i = 0; i < n; i++) { cx += pts[i][0]; cy += pts[i][1]; }
@@ -8283,9 +7682,7 @@ window.addEventListener('offline', () => {
     var out = pts.map(function (p) { return [(p[0] - cx) * sc, (p[1] - cy) * sc]; });
     return { pts: out, T: T };
   }
-
   function solve8(A, b) {
-    // 8x8 連立方程式（部分ピボット付きガウス消去）。A は 8x8 の行配列、b は 8。
     var n = 8, i, j, k;
     var M = [];
     for (i = 0; i < n; i++) { M.push(A[i].slice()); M[i].push(b[i]); }
@@ -8309,8 +7706,6 @@ window.addEventListener('offline', () => {
     for (i = 0; i < n; i++) x[i] = M[i][n];
     return x;
   }
-
-  // srcPts -> dstPts の homography（3x3, 行優先）。点数は6点以上を想定。
   function homography(srcPts, dstPts) {
     if (!srcPts || !dstPts || srcPts.length !== dstPts.length || srcPts.length < 4) return null;
     var ns = normalizePts(srcPts), nd = normalizePts(dstPts);
@@ -8331,27 +7726,18 @@ window.addEventListener('offline', () => {
     var h = solve8(AtA, Atb);
     if (!h) return null;
     var Hn = [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], 1];
-    // x_src = Ts^-1 * x_src_n, x_dst_n = Hn * x_src_n  =>  x_dst = Td^-1 * Hn * Ts * x_src
     var TdInv = inv3(nd.T);
     if (!TdInv) return null;
     var H = mul3(TdInv, mul3(Hn, ns.T));
-    // 正規化（H[8]=1）
     if (Math.abs(H[8]) > 1e-12) {
       for (var m = 0; m < 9; m++) H[m] /= H[8];
     }
     return H;
   }
-
-  // ---------- 盤外枠 -> 格子6隅 ----------
-  // 実物の六角盤（ハニカム）は石=セル中心の格子が外枠より cell/√3 内側にある。
-  // アプリから印刷した三角形格子の盤は外枠が格子の隅点を通る。
   var CONVENTIONS = {
     triangular: { k: function () { return 1; } },
     honeycomb: { k: function (s) { return s / (s + 1 / SQ3); } }
   };
-
-  // margin: 数値なら「盤の外枠が格子六角形より何セル外側か」（実物=1/√3≈0.577, 印刷=0）。
-  // 文字列なら従来の慣習名（honeycomb / triangular）。
   function latticeCornersFromBorder(borderCorners, size, margin) {
     var L = layout(size);
     var k;
@@ -8367,8 +7753,6 @@ window.addEventListener('offline', () => {
     if (k === 1) return borderCorners.map(function (p) { return [p[0], p[1]]; });
     return borderCorners.map(function (p) { return [cx + (p[0] - cx) * k, cy + (p[1] - cy) * k]; });
   }
-
-  // 画像座標系で六角形の6隅（この順: 右, 右下, 左下, 左, 左上, 右上）
   function hexagonCornersFromCenter(cx, cy, R, rotDeg) {
     var rot = (rotDeg || 0) * Math.PI / 180;
     var out = [];
@@ -8378,7 +7762,6 @@ window.addEventListener('offline', () => {
     }
     return out;
   }
-
   global.HexagoPhotoGeom = {
     CANON_W: CANON_W,
     CANON_PAD: CANON_PAD,
@@ -8396,36 +7779,10 @@ window.addEventListener('offline', () => {
 })(typeof self !== 'undefined' ? self : this);
 
 // --- ./js/photo/features.js ---
-// ===== 写真復元: パッチ特徴量（28次元） =====
-// CONTRACT v2 準拠。依存なし・classic script。
-// Python リファレンス実装 dev/photo/train/features.py と 1e-5 以内で一致する。
-//
-// API:
-//   window.HexagoPhotoFeatures.extract(patch, baseline) -> Float32Array(28)
-//     patch    : 16x16x3, RGB 0..255 (Float32Array / Uint8ClampedArray / 通常の配列)
-//                並びは row-major: index = (y*16 + x)*3 + c  (x=列, y=行)
-//     baseline : [r,g,b] 0..255 （canonical 画像の点六角形内部のチャネル毎中央値）
-//   補助（Lead 側の実装と一致させたい場合に使用）:
-//   window.HexagoPhotoFeatures.samplePatch(image, width, height, cx, cy, cell)
-//     -> Float32Array(768)   0.9*cell 四方をバイリニアで 16x16 に間引き
-//   window.HexagoPhotoFeatures.medianBaseline(image, width, height, corners)
-//     -> [r,g,b]   corners = 6つの [x,y]（canonical 座標の格子6隅）
-//
-// 特徴量の定義（Python と同一）:
-//   0-14  R,G,B 各: mean, std(母集団), p10, p50, p90 (index = floor(255*p))
-//   15-16 平均色の H の cos(2πH), sin(2πH) / 17 S / 18 V
-//   19-21 リング平均(i<2 or i>=14 or j<2 or j>=14) - 中央8x8平均  (R,G,B)
-//   22    中心(7.5,7.5)から半径6の円周8方向の V の母集団標準偏差
-//   23    V>0.92 かつ S<0.25 の画素割合
-//   24-26 パッチ平均色 / (baseline/255) - 1  (R,G,B)
-//   27    輝度 L=0.299r+0.587g+0.114b の中心差分勾配の大きさの平均
-//         gx=(L[x+1]-L[x-1])/2, gy=(L[y+1]-L[y-1])/2, 内側 1..14
 (function (global) {
   'use strict';
-
   var N = 16;
   var NP = N * N;
-
   function stdOf(a) {
     var n = a.length, s = 0, i, d, acc = 0;
     for (i = 0; i < n; i++) s += a[i];
@@ -8433,7 +7790,6 @@ window.addEventListener('offline', () => {
     for (i = 0; i < n; i++) { d = a[i] - m; acc += d * d; }
     return Math.sqrt(acc / n);
   }
-
   function hsvOf(r, g, b) {
     var mx = Math.max(r, g, b), mn = Math.min(r, g, b);
     var d = mx - mn, v = mx;
@@ -8448,8 +7804,6 @@ window.addEventListener('offline', () => {
     }
     return [h, s, v];
   }
-
-  // p: Float64Array(768) 0..1。x,y は画素座標（画素中心が整数, 0..15）
   function bilinearPx(p, x, y) {
     var xmax = N - 1.000001, ymax = N - 1.000001;
     x = x < 0 ? 0 : (x > xmax ? xmax : x);
@@ -8467,14 +7821,11 @@ window.addEventListener('offline', () => {
     }
     return out;
   }
-
   function extract(patch, baseline) {
     var f = new Float32Array(28);
     var p = new Float64Array(NP * 3);
     var i, j, c, idx;
     for (idx = 0; idx < NP * 3; idx++) p[idx] = patch[idx] / 255;
-
-    // 0-14: per-channel mean, std, p10, p50, p90
     var vals = new Float64Array(NP);
     for (c = 0; c < 3; c++) {
       var sum = 0, acc = 0, d, v;
@@ -8490,8 +7841,6 @@ window.addEventListener('offline', () => {
       f[b + 3] = vals[Math.floor((NP - 1) * 0.5)];
       f[b + 4] = vals[Math.floor((NP - 1) * 0.9)];
     }
-
-    // 15-18: HSV of the mean colour
     var mr = 0, mg = 0, mb = 0;
     for (idx = 0; idx < NP; idx++) { mr += p[idx * 3]; mg += p[idx * 3 + 1]; mb += p[idx * 3 + 2]; }
     mr /= NP; mg /= NP; mb /= NP;
@@ -8500,8 +7849,6 @@ window.addEventListener('offline', () => {
     f[16] = Math.sin(2 * Math.PI * hsv[0]);
     f[17] = hsv[1];
     f[18] = hsv[2];
-
-    // 19-21: ring mean - centre 8x8 mean
     var ringSum = [0, 0, 0], ringN = 0, ctrSum = [0, 0, 0], ctrN = 0;
     for (j = 0; j < N; j++) {
       for (i = 0; i < N; i++) {
@@ -8515,8 +7862,6 @@ window.addEventListener('offline', () => {
       }
     }
     for (c = 0; c < 3; c++) f[19 + c] = ringSum[c] / ringN - ctrSum[c] / ctrN;
-
-    // 22: std of V at 8 points on a radius-6 circle around (7.5, 7.5)
     var vv = new Float64Array(8);
     for (i = 0; i < 8; i++) {
       var ang = i * Math.PI / 4;
@@ -8524,8 +7869,6 @@ window.addEventListener('offline', () => {
       vv[i] = Math.max(rgb[0], rgb[1], rgb[2]);
     }
     f[22] = stdOf(vv);
-
-    // 23: highlight rate (V > 0.92 && S < 0.25)
     var hi = 0;
     for (idx = 0; idx < NP; idx++) {
       var r0 = p[idx * 3], g0 = p[idx * 3 + 1], b0 = p[idx * 3 + 2];
@@ -8534,8 +7877,6 @@ window.addEventListener('offline', () => {
       if (vmax > 0.92 && sat < 0.25) hi++;
     }
     f[23] = hi / NP;
-
-    // 24-26: patch mean colour relative to baseline colour
     var means = [mr, mg, mb];
     var B = baseline || [255, 255, 255];
     for (c = 0; c < 3; c++) {
@@ -8544,8 +7885,6 @@ window.addEventListener('offline', () => {
       if (bc < 1) bc = 1;
       f[24 + c] = means[c] * 255 / bc - 1;
     }
-
-    // 27: mean luminance centre-difference gradient magnitude
     var L = new Float64Array(NP);
     for (idx = 0; idx < NP; idx++) {
       L[idx] = 0.299 * p[idx * 3] + 0.587 * p[idx * 3 + 1] + 0.114 * p[idx * 3 + 2];
@@ -8560,11 +7899,8 @@ window.addEventListener('offline', () => {
       }
     }
     f[27] = gsum / gn;
-
     return f;
   }
-
-  // image: width x height RGB 0..255 (Float32Array / Uint8ClampedArray ...)
   function samplePatch(image, width, height, cx, cy, cell) {
     var side = 0.9 * cell;
     var step = side / N;
@@ -8590,8 +7926,6 @@ window.addEventListener('offline', () => {
     }
     return out;
   }
-
-  // 六角形（corners: [[x,y] x6]、ピクセル番号座標）内部の画素のチャネル毎中央値
   function medianBaseline(image, width, height, corners) {
     var inside = [];
     var nc = corners.length, k, x, y;
@@ -8620,7 +7954,6 @@ window.addEventListener('offline', () => {
     }
     return out;
   }
-
   var api = {
     extract: extract,
     samplePatch: samplePatch,
@@ -8634,25 +7967,12 @@ window.addEventListener('offline', () => {
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 // --- ./js/photo/model.js ---
-// ===== 写真復元: 小型MLP（28 -> 64 -> 32 -> 8, ReLU, softmax）=====
-// CONTRACT v2 §6。依存なし・classic script。
-//   window.HexagoPhotoModel.load(url)   -> Promise（model.json を fetch。二重ロード安全、失敗時 reject）
-//   window.HexagoPhotoModel.fromJSON(o) -> 同期ロード（テスト用）
-//   window.HexagoPhotoModel.predict(features) -> Float32Array(8) softmax 確率
-//   window.HexagoPhotoModel.forward(features) -> predict の別名（CONTRACT §6）
-//   window.HexagoPhotoModel.isLoaded() / classes
-//
-// model.json 形式: { format:"hexago-photo-mlp-v1", features:28,
-//                    classes:["empty","black",...], layers:[{W:[[...]], b:[...]}, ...] }
 (function (global) {
   'use strict';
-
   var FORMAT = 'hexago-photo-mlp-v1';
   var DEFAULT_CLASSES = ['empty', 'black', 'white', 'red', 'blue', 'green', 'yellow', 'purple'];
-
   var state = null;      // {weights, biases, classes, features}
   var loading = null;    // 進行中の Promise
-
   function parseModel(json) {
     if (!json || json.format !== FORMAT) {
       throw new Error('HexagoPhotoModel: unsupported model format ' + (json && json.format));
@@ -8679,7 +7999,6 @@ window.addEventListener('offline', () => {
       classes: (json.classes || DEFAULT_CLASSES).slice()
     };
   }
-
   function loadEmbedded() {
     if (state) return true;
     if (typeof document === 'undefined') return false;
@@ -8694,7 +8013,6 @@ window.addEventListener('offline', () => {
       return false;
     }
   }
-
   function load(url) {
     if (state || loadEmbedded()) return Promise.resolve(api);
     if (loading) return loading;
@@ -8713,14 +8031,11 @@ window.addEventListener('offline', () => {
       .finally(function () { loading = null; });
     return loading;
   }
-
   function fromJSON(json) {
     state = parseModel(json);
     return api;
   }
-
   function isLoaded() { return !!state; }
-
   function predict(features) {
     if (!state) throw new Error('HexagoPhotoModel: model is not loaded');
     var x = features;
@@ -8743,7 +8058,6 @@ window.addEventListener('offline', () => {
       if (li < state.layers.length - 1) {
         for (o = 0; o < nOut; o++) if (out[o] < 0) out[o] = 0;   // ReLU
       } else {
-        // softmax
         var mx = -Infinity;
         for (o = 0; o < nOut; o++) if (out[o] > mx) mx = out[o];
         var esum = 0;
@@ -8754,7 +8068,6 @@ window.addEventListener('offline', () => {
     }
     return Float32Array.from(cur);
   }
-
   var api = {
     load: load,
     fromJSON: fromJSON,
@@ -8769,18 +8082,12 @@ window.addEventListener('offline', () => {
 })(typeof globalThis !== 'undefined' ? globalThis : this);
 
 // --- ./js/photo/rectify.js ---
-// ===== 写真復元: canonical 画像への変換・ベースライン・パッチ抽出 =====
-// dev/photo/CONTRACT.md §1-4。依存なし・classic script。
-//   HexagoPhotoRectify.prepare(imageData, H, size) -> {canon, baseline, layout, patches}
-//   HexagoPhotoRectify.featuresOf(patches, baseline) -> [Float32Array(28)]
 (function (global) {
   'use strict';
-
   var G = global.HexagoPhotoGeom;
   if (!G && typeof require === 'function') G = require('./geom.js');
   var F = global.HexagoPhotoFeatures;
   if (!F && typeof require === 'function') F = require('./features.js');
-
   function toFloatRGB(imageData) {
     var d = imageData.data, n = d.length / 4;
     var out = new Float32Array(n * 3);
@@ -8791,7 +8098,6 @@ window.addEventListener('offline', () => {
     }
     return out;
   }
-
   function bilinear3(data, w, h, x, y, out) {
     if (x < 0) x = 0; else if (x > w - 1) x = w - 1;
     if (y < 0) y = 0; else if (y > h - 1) y = h - 1;
@@ -8807,8 +8113,6 @@ window.addEventListener('offline', () => {
     }
     return out;
   }
-
-  // H: 画像座標 -> canonical 座標
   function warp(imgData, H, W) {
     var srcW = imgData.width, srcH = imgData.height;
     var src = toFloatRGB(imgData);
@@ -8829,24 +8133,18 @@ window.addEventListener('offline', () => {
     }
     return out;
   }
-
-  // canonical 上の六角形内部判定（アプリの盤と同じ flat-top 六角形）
   function hexNorm(dx, dy) {
     var a = Math.abs(dx);
     var b = Math.abs(dx / 2 + dy * 0.8660254037844386);
     var c = Math.abs(dx / 2 - dy * 0.8660254037844386);
     return Math.max(a, b, c);
   }
-  // 盤として扱う半径: 格子の六角形 + 石のはみ出しを覆うマージン。
-  // 格子の辺上の点の石（半径0.44cell）が欠けないよう、外側0.6cellまでは盤面として残す。
   var FILL_MARGIN = 0.6;
   function boardRadius(L) { return (L.s + FILL_MARGIN) * L.cell; }
   function insideHex(L, x, y) {
     var dx = x - L.center[0], dy = y - L.center[1];
     return hexNorm(dx, dy) <= boardRadius(L) + 1e-6;
   }
-
-  // 六角形内部のチャネル毎中央値（0..255）
   function baselineOf(canon, W, L) {
     var hist = [new Int32Array(256), new Int32Array(256), new Int32Array(256)];
     var inside = 0;
@@ -8874,8 +8172,6 @@ window.addEventListener('offline', () => {
     }
     return out;
   }
-
-  // 六角形の外側を盤色で埋める（縁の点のパッチが背景色に引っ張られないように）
   function fillOutside(canon, W, L, baseline) {
     for (var y = 0; y < W; y++) {
       for (var x = 0; x < W; x++) {
@@ -8887,8 +8183,6 @@ window.addEventListener('offline', () => {
       }
     }
   }
-
-  // 1点分のパッチ（16x16 RGB 0..255）を canonical から抽出
   function patchAt(canon, W, x, y, side) {
     var patch = new Float32Array(16 * 16 * 3);
     var half = side / 2;
@@ -8905,7 +8199,6 @@ window.addEventListener('offline', () => {
     }
     return patch;
   }
-
   function prepare(imageData, H, size) {
     var L = G.layout(size);
     var W = L.W;
@@ -8916,16 +8209,12 @@ window.addEventListener('offline', () => {
     var patches = L.pts.map(function (p) { return patchAt(canon, W, p[0], p[1], side); });
     return { canon: canon, W: W, baseline: baseline, layout: L, patches: patches };
   }
-
   function featuresOf(patches, baseline) {
     return patches.map(function (p) { return F.extract(p, baseline); });
   }
-
-  // デバッグ/検証用: features の生配列を通常配列で返す
   function featuresArrays(patches, baseline) {
     return featuresOf(patches, baseline).map(function (f) { return Array.prototype.slice.call(f); });
   }
-
   var api = {
     warp: warp,
     prepare: prepare,
@@ -8945,13 +8234,8 @@ window.addEventListener('offline', () => {
 })(typeof self !== 'undefined' ? self : this);
 
 // --- ./js/photo/detect.js ---
-// ===== 写真復元: 盤の外枠（6隅）自動検出 =====
-// 背景（テーブル等）との色差で盤領域を取り、その凸包に外接する六角形を
-// 3方向のサポート関数でフィットする。失敗時は null を返し、UI の手動調整に委ねる。
-//   HexagoPhotoDetect.detect(imageData) -> {corners:[[x,y]x6], confidence, method, hexAreaRatio}
 (function (global) {
   'use strict';
-
   function downsample(imageData, maxDim) {
     var w = imageData.width, h = imageData.height;
     var sc = Math.min(1, maxDim / Math.max(w, h));
@@ -8977,7 +8261,6 @@ window.addEventListener('offline', () => {
     }
     return { width: dw, height: dh, data: out, scale: dw / w };
   }
-
   function borderMedian(ds) {
     var w = ds.width, h = ds.height, d = ds.data;
     var rs = [], gs = [], bs = [];
@@ -8994,7 +8277,6 @@ window.addEventListener('offline', () => {
     function med(a) { a.sort(function (p, q) { return p - q; }); return a[a.length >> 1]; }
     return [med(rs), med(gs), med(bs)];
   }
-
   function otsu(vals) {
     var hist = new Float64Array(256), i;
     for (i = 0; i < vals.length; i++) {
@@ -9017,8 +8299,6 @@ window.addEventListener('offline', () => {
     }
     return best;
   }
-
-  // 正方形カーネルの膨張・収縮は分離可能（横→縦）なので O(w*h*r) で済む
   function dilate(mask, w, h, r) {
     var tmp = new Uint8Array(w * h);
     for (var y = 0; y < h; y++) {
@@ -9075,8 +8355,6 @@ window.addEventListener('offline', () => {
     }
     return out;
   }
-
-  // 4近傍の連結成分を1つ選ぶ（最大面積）
   function largestComponent(mask, w, h) {
     var label = new Int32Array(w * h).fill(-1);
     var best = { area: 0, label: -1 };
@@ -9105,9 +8383,7 @@ window.addEventListener('offline', () => {
     for (i = 0; i < w * h; i++) if (label[i] === best.label) out[i] = 1;
     return { mask: out, area: best.area };
   }
-
   function fillHoles(mask, w, h) {
-    // 外周から背景を塗り、到達できない 0 を穴として埋める
     var reached = new Uint8Array(w * h);
     var stack = new Int32Array(w * h);
     var sp = 0;
@@ -9126,7 +8402,6 @@ window.addEventListener('offline', () => {
     for (var i = 0; i < w * h; i++) out[i] = mask[i] || !reached[i] ? 1 : 0;
     return out;
   }
-
   function boundaryPoints(mask, w, h) {
     var pts = [];
     for (var y = 1; y < h - 1; y++) {
@@ -9138,7 +8413,6 @@ window.addEventListener('offline', () => {
     }
     return pts;
   }
-
   function convexHull(pts) {
     var p = pts.slice().sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
     if (p.length < 3) return p;
@@ -9156,7 +8430,6 @@ window.addEventListener('offline', () => {
     lower.pop(); upper.pop();
     return lower.concat(upper);
   }
-
   function polygonArea(pts) {
     var a = 0;
     for (var i = 0, n = pts.length; i < n; i++) {
@@ -9165,8 +8438,6 @@ window.addEventListener('offline', () => {
     }
     return Math.abs(a) / 2;
   }
-
-  // 3方向（60度おき）のサポート関数で外接六角形を作る
   function hexagonFromSupport(hullPts, phi0) {
     var hs = [], angles = [];
     for (var k = 0; k < 6; k++) {
@@ -9192,7 +8463,6 @@ window.addEventListener('offline', () => {
     }
     return corners;
   }
-
   function detect(imageData) {
     var ds = downsample(imageData, 720);
     var w = ds.width, h = ds.height, d = ds.data;
@@ -9205,7 +8475,6 @@ window.addEventListener('offline', () => {
       var mx = Math.max(d[o], d[o + 1], d[o + 2]), mn = Math.min(d[o], d[o + 1], d[o + 2]);
       var sv = mx > 1 ? (mx - mn) / mx : 0;
       sat[i] = sv;
-      // 影（彩度が背景と同程度）は盤とみなしにくくする
       var bgmx = Math.max(bg[0], bg[1], bg[2]), bgmn = Math.min(bg[0], bg[1], bg[2]);
       var bgSat = bgmx > 1 ? (bgmx - bgmn) / bgmx : 0;
       var satBoost = Math.max(0, sv - bgSat) * 90;
@@ -9241,14 +8510,11 @@ window.addEventListener('offline', () => {
     }
     var hullArea = polygonArea(hull);
     var ratio = hullArea > 0 ? best.area / hullArea : 99;
-    // 凸包が六角形に近いほど ratio は 1 に近い
     var confidence = Math.max(0, Math.min(1, (1.45 - ratio) / 0.32));
-    // 面積の妥当性チェック（画像のほぼ全体/極端に小さい場合は検出を疑う）
     var imgArea = w * h;
     var areaFrac = best.area / imgArea;
     if (areaFrac > 0.85) confidence *= 0.45;
     else if (areaFrac < 0.08) confidence *= 0.4;
-    // 凸包が画像の端に接している（盤が切れている）場合も信頼度を下げる
     var touches = 0;
     for (var k2 = 0; k2 < 6; k2++) {
       var p2 = best.hex[k2];
@@ -9257,7 +8523,6 @@ window.addEventListener('offline', () => {
     if (touches) confidence *= Math.max(0.35, 1 - touches * 0.1);
     var scale = 1 / ds.scale;
     var corners = best.hex.map(function (p) { return [p[0] * scale, p[1] * scale]; });
-    // 妥当性チェック: 画像外に大きくはみ出していない
     var ok = corners.every(function (p) {
       return p[0] > -0.15 * imageData.width && p[0] < 1.15 * imageData.width &&
         p[1] > -0.15 * imageData.height && p[1] < 1.15 * imageData.height;
@@ -9271,8 +8536,6 @@ window.addEventListener('offline', () => {
       hullPoints: hull.length
     };
   }
-
-  // 画像が盤で埋まっている前提のフォールバック（手動調整の初期値）
   function fallbackCorners(imageData) {
     var cx = imageData.width / 2, cy = imageData.height / 2;
     var R = Math.min(imageData.width, imageData.height) * 0.42;
@@ -9283,7 +8546,6 @@ window.addEventListener('offline', () => {
     }
     return out;
   }
-
   var api = {
     detect: detect,
     fallbackCorners: fallbackCorners,
@@ -9296,24 +8558,14 @@ window.addEventListener('offline', () => {
 })(typeof self !== 'undefined' ? self : this);
 
 // --- ./js/photo/recognize.js ---
-// ===== 写真復元: 6点→canonical→パッチ→分類 のオーケストレーション =====
-// 依存: geom.js, features.js, rectify.js（model.js があれば優先して使う）
-//   HexagoPhotoRecognize.analyze({imageData, borderCorners, size, convention}) -> result
-//   HexagoPhotoRecognize.autoPick({imageData, borderCorners, sizes}) -> {best, results}
 (function (global) {
   'use strict';
-
   var Geom = global.HexagoPhotoGeom;
   var Rect = global.HexagoPhotoRectify;
   if (!Geom && typeof require === 'function') Geom = require('./geom.js');
   if (!Rect && typeof require === 'function') Rect = require('./rectify.js');
-
   var CLASSES = ['empty', 'black', 'white', 'red', 'blue', 'green', 'yellow', 'purple'];
   var CLASS_COLORS = ['#d9b382', '#1a1a1a', '#f6f3ea', '#e53935', '#1e88e5', '#43a047', '#f0a000', '#9b2fcb'];
-
-  // ---------- ヒューリスティック分類（モデル未ロード時のフォールバック） ----------
-  // 特徴量の平均色 + ベースライン比 + リング/中心コントラストから素直に判定する。
-  // 実写真で「石の存在は確実に分かるが色の境界が曖昧」なケースを想定した安全側の実装。
   function hueOf(f) {
     var h = Math.atan2(f[16], f[15]) / (2 * Math.PI);
     if (h < 0) h += 1;
@@ -9323,12 +8575,10 @@ window.addEventListener('offline', () => {
     var z = (x - mu) / sigma;
     return Math.exp(-0.5 * z * z);
   }
-  // 円環上の角度差（0..0.5）
   function hueDist(a, b) {
     var d = Math.abs(a - b) % 1;
     return d > 0.5 ? 1 - d : d;
   }
-
   function heuristicProbs(f, baseline) {
     var p = new Float32Array(8);
     var base = baseline || [128, 128, 128];
@@ -9345,24 +8595,17 @@ window.addEventListener('offline', () => {
     var grad = f[27];
     var highlight = f[23];
     var radial = f[22];
-
-    // 盤と同色に近いほど empty らしい（照明ムラを許容して幅を広めに取る）
     var sEmpty = 2.6 * gauss(lr, 0, 0.16) * gauss(sat, baseSat, 0.16) * gauss(ring, 0, 0.055);
     sEmpty += 0.5 * gauss(lr, 0, 0.28) * gauss(ring, 0, 0.10);
-
-    // 石の存在感: 中心と外周の差 / 勾配 / 鏡面ハイライト
     var presence = Math.min(1, Math.abs(ring) / 0.10 * 0.6 + Math.min(1, grad / 0.16) * 0.25 + Math.min(1, highlight / 0.05) * 0.25);
-
     var sBlack = 2.9 * gauss(lr, -0.85, 0.35) * (val < 0.35 ? 1 : 0.25);
     var sWhite = 2.7 * gauss(lr, 0.55, 0.30) * gauss(sat, 0.06, 0.14) * (val > 0.55 ? 1 : 0.3);
-    // 有彩色は色相で判定（盤の茶色=色相0.05-0.10/sat~0.2 と区別するため sat を強く見る）
     var coloredWeight = Math.max(0, Math.min(1, (sat - 0.28) / 0.22));
     var sRed = 2.6 * gauss(hueDist(hue, 0.00), 0, 0.055) * coloredWeight;
     var sBlue = 2.6 * gauss(hueDist(hue, 0.575), 0, 0.070) * coloredWeight;
     var sGreen = 2.6 * gauss(hueDist(hue, 0.345), 0, 0.080) * coloredWeight;
     var sYellow = 2.4 * gauss(hueDist(hue, 0.145), 0, 0.055) * Math.max(0, Math.min(1, (sat - 0.42) / 0.2));
     var sPurple = 2.6 * gauss(hueDist(hue, 0.780), 0, 0.080) * coloredWeight;
-
     var scores = [sEmpty, sBlack * presence, sWhite * presence, sRed * presence, sBlue * presence, sGreen * presence, sYellow * presence, sPurple * presence];
     var mx = -Infinity;
     for (var i = 0; i < 8; i++) if (scores[i] > mx) mx = scores[i];
@@ -9371,7 +8614,6 @@ window.addEventListener('offline', () => {
     for (i = 0; i < 8; i++) p[i] /= sum;
     return p;
   }
-
   function modelReady() {
     var M = global.HexagoPhotoModel;
     if (!M || typeof M.predict !== 'function') return false;
@@ -9379,11 +8621,6 @@ window.addEventListener('offline', () => {
     if (typeof M.ready === 'function') return !!M.ready();
     return false;
   }
-
-  // モデルとヒューリスティックのアンサンブル。
-  // - 学習済みモデルは合成データ（未知シナリオでも99%）に強い
-  // - ヒューリスティックは実写真の色かぶり・木目盤に対する絶対色の判断に強い
-  // 両方の確率を平均して、片方が外したときにもう片方が救う。
   var MODEL_WEIGHT = 0.5;
   var STRATEGY = 'cascade'; // 'cascade' | 'ensemble' | 'model' | 'heuristic'
   function strategy() {
@@ -9414,8 +8651,6 @@ window.addEventListener('offline', () => {
     var m = global.HexagoPhotoModel.predict(f);
     if (strat === 'model') return m;
     if (strat === 'ensemble') return mixProbs(m, heur, modelWeight());
-    // cascade: ヒューリスティックが自信を持てた点はヒューリスティック、
-    // 迷った点だけモデルとのアンサンブルに回す（実写真の安定性と合成域の汎化の両立）
     var h1 = 0, h2 = 0, hi = -1;
     for (var k = 0; k < 8; k++) {
       if (heur[k] > h1) { h2 = h1; h1 = heur[k]; hi = k; }
@@ -9428,7 +8663,6 @@ window.addEventListener('offline', () => {
     if (h1 >= minConf && (h1 - h2) >= minMargin) return heur;
     return mixProbs(m, heur, mixW);
   }
-
   function classifyFeatures(featuresList, baseline) {
     var useModel = modelReady();
     var out = featuresList.map(function (f) {
@@ -9441,9 +8675,6 @@ window.addEventListener('offline', () => {
     });
     return out;
   }
-
-  // 六角格子は60度回転対称なので、外枠6点の開始位置に6通りの解釈がある。
-  // 写真の「上」が盤の「上」に来るよう、canonical の +x が画像の +x に写る並びを選ぶ。
   function uprightOrder(borderCorners, size, convention) {
     var L = Geom.layout(size);
     var best = null;
@@ -9463,10 +8694,6 @@ window.addEventListener('offline', () => {
     }
     return best;
   }
-
-  // ---------- 高速ジオメトリスコア（自動チューニング用） ----------
-  // canonical に変換せず、元画像から直接パッチをサンプリングして
-  // ヒューリスティック分類の平均確信度を返す。サイズ・余白の探索用。
   function sampleRGB(data, w, h, x, y, out) {
     if (x < 0) x = 0; else if (x > w - 1) x = w - 1;
     if (y < 0) y = 0; else if (y > h - 1) y = h - 1;
@@ -9483,7 +8710,6 @@ window.addEventListener('offline', () => {
     }
     return out;
   }
-
   function quickScore(imageData, borderCorners, size, margin) {
     var L = Geom.layout(size);
     var lat = Geom.latticeCornersFromBorder(borderCorners, size, margin);
@@ -9518,7 +8744,6 @@ window.addEventListener('offline', () => {
         }
       }
       patches.push(patch);
-      // 外周リング（盤色推定用）
       var rs = [0, 0, 0], rc = 0;
       for (j = 0; j < 16; j++) {
         for (ii = 0; ii < 16; ii++) {
@@ -9529,7 +8754,6 @@ window.addEventListener('offline', () => {
       }
       rings.push([rs[0] / rc, rs[1] / rc, rs[2] / rc]);
     }
-    // ベースライン = リング色の中央値
     var med = [0, 1, 2].map(function (c) {
       var arr = rings.map(function (r) { return r[c]; }).sort(function (x, y) { return x - y; });
       return arr[arr.length >> 1];
@@ -9544,8 +8768,6 @@ window.addEventListener('offline', () => {
     }
     return sum / patches.length;
   }
-
-  // 盤面サイズと余白を自動調整する（石の位置に合う組み合わせを探索）
   function autoFit(imageData, borderCorners, opts) {
     opts = opts || {};
     var baseMargin = typeof opts.margin === 'number' ? opts.margin : (1 / Math.sqrt(3));
@@ -9556,7 +8778,6 @@ window.addEventListener('offline', () => {
       if (sc > 0 && (!best || sc > best.score)) best = { size: sizes[k], margin: baseMargin, score: sc };
     }
     if (!best) return null;
-    // 余白: 粗い探索 → 細かい探索
     var coarse = [];
     for (var m = 0; m <= 1.001; m += 0.1) coarse.push(Math.round(m * 100) / 100);
     var bestM = { margin: best.margin, score: best.score };
@@ -9570,7 +8791,6 @@ window.addEventListener('offline', () => {
       var s3 = quickScore(imageData, borderCorners, best.size, mm);
       if (s3 > bestM.score) bestM = { margin: mm, score: s3 };
     }
-    // 決まった余白でサイズをもう一度確認
     var finalSize = best.size;
     for (k = 0; k < sizes.length; k++) {
       var s4 = quickScore(imageData, borderCorners, sizes[k], bestM.margin);
@@ -9578,8 +8798,6 @@ window.addEventListener('offline', () => {
     }
     return { size: finalSize, margin: bestM.margin, score: bestM.score };
   }
-
-  // ---------- 1条件での解析 ----------
   function analyze(opts) {
     var imageData = opts.imageData;
     var size = opts.size | 0;
@@ -9590,7 +8808,6 @@ window.addEventListener('offline', () => {
     if (!up) throw new Error('homography estimation failed');
     var H = up.H;
     var prep = Rect.prepare(imageData, H, size);
-    // 格子は外枠（6隅）から決めたものを使う。微調整はUIのハンドル操作で行う。
     var ref = { dx: 0, dy: 0, ds: 1, dth: 0 };
     var side = 0.9 * L.cell;
     var feats = [];
@@ -9630,8 +8847,6 @@ window.addEventListener('offline', () => {
       classSource: cls.length ? cls[0].source : 'heuristic'
     };
   }
-
-  // ---------- 慣習・サイズの自動選択 ----------
   function autoPick(opts) {
     var sizes = opts.sizes || [9, 13, 19, 25];
     var conventions = opts.conventions || ['honeycomb', 'triangular'];
@@ -9653,9 +8868,6 @@ window.addEventListener('offline', () => {
     }
     return { best: best, results: results };
   }
-
-  // ---------- 結果をゲームの盤面配列へ ----------
-  // labels: クラス番号 0..7 -> board[p]（1..6）+ 使用色パレット
   function toGameBoard(result) {
     var used = {};
     var labels = result.points.map(function (p) { return p.cls; });
@@ -9664,7 +8876,6 @@ window.addEventListener('offline', () => {
     var classIds = Object.keys(used).map(Number).sort(function (a, b) { return a - b; });
     var map = {}; // classId -> player index
     for (var k = 0; k < classIds.length; k++) map[classIds[k]] = k + 1;
-    // 2色（黒/白）だけなら必ず 黒=1, 白=2
     var board = labels.map(function (c) { return map[c] || 0; });
     var colors = {};
     var names = {};
@@ -9675,9 +8886,6 @@ window.addEventListener('offline', () => {
     }
     return { board: board, labels: labels, playerCount: Math.max(2, classIds.length), colors: colors, names: names };
   }
-
-  // ---------- タップした色見本（アンカー）から色閾値を自動調整して再分類 ----------
-  // sRGB (0..1) -> CIELAB (L* in 0..100, a*, b* ~ -100..100)
   function rgbToLab(r, g, b) {
     function lin(c) { return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
     var rl = lin(r), gl = lin(g), bl = lin(b);
@@ -9689,24 +8897,17 @@ window.addEventListener('offline', () => {
     return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
   }
   function calibVec(f) {
-    // パッチ全体の平均色 f[0,5,10] は外周リング（盤面木目）が約44%混ざるため、
-    // f[19..21] (= 外周リング - 中央8x8) を使って石本体（中央部）の色を復元する。
     var cr = Math.max(0, Math.min(1, f[0] - 0.44 * f[19]));
     var cg = Math.max(0, Math.min(1, f[5] - 0.44 * f[20]));
     var cb = Math.max(0, Math.min(1, f[10] - 0.44 * f[21]));
     var lab = rgbToLab(cr, cg, cb);
     var ringLum = 0.299 * f[19] + 0.587 * f[20] + 0.114 * f[21];
-    // 正規化済み5次元: 石本体の L*, a*, b*（色覚均等空間） + リング輝度差 + 勾配
     return [lab[0] / 20, lab[1] / 12, lab[2] / 12, ringLum / 0.12, f[27] / 0.15];
   }
   function vecDist2(a, b) {
     var d0 = a[0] - b[0], d1 = a[1] - b[1], d2 = a[2] - b[2], d3 = a[3] - b[3], d4 = a[4] - b[4];
     return d0 * d0 * 1.15 + d1 * d1 * 1.60 + d2 * d2 * 1.60 + d3 * d3 * 0.85 + d4 * d4 * 0.45;
   }
-
-  // manualMap: { [pointIndex]: true } — ユーザーが手動確定した点。
-  // allowedClasses: 候補クラス番号配列（例: [0, 1, 2, 4]）。
-  // 手動確定した点はそのまま固定し、残りの点を色見本プロトタイプ距離 + 元確率で再判定する。
   function reclassifyWithAnchors(result, labels, manualMap, allowedClasses) {
     if (!result || !result.features || !result.points) return null;
     var feats = result.features;
@@ -9715,9 +8916,6 @@ window.addEventListener('offline', () => {
     if (allowed.indexOf(0) < 0) allowed.unshift(0);
     var vecs = new Array(N);
     for (var i = 0; i < N; i++) vecs[i] = calibVec(feats[i]);
-
-    // 1) クラスごとのアンカー集合を構築（ユーザー修正点を最優先、未修正クラスは
-    //    他クラスのユーザー見本に近い誤判定点を除外した上で自動補完）
     var anchorsByClass = {};
     var meanByClass = {};
     var isUserClass = {};
@@ -9748,7 +8946,6 @@ window.addEventListener('offline', () => {
             if (od2 < minOtherD2) minOtherD2 = od2;
           }
         }
-        // 他クラスのユーザー見本とほぼ同色の点（誤判定されていた石）は種から除外
         if (minOtherD2 < 0.35) continue;
         cands.push({ idx: i, score: origConf + Math.min(2, minOtherD2) * 0.25 });
       }
@@ -9765,8 +8962,6 @@ window.addEventListener('offline', () => {
       for (d = 0; d < 5; d++) m[d] /= list.length;
       meanByClass[c2] = m;
     }
-
-    // 2) 各点を再分類
     var nextLabels = labels.slice();
     var updated = [];
     var changedCount = 0;
@@ -9813,7 +9008,6 @@ window.addEventListener('offline', () => {
     }
     return { labels: nextLabels, points: updated, changedCount: changedCount };
   }
-
   var api = {
     CLASSES: CLASSES,
     CLASS_COLORS: CLASS_COLORS,
@@ -9832,15 +9026,9 @@ window.addEventListener('offline', () => {
 })(typeof self !== 'undefined' ? self : this);
 
 // --- ./js/photo/store.js ---
-// ===== 写真復元: 局面ライブラリ（localStorage） =====
-// 写真から復元した局面を保存・一覧・書き出しする。依存なし・classic script。
-//   HexagoPhotoStore.list() / save(entry) / get(id) / remove(id) / exportAll() / importJSON()
-// entry: { id, name, createdAt, size, playerCount, board:[0|1..6], colors:{p:{fill,stroke}},
-//          names:{p:string}, turn, labels:[0..7], meta:{convention, confidence, source} , thumb }
 (function (global) {
   'use strict';
   var KEY = 'hexago-photo-lib-v1';
-
   function read() {
     try {
       var raw = global.localStorage.getItem(KEY);
@@ -9907,7 +9095,6 @@ window.addEventListener('offline', () => {
       return true;
     } catch (e) { return false; }
   }
-
   var api = {
     KEY: KEY,
     list: list, save: save, get: get, remove: remove,
@@ -9918,22 +9105,16 @@ window.addEventListener('offline', () => {
 })(typeof self !== 'undefined' ? self : this);
 
 // --- ./js/photo/ui.js ---
-// ===== 写真復元: UI（撮影→6隅調整→読み取り→訂正→保存/対局） =====
-// 依存: geom.js / features.js / rectify.js / recognize.js / detect.js / store.js（すべて classic script）
-// 起動: ヘッダの 📷 ボタン（#btnOpenPhoto）
 (function (global) {
   'use strict';
-
   var $ = function (id) { return document.getElementById(id); };
   var R = global.HexagoPhotoRecognize;
   var Gg = global.HexagoPhotoGeom;
   var D = global.HexagoPhotoDetect;
   var S = global.HexagoPhotoStore;
-
   var CLASS_COLORS = R.CLASS_COLORS;
   var CLASS_JA = ['空', '黒', '白', '赤', '青', '緑', '黄', '紫'];
   var SIZE_LIST = [9, 13, 19, 25];
-
   var st = {
     img: null, width: 0, height: 0, imageData: null, fileName: '',
     corners: null, autoConf: 0, autoMethod: '',
@@ -9942,12 +9123,9 @@ window.addEventListener('offline', () => {
     drag: -1, hover: -1, turn: 1, modelTried: false,
     palette: null, playerCount: 2, allColors: false, pickPalette: null, outColors: {},
     viewMode: 'ring', manual: {}, calibrated: false,
-    // 結果画面のズーム(ピンチ/ホイール/ボタン)。photoResult と photoBoardPreview で共有
     zoom: 1, panX: 0, panY: 0
   };
   var ZOOM_MIN = 1, ZOOM_MAX = 6;
-
-  // ---------------- 画面切り替え ----------------
   function view(name) {
     var map = {
       step2: 'photoStep2', step3: 'photoStep3', library: 'photoLibraryView'
@@ -9980,8 +9158,6 @@ window.addEventListener('offline', () => {
     if (toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { el.style.opacity = '0'; }, 1800);
   }
-
-  // ---------------- モデル（任意） ----------------
   function loadModel() {
     if (st.modelTried || !global.HexagoPhotoModel) return;
     st.modelTried = true;
@@ -10001,13 +9177,10 @@ window.addEventListener('offline', () => {
       if (!r.ok) throw new Error('model not found');
       return r.json();
     }).then(function (json) {
-      // 学習済みフラグが無いもの（ダミー重み）は読み込まない
       if (!json || json.trained !== true) return null;
       return M.fromJSON ? M.fromJSON(json) : M.load(url);
     }).catch(function () { /* モデル無しでもヒューリスティックで動く */ });
   }
-
-  // ---------------- 画像読み込み ----------------
   function preparePhotoModal() {
     reset();
     st.libraryDirect = false;
@@ -10036,9 +9209,7 @@ window.addEventListener('offline', () => {
     };
     img.src = url;
   }
-
   function setupImage(img) {
-    // 長辺 1600px に正規化（メモリと速度のため）
     var maxSide = 1600;
     var sc = Math.min(1, maxSide / Math.max(img.width, img.height));
     var w = Math.max(1, Math.round(img.width * sc));
@@ -10057,7 +9228,6 @@ window.addEventListener('offline', () => {
     updateDetectInfo();
     setTimeout(autoFitBoard, 60);
   }
-
   function autoDetect() {
     var res = null;
     try { res = D.detect(st.imageData); } catch (e) { res = null; }
@@ -10071,7 +9241,6 @@ window.addEventListener('offline', () => {
       st.autoMethod = 'fallback';
     }
   }
-
   function updateDetectInfo() {
     var el = $('photoDetectInfo');
     if (!el) return;
@@ -10087,8 +9256,6 @@ window.addEventListener('offline', () => {
       el.className = 'text-[11px] text-amber-600 font-bold';
     }
   }
-
-  // ---------------- 6隅調整キャンバス ----------------
   function fitCanvas(cv, w, h, maxCss, heightFrac) {
     var dpr = global.devicePixelRatio || 1;
     var parentW = (cv.parentElement && cv.parentElement.clientWidth) || maxCss;
@@ -10101,7 +9268,6 @@ window.addEventListener('offline', () => {
     cv.height = Math.round(cssH * dpr);
     return { cssW: cssW, cssH: cssH, dpr: dpr, scale: cssW / w };
   }
-
   function latticeImagePositions(corners, size, margin) {
     var L = Gg.layout(size);
     var latCorners = Gg.latticeCornersFromBorder(corners, size, margin);
@@ -10112,7 +9278,6 @@ window.addEventListener('offline', () => {
     for (var i = 0; i < L.pts.length; i++) out.push(Gg.apply(Hi, L.pts[i][0], L.pts[i][1]));
     return out;
   }
-
   function renderAdjust() {
     if (!st.imageData) return;
     var cv = $('photoAdjust');
@@ -10120,17 +9285,14 @@ window.addEventListener('offline', () => {
     var ctx = cv.getContext('2d');
     ctx.setTransform(fit.dpr, 0, 0, fit.dpr, 0, 0);
     ctx.clearRect(0, 0, fit.cssW, fit.cssH);
-    // 画像
     var tmp = document.createElement('canvas');
     tmp.width = st.width; tmp.height = st.height;
     tmp.getContext('2d').putImageData(st.imageData, 0, 0);
     ctx.drawImage(tmp, 0, 0, fit.cssW, fit.cssH);
     ctx.save();
     ctx.scale(fit.scale, fit.scale);
-    // 格子プレビュー
     var pts = latticeImagePositions(st.corners, st.size, st.margin);
     if (pts) {
-      // 全点を描く（間引くと格子ではなく斜め縞に見えてしまう）。点が多い盤は小さく描く。
       var dotR = Math.max(1.6 / fit.scale, pts.length > 200 ? 2.2 : 3.2);
       ctx.fillStyle = 'rgba(50, 220, 120, 0.95)';
       for (var i = 0; i < pts.length; i++) {
@@ -10139,7 +9301,6 @@ window.addEventListener('offline', () => {
         ctx.fill();
       }
     }
-    // 6隅ハンドル
     for (var k = 0; k < 6; k++) {
       var p = st.corners[k];
       ctx.beginPath();
@@ -10156,14 +9317,12 @@ window.addEventListener('offline', () => {
     }
     ctx.restore();
   }
-
   function canvasToImage(cv, clientX, clientY) {
     var rect = cv.getBoundingClientRect();
     var x = (clientX - rect.left) / rect.width * st.width;
     var y = (clientY - rect.top) / rect.height * st.height;
     return [x, y];
   }
-
   function onAdjustDown(e) {
     var cv = $('photoAdjust');
     var p = canvasToImage(cv, e.clientX, e.clientY);
@@ -10192,8 +9351,6 @@ window.addEventListener('offline', () => {
     if (st.drag >= 0) scheduleFitScore();
     st.drag = -1;
   }
-
-  // ---------------- サイズ・慣習の選択 ----------------
   function buildSizeButtons() {
     var wrap = $('photoSizeBtns');
     if (!wrap || wrap.childElementCount) return;
@@ -10217,10 +9374,7 @@ window.addEventListener('offline', () => {
     [].forEach.call(document.querySelectorAll('#photoSizeBtns [data-size]'), function (b) {
       b.classList.toggle('on', Number(b.dataset.size) === st.size);
     });
-
   }
-
-  // ---------------- 読み取り ----------------
   function read() {
     if (!st.imageData) return;
     var btn = $('btnPhotoRead');
@@ -10262,25 +9416,17 @@ window.addEventListener('offline', () => {
       }
     }, 30);
   }
-
-  // ---------------- 結果キャンバス ----------------
   function usedClasses(labels) {
     var s = {};
     for (var i = 0; i < labels.length; i++) if (labels[i] > 0) s[labels[i]] = true;
     return Object.keys(s).map(Number).sort(function (a, b) { return a - b; });
   }
-
-  // アプリの色順（黒,白,赤,青,緑,黄,紫）。人数の決定とパレット補充に使う。
   var STANDARD_ORDER = [1, 2, 3, 4, 5, 6, 7];
-
   function classCounts(labels) {
     var counts = [0, 0, 0, 0, 0, 0, 0, 0];
     for (var i = 0; i < labels.length; i++) counts[labels[i]]++;
     return counts;
   }
-
-  // 検出した色からパレット（= 対局に参加する色）を推定する。
-  // 1点だけ出た色は誤検出の可能性が高いので、2点以上ある色を優先する。
   function suggestPalette(labels) {
     var counts = classCounts(labels);
     var present = [];
@@ -10296,8 +9442,6 @@ window.addEventListener('offline', () => {
     }
     return palette.sort(function (a, b) { return a - b; });
   }
-
-  // 人数の変更（増やすと色を補充、減らすと出現数の少ない色から外す）
   function setPlayerCount(n) {
     n = Math.max(2, Math.min(6, n | 0));
     var palette = (st.palette || [1, 2]).slice();
@@ -10319,9 +9463,6 @@ window.addEventListener('offline', () => {
     st.palette = palette;
     st.playerCount = palette.length;
   }
-
-  // タップ時に選べる色。通常はパレットのみ、「全色から選ぶ」ONなら残りの色も
-  // （最大6人なので、6色を超えない範囲で）選べる。
   function allowedColors() {
     var out = (st.palette || [1, 2]).slice();
     if (!st.allColors) return out;
@@ -10330,7 +9471,6 @@ window.addEventListener('offline', () => {
     }
     return out;
   }
-
   function outOfPaletteCount() {
     if (!st.palette || !st.labels) return 0;
     var n = 0;
@@ -10339,20 +9479,17 @@ window.addEventListener('offline', () => {
     }
     return n;
   }
-
   function resultGeometry() {
     var res = st.result;
     var L = res.layout;
     return { L: L, cell: L.cell, W: L.W };
   }
-
   function manualCount() {
     var n = 0;
     if (!st.manual) return 0;
     for (var k in st.manual) if (st.manual[k]) n++;
     return n;
   }
-
   function syncStep3Controls() {
     var btns = document.querySelectorAll('#photoViewBtns [data-photo-view]');
     [].forEach.call(btns, function (b) {
@@ -10382,7 +9519,6 @@ window.addEventListener('offline', () => {
     var rstBtn = $('btnPhotoResetRead');
     if (rstBtn) rstBtn.classList.toggle('hidden', mc === 0 && !st.calibrated);
   }
-
   function renderBoardPreview() {
     var res = st.result;
     var cv = $('photoBoardPreview');
@@ -10392,7 +9528,6 @@ window.addEventListener('offline', () => {
     var ctx = cv.getContext('2d');
     ctx.setTransform(fit.dpr, 0, 0, fit.dpr, 0, 0);
     var scale = fit.cssW / W;
-    // 盤面背景＋外枠＋格子線
     ctx.fillStyle = '#d9b382';
     ctx.fillRect(0, 0, fit.cssW, fit.cssH);
     var L = res.layout;
@@ -10406,7 +9541,6 @@ window.addEventListener('offline', () => {
     ctx.strokeStyle = 'rgba(90,60,30,0.65)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    // 格子線（近傍6方向）
     var qrMap = {};
     for (var i = 0; i < L.qr.length; i++) qrMap[L.qr[i][0] + ',' + L.qr[i][1]] = i;
     var dirs = [[1, 0], [0, 1], [-1, 1]];
@@ -10426,7 +9560,6 @@ window.addEventListener('offline', () => {
     ctx.strokeStyle = 'rgba(90,60,30,0.42)';
     ctx.lineWidth = 1;
     ctx.stroke();
-
     var r = L.cell * 0.43 * scale;
     for (var k = 0; k < res.points.length; k++) {
       var p = res.points[k];
@@ -10458,7 +9591,6 @@ window.addEventListener('offline', () => {
       }
     }
   }
-
   function renderResult(resetScroll) {
     var res = st.result;
     if (!res) return;
@@ -10466,13 +9598,11 @@ window.addEventListener('offline', () => {
     var cv = $('photoResult');
     var W = res.layout.W;
     var isSplit = st.viewMode === 'split';
-    // 拡大中はキャンバス自体を大きくして表示領域を活用する(等倍時は従来サイズ)
     var zoomed = (st.zoom || 1) > 1.001;
     var maxCss = isSplit ? 320 : (zoomed ? 900 : 560);
     var heightFrac = isSplit ? 0.36 : (zoomed ? 0.62 : 0.40);
     var fit = fitCanvas(cv, W, W, maxCss, heightFrac);
     var ctx = cv.getContext('2d');
-    // ズーム: 拡大しても canvas の CSS サイズは変えず、描画だけを拡大・移動する
     var z = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, st.zoom || 1));
     st.zoom = z;
     st.viewCssW = fit.cssW; st.viewCssH = fit.cssH;
@@ -10481,7 +9611,6 @@ window.addEventListener('offline', () => {
     ctx.save();
     ctx.translate(st.panX, st.panY);
     ctx.scale(z, z);
-    // canonical 画像
     var id = ctx.createImageData(W, W);
     var canon = res.canon;
     for (var i = 0, j = 0; i < W * W; i++, j += 4) {
@@ -10493,12 +9622,9 @@ window.addEventListener('offline', () => {
     var tmp = document.createElement('canvas');
     tmp.width = W; tmp.height = W;
     tmp.getContext('2d').putImageData(id, 0, 0);
-    // 拡大時は写真の外側の余白を背景色で埋める
     ctx.fillStyle = '#171717';
     ctx.fillRect(-st.panX / z, -st.panY / z, fit.cssW / z, fit.cssH / z);
     ctx.drawImage(tmp, 0, 0, fit.cssW, fit.cssH);
-
-    // オーバーレイ描画（写真上の実石を隠さないよう、デフォルトは中抜きのカラー枠）
     var scale = fit.cssW / W;
     var r = res.layout.cell * 0.44 * scale;
     for (var k = 0; k < res.points.length; k++) {
@@ -10509,13 +9635,11 @@ window.addEventListener('offline', () => {
       if (st.viewMode === 'ring') {
         if (cls > 0) {
           var ringW = Math.max(2.6, r * 0.34);
-          // 視認性用の薄い外側縁取り（黒石や白石でも盤面と混ざらないように）
           ctx.beginPath();
           ctx.arc(x, y, r * 0.96, 0, 7);
           ctx.lineWidth = ringW + 2;
           ctx.strokeStyle = cls === 1 ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.65)';
           ctx.stroke();
-          // 色枠本体（中央は透明のままなので写真の石がそのまま見える）
           ctx.beginPath();
           ctx.arc(x, y, r * 0.96, 0, 7);
           ctx.lineWidth = ringW;
@@ -10566,10 +9690,6 @@ window.addEventListener('offline', () => {
     syncZoomUi();
     if (resetScroll) cv.scrollIntoView({ block: 'nearest' });
   }
-
-  // ---------------- ズーム ----------------
-  // 拡大した画像がキャンバスの外へ逃げないよう、移動量を制限する。
-  // (拡大率 1 のときは移動なし。等倍を下回らない)
   function clampPan() {
     st.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, st.zoom));
     if (st.zoom <= 1.0001) { st.panX = 0; st.panY = 0; return; }
@@ -10580,7 +9700,6 @@ window.addEventListener('offline', () => {
     st.panX = Math.max(-maxX, Math.min(0, st.panX));
     st.panY = Math.max(-maxY, Math.min(0, st.panY));
   }
-  // 画面座標 → キャンバス内のCSS px
   function canvasPoint(cv, clientX, clientY) {
     var r = cv.getBoundingClientRect();
     return { x: clientX - r.left, y: clientY - r.top, rect: r };
@@ -10590,7 +9709,6 @@ window.addEventListener('offline', () => {
     var before = st.zoom;
     var after = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, before * factor));
     if (Math.abs(after - before) < 1e-4) return;
-    // 指/カーソルの位置を固定したまま拡大
     st.panX = p.x - (p.x - st.panX) * (after / before);
     st.panY = p.y - (p.y - st.panY) * (after / before);
     st.zoom = after;
@@ -10619,10 +9737,6 @@ window.addEventListener('offline', () => {
     var resetBtn = $('btnPhotoZoomReset');
     if (resetBtn) resetBtn.classList.toggle('hidden', !zoomed);
   }
-
-  // 色の並び順（= 1P,2P,... の割り当て）を入れ替える。
-  // チップをドラッグ&ドロップ（Pointer Events なので iPad のタッチでも動く）。
-  // ドラッグせずに2回タップした場合は2色を入れ替える。
   function commitPaletteOrder(colors) {
     if (!colors || !colors.length) return;
     st.palette = colors.slice();
@@ -10655,8 +9769,6 @@ window.addEventListener('offline', () => {
     var tmp = arr[a]; arr[a] = arr[b]; arr[b] = tmp;
     commitPaletteOrder(arr);
   }
-
-  // ---- ドラッグ&ドロップ ----
   var chipDrag = null;
   function chipContainer() { return $('photoCounts'); }
   function paletteChips() {
@@ -10689,7 +9801,6 @@ window.addEventListener('offline', () => {
     }
     if (!chipDrag.moved) return;
     e.preventDefault();
-    // 1) ポインタ位置に応じて DOM を並べ替える（他のチップの矩形は transform の影響を受けない）
     var box = chipContainer();
     var chips = paletteChips().filter(function (c) { return c !== chipDrag.chip; });
     var target = null;
@@ -10699,8 +9810,6 @@ window.addEventListener('offline', () => {
     }
     if (target) box.insertBefore(chipDrag.chip, target);
     else box.appendChild(chipDrag.chip);
-    // 2) 並べ替え後のレイアウト位置に対して、掴んだ点がポインタの下に来るよう変位を再計算する
-    //    （再配置で矩形が変わるので、現在の変位を引いた「素の位置」を基準にする）
     var rect = chipDrag.chip.getBoundingClientRect();
     var baseLeft = rect.left - (chipDrag.tx || 0);
     chipDrag.tx = (e.clientX - chipDrag.grabOffsetX) - baseLeft;
@@ -10718,16 +9827,13 @@ window.addEventListener('offline', () => {
     if (chipDrag && chipDrag.chip === chip) chipDrag.tx = 0;
     chipDrag = null;
     if (!moved) return;
-    // DOM の並びをパレット順として確定
     var colors = paletteChips().map(function (c) { return Number(c.dataset.color); });
     if (colors.length) commitPaletteOrder(colors);
-    // 直後の click を無効化（ドラッグ後のタップ扱いを防ぐ）
     st.suppressChipClick = Date.now();
   }
   document.addEventListener('pointermove', chipDragMove, { passive: false });
   document.addEventListener('pointerup', chipDragEnd);
   document.addEventListener('pointercancel', chipDragEnd);
-
   function renderCounts() {
     var el = $('photoCounts');
     if (!el) return;
@@ -10738,13 +9844,10 @@ window.addEventListener('offline', () => {
       if ((pt.margin != null ? pt.margin : pt.conf) < 0.10 || pt.conf < 0.42) low++;
     }
     el.innerHTML = '';
-
     var empty = document.createElement('span');
     empty.className = 'opacity-60';
     empty.innerHTML = '空 <strong>' + counts[0] + '</strong>';
     el.appendChild(empty);
-
-    // 参加プレイヤーの色 = 並び順がそのまま 1P,2P,...（ドラッグで入れ替え）
     (st.palette || []).forEach(function (c, idx) {
       var chip = document.createElement('span');
       chip.className = 'photo-color-chip inline-flex items-center gap-1 rounded-full border px-3 py-1.5 ' +
@@ -10760,7 +9863,6 @@ window.addEventListener('offline', () => {
       var label = document.createElement('span');
       label.innerHTML = CLASS_JA[c] + ' <strong>' + counts[c] + '</strong><span class="opacity-50"> ' + (idx + 1) + 'P</span>';
       chip.appendChild(label);
-      // 色（プレイヤー）を外す。誤って追加した色を削除できる。
       var del = document.createElement('button');
       del.type = 'button';
       del.textContent = '×';
@@ -10779,7 +9881,6 @@ window.addEventListener('offline', () => {
       };
       el.appendChild(chip);
     });
-
     var stray = [];
     for (var c = 1; c < 8; c++) {
       if (!counts[c]) continue;
@@ -10807,8 +9908,6 @@ window.addEventListener('offline', () => {
         + ' 色チップはドラッグで並べ替え（2回タップでも入れ替え）。現在: ' + order;
     }
   }
-
-  // 実戦ですでに投了しているプレイヤーを「投了済み」として記録する。
   function renderOutRow() {
     var el = $('photoOutRow');
     if (!el) return;
@@ -10848,7 +9947,6 @@ window.addEventListener('offline', () => {
       el.appendChild(note);
     }
   }
-
   function renderTurnSelect() {
     var sel = $('photoTurn');
     if (!sel) return;
@@ -10885,16 +9983,12 @@ window.addEventListener('offline', () => {
       if (el) el.textContent = String(cnt);
     });
   }
-
-  // タップでクラスを巡回（空 → 参加中の色 → …）。全色モードでは残りの色も選べる。
   function cycleAt(idx) {
     var colors = allowedColors();
     var order = [0].concat(colors);
     var cur = order.indexOf(st.labels[idx]);
-    // 現在の色が候補に無い場合は空から始める
     var next = order[(cur + 1) % order.length];
     if (next > 0 && st.palette.indexOf(next) < 0) {
-      // 全色モードで未使用の色を選んだ → プレイヤーとして追加
       if (st.palette.length < 6) {
         st.palette.push(next);
         st.playerCount = st.palette.length;
@@ -10905,7 +9999,6 @@ window.addEventListener('offline', () => {
     st.manual[idx] = true;
     renderResult();
   }
-
   function calibrateFromManual() {
     if (!st.result || !st.labels || !R.reclassifyWithAnchors) return;
     if (!manualCount()) { toast('先に間違っている石を1〜2個タップして直してください'); return; }
@@ -10922,7 +10015,6 @@ window.addEventListener('offline', () => {
     renderResult();
     toast(out.changedCount > 0 ? ('色合いを学習して ' + out.changedCount + ' 点を自動調整しました') : '色合いを再確認しました（変更なし）');
   }
-
   function resetToInitialRead() {
     if (!st.result || !st.origLabels) return;
     st.labels = st.origLabels.slice();
@@ -10935,19 +10027,16 @@ window.addEventListener('offline', () => {
     renderResult();
     toast('初期判定に戻しました');
   }
-
   function pickResultPoint(cv, clientX, clientY) {
     var res = st.result;
     if (!res || !cv) return -1;
     var rect = cv.getBoundingClientRect();
     var W = res.layout.W;
-    // CSS px → ズーム前の画像座標(パンを戻してから拡大率で割る)
     var z = st.zoom || 1;
     var cx = (clientX - rect.left - st.panX) / z;
     var cy = (clientY - rect.top - st.panY) / z;
     var x = cx / rect.width * W;
     var y = cy / rect.width * W;   // canvas は正方形なので width 基準
-    // 拡大するほど判定半径は画面上で同じに保つ
     var best = -1, bd = res.layout.cell * 0.55 / z;
     for (var i = 0; i < res.points.length; i++) {
       var d = Math.hypot(res.points[i].x - x, res.points[i].y - y);
@@ -10955,27 +10044,19 @@ window.addEventListener('offline', () => {
     }
     return best;
   }
-
   function onResultPointer(e) {
     var best = pickResultPoint(e.currentTarget, e.clientX, e.clientY);
     if (best < 0) return;
     if (e.type === 'click') {
-      // タッチの pointerup で処理済みなら click では切り替えない(二重切替防止)
       if (Date.now() - lastTouchCycleAt < 700) return;
       cycleAt(best); snd && snd.click && snd.click();
     }
     return best;
   }
-
-  // タッチ端末(iPad/iPhone)向けの色切り替え。
-  // タッチでは click が発火しない/遅延する環境があり、また pointermove の
-  // ホバー処理がタップを打ち消してしまうため、pointerdown〜pointerup の
-  // 「動かなかったタップ」を自前で判定して色を切り替える。
   var tapState = null;
   function resultTapDown(e) {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     tapState = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId, handled: false };
-    // タッチでは hover 表示を出さない(指の下の点がちらつくため)
     if (e.pointerType !== 'mouse') { e.preventDefault(); }
   }
   function resultTapUp(e) {
@@ -10988,14 +10069,9 @@ window.addEventListener('offline', () => {
     if (best < 0) return;
     cycleAt(best);
     if (snd && snd.click) snd.click();
-    // タッチでは直後の click も発火しうるので二重切替を防ぐ
     lastTouchCycleAt = Date.now();
   }
   var lastTouchCycleAt = 0;
-
-  // ---------------- ズーム操作(ピンチ / ホイール / ドラッグ) ----------------
-  // タッチ端末(iPad)は2本指ピンチ、マウスはホイール+ドラッグで拡大移動する。
-  // 1本指のタップは従来どおり色の切り替えに使う。
   var gestures = new WeakMap();
   function gestureState(cv) {
     var g = gestures.get(cv);
@@ -11006,7 +10082,6 @@ window.addEventListener('offline', () => {
     var g = gestureState(cv);
     g.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (g.pointers.size === 2) {
-      // 2本指 → ピンチ開始。1本指タップ処理は取り消す
       var pts = [...g.pointers.values()];
       g.pinchStart = {
         dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1,
@@ -11021,14 +10096,12 @@ window.addEventListener('offline', () => {
       return;
     }
     if (g.pointers.size === 1 && st.zoom > 1.001) {
-      // 拡大中の1本指ドラッグ = 移動。タップは動かなければ色切替
       g.panStart = { x: e.clientX, y: e.clientY, panX: st.panX, panY: st.panY, moved: false };
     }
   }
   function gestureMove(cv, e) {
     var g = gestureState(cv);
     if (g.pointers.has(e.pointerId)) g.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    // ピンチ中
     if (g.pinchStart && g.pointers.size >= 2) {
       var pts = [...g.pointers.values()];
       var dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
@@ -11040,7 +10113,6 @@ window.addEventListener('offline', () => {
       st.zoom = target;
       st.panX = ax - (ax - g.pinchStart.panX) * ratio;
       st.panY = ay - (ay - g.pinchStart.panY) * ratio;
-      // 2本指の移動ぶんも一緒にパン
       st.panX += ((pts[0].x + pts[1].x) / 2) - g.pinchStart.cx;
       st.panY += ((pts[0].y + pts[1].y) / 2) - g.pinchStart.cy;
       if (st.zoom <= 1.0001) { st.panX = 0; st.panY = 0; }
@@ -11048,7 +10120,6 @@ window.addEventListener('offline', () => {
       renderResult();
       return;
     }
-    // 拡大中の1本指/マウスドラッグ = パン
     if (g.panStart) {
       var dx = e.clientX - g.panStart.x, dy = e.clientY - g.panStart.y;
       if (!g.panStart.moved && Math.hypot(dx, dy) > 5) { g.panStart.moved = true; tapState = null; }
@@ -11067,7 +10138,6 @@ window.addEventListener('offline', () => {
     var ps = g.panStart;
     if (ps && ps.moved) { g.panStart = null; tapState = null; }
     else g.panStart = null;
-    // ダブルタップ/ダブルクリックで拡大↔戻す
     if (!ps || !ps.moved) {
       var now = Date.now();
       var last = g.lastTapPos;
@@ -11082,20 +10152,16 @@ window.addEventListener('offline', () => {
     }
   }
   function gestureWheel(cv, e) {
-    // マウスは Ctrl+ホイール / 通常ホイールどちらでも拡大(Zoom 中のみ通常ホイールで拡大)
     var factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
     if (st.zoom <= 1.001 && e.deltaY > 0) return;   // 等倍で縮小方向は無視(ページスクロール優先)
     e.preventDefault();
     zoomAt(cv, factor, e.clientX, e.clientY);
   }
-
-  // ---------------- 保存・対局・ライブラリ ----------------
   function buildEntry() {
     var res = st.result;
     var labels = st.labels.slice();
     var palette = (st.palette && st.palette.length) ? st.palette.slice() : suggestPalette(labels);
     var pc = Math.max(2, Math.min(6, palette.length));
-    // パレットの色 → プレイヤー番号（パレットの並び順がそのまま 1P,2P,...）
     var slot = {};
     palette.forEach(function (c, i) { slot[c] = i + 1; });
     var board = labels.map(function (c) { return (c > 0 && slot[c]) ? slot[c] : 0; });
@@ -11108,7 +10174,6 @@ window.addEventListener('offline', () => {
     for (var i = 0; i < labels.length; i++) if (labels[i] > 0 && !slot[labels[i]]) dropped++;
     var outArr = [false];
     palette.forEach(function (c) { outArr.push(!!st.outColors[c]); });
-    // 手番を有効なプレイヤーに丸める
     var turn = Math.min(pc, Math.max(1, st.turn || 1));
     var name = (st.fileName || '写真').replace(/\.[^.]+$/, '');
     return {
@@ -11135,7 +10200,6 @@ window.addEventListener('offline', () => {
       thumb: makeThumb(res, labels)
     };
   }
-
   function makeThumb(res, labels) {
     var size = 160, W = res.layout.W;
     var cv = document.createElement('canvas');
@@ -11146,7 +10210,6 @@ window.addEventListener('offline', () => {
     var L = res.layout;
     var s = size / W;
     ctx.fillRect(0, 0, size, size);
-    // 罫線
     ctx.strokeStyle = 'rgba(90,70,50,0.55)';
     ctx.lineWidth = 1;
     for (var i = 0; i < res.points.length; i++) {
@@ -11157,7 +10220,6 @@ window.addEventListener('offline', () => {
     for (var k = 0; k < qr.length; k++) {
       var x = L.pts[k][0], y = L.pts[k][1];
     }
-    // 六角形の枠
     ctx.beginPath();
     for (var c = 0; c < 6; c++) {
       var cc = L.corners[c];
@@ -11176,7 +10238,6 @@ window.addEventListener('offline', () => {
     }
     return cv.toDataURL('image/png');
   }
-
   function doSave() {
     try {
       var e = buildEntry();
@@ -11187,13 +10248,10 @@ window.addEventListener('offline', () => {
       toast('保存できませんでした');
     }
   }
-
   function applyToGame(entry) {
     if (!entry || !entry.board) return;
-    // リプレイ表示中なら解除する(盤面がリプレイのまま残らないように)
     if (typeof exitReplayForLoad === 'function') exitReplayForLoad();
     try {
-      // 既存の対局状態を置き換える
       playerCount = Math.max(2, Math.min(6, entry.playerCount || 2));
       seats = [0, 'human', 'human', 'human', 'human', 'human', 'human'];
       for (var p = 1; p <= playerCount; p++) seats[p] = 'human';
@@ -11224,7 +10282,6 @@ window.addEventListener('offline', () => {
       G.hist = [];
       G.seen = [hash(G.board)];
       setSeen();
-      // 手順つきで保存された対局なら、終局状態と棋譜を復元してリプレイできるようにする
       var hasHistory = false;
       if (entry.kifu && typeof applyImportedKifu === 'function' && entry.finished) {
         try {
@@ -11243,7 +10300,6 @@ window.addEventListener('offline', () => {
       updateUI();
       save();
       if (hasHistory) {
-        // 終局として保存された対局は、開いた直後からリプレイで見られるようにする
         if (window.HexagoReplayUI && window.HexagoReplayUI.open) window.HexagoReplayUI.open({ keepResultModal: true });
         toast('対局終了として保存された棋譜を読み込みました');
       } else if (entry.kifu && typeof applyImportedKifu === 'function') {
@@ -11257,8 +10313,6 @@ window.addEventListener('offline', () => {
       toast('局面の読み込みに失敗しました');
     }
   }
-
-  // ---------------- ライブラリ ----------------
   function showLibrary() {
     view('library');
     renderLibrary();
@@ -11304,13 +10358,11 @@ window.addEventListener('offline', () => {
       wrap.appendChild(row);
     });
   }
-
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
     });
   }
-
   function doExport() {
     try {
       var txt = S.exportAll();
@@ -11324,9 +10376,6 @@ window.addEventListener('offline', () => {
       toast('JSONを書き出しました');
     } catch (e) { toast('書き出しに失敗しました'); }
   }
-
-  // ---------------- サイズ・余白の自動調整 ----------------
-  // 撮影画像から、盤面サイズと「外枠と格子のすき間（余白）」を自動で合わせる。
   function autoFitBoard() {
     if (!st.imageData || !st.corners) return;
     var fit = null;
@@ -11353,8 +10402,6 @@ window.addEventListener('offline', () => {
     updateFitScore(fit.score);
     updateDetectInfo();
   }
-
-  // 一致度（0〜100%）。サイズ・余白が盤にどれだけ合っているかの目安。
   var scoreTimer = null;
   function updateFitScore(knownScore) {
     var el = $('photoFitScore');
@@ -11371,8 +10418,6 @@ window.addEventListener('offline', () => {
     if (scoreTimer) clearTimeout(scoreTimer);
     scoreTimer = setTimeout(function () { updateFitScore(); }, 90);
   }
-
-  // ---------------- 起動・配線 ----------------
   function reset() {
     st.result = null; st.labels = null; st.origLabels = null; st.drag = -1; st.hover = -1;
     st.corners = null; st.imageData = null; st.img = null; st.fileName = '';
@@ -11387,13 +10432,11 @@ window.addEventListener('offline', () => {
     var f = $('photoFile'); if (f) f.value = '';
     var cam = $('photoCamera'); if (cam) cam.value = '';
   }
-
   function open() {
     loadModel();
     var f = $('photoFile');
     if (f) f.click();
   }
-
   function openLibrary() {
     reset();
     st.libraryDirect = true;
@@ -11402,7 +10445,6 @@ window.addEventListener('offline', () => {
     $('photoModal').classList.remove('hidden');
     if (typeof autoPass === 'function' && autoPass()) autoPass().update();
   }
-
   function init() {
     var btn = $('btnOpenPhoto');
     if (btn) btn.onclick = open;
@@ -11419,7 +10461,6 @@ window.addEventListener('offline', () => {
       renderAdjust();
       scheduleFitScore();
     };
-
     var redetect = $('btnPhotoRedetect');
     var zin = $('btnPhotoZoomIn'), zout = $('btnPhotoZoomOut'), zreset = $('btnPhotoZoomReset');
     if (zin) zin.onclick = function () { if (snd && snd.click) snd.click(); zoomBy(1.5); };
@@ -11437,20 +10478,16 @@ window.addEventListener('offline', () => {
     }
     [$('photoResult'), $('photoBoardPreview')].forEach(function (cvR) {
       if (!cvR) return;
-      // 拡大中はブラウザ標準のピンチ/スクロールに邪魔されないよう none、等倍では manipulation
       cvR.style.touchAction = 'none';
       cvR.addEventListener('click', onResultPointer);
-      // ピンチ/パン/ダブルタップ拡大
       cvR.addEventListener('pointerdown', function (e) { gestureDown(cvR, e); });
       cvR.addEventListener('pointermove', function (e) { gestureMove(cvR, e); });
       cvR.addEventListener('pointerup', function (e) { gestureUp(cvR, e); });
       cvR.addEventListener('pointercancel', function (e) { gestureUp(cvR, e); });
       cvR.addEventListener('wheel', function (e) { gestureWheel(cvR, e); }, { passive: false });
-      // タッチ/ペン: 動かないタップで色を切り替える
       cvR.addEventListener('pointerdown', resultTapDown);
       cvR.addEventListener('pointerup', resultTapUp);
       cvR.addEventListener('pointercancel', function (e) { tapState = null; });
-      // マウス: ホバー予覧(タッチでは発火させない)
       cvR.addEventListener('pointermove', function (e) {
         if (e.pointerType !== 'mouse') return;
         var best = pickResultPoint(cvR, e.clientX, e.clientY);
@@ -11518,8 +10555,6 @@ window.addEventListener('offline', () => {
       renderResult();
     };
   }
-
-  // 画面サイズが変わったらキャンバスを合わせ直す（iPad/スマホの回転など）
   var resizeTimer = null;
   global.addEventListener('resize', function () {
     if (resizeTimer) clearTimeout(resizeTimer);
@@ -11530,10 +10565,8 @@ window.addEventListener('offline', () => {
       if (st.result) renderResult();
     }, 120);
   });
-
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
-
   global.HexagoPhotoUI = {
     open: open,
     openLibrary: openLibrary,
@@ -11547,7 +10580,6 @@ window.addEventListener('offline', () => {
       };
     }
   };
-  // テストフック
   global.__hexagoPhoto = {
     open: open,
     state: function () {
@@ -11576,7 +10608,6 @@ window.addEventListener('offline', () => {
     entry: function () { return buildEntry(); },
     list: function () { return S.list(); }
   };
-
   function setupImageFromData(imageData) {
     preparePhotoModal();
     $('photoModal').classList.remove('hidden');
@@ -11593,7 +10624,6 @@ window.addEventListener('offline', () => {
 })(typeof self !== 'undefined' ? self : this);
 
 // --- ./js/ui/debug.js ---
-// ===== デバッグ用フック（E2E 検証・AI 性能確認用。UI には影響しない） =====
 window.__hexagoDebug = {
   state: () => ({ board: G.board.slice(), turn: G.turn, over: G.over, phase: G.phase, playerCount: G.playerCount, size: G.size, seats: seats.slice(), mode, aiMode: currentAIMode(), seatAIModes: seatAIModes.slice(), aiBusy, aiBudget: aiBudgetMs(G.turn), seen: G.seen.length, lastAI: lastAIStats, out: G.out.slice() }),
   think: (budget) => aiThink(aiStateSnapshot(), budget || aiBudgetMs(G.turn)),
@@ -11657,24 +10687,14 @@ window.__hexagoDebug = {
     return { territory: t, stones, total: t.map((v, i) => v + stones[i]) };
   },
 };
-
-// ===== エージェント向けAPI =====
-// AIエージェントが画像認識やマウス操作をせず、関数呼び出しだけで対局するための入口。
-// 既存の __hexagoDebug に加えて、着手・合法手・待機・設定変更・リプレイ等を公開する。
-// 仕様は help() が JSON で返し、dev/agent-spec.js がそこから
-// agent.json / agent.html / llms.txt を生成する(単一の真実)。
 (function () {
   const D = window.__hexagoDebug;
   if (!D) return;
-
-  // AIの手番が終わるのを待つための監視
   function isBusy() { return typeof aiBusy !== 'undefined' ? !!aiBusy : false; }
   function aiSeatTurn() {
     try { return typeof aiSeatOf === 'function' && G && aiSeatOf(G.turn); } catch (e) { return false; }
   }
-
   const Agent = {
-    // --- 状態 ---
     state: () => D.state(),
     legalMoves: () => {
       const out = [];
@@ -11686,7 +10706,6 @@ window.__hexagoDebug = {
       }
       return out;
     },
-    // --- 着手 ---
     move: (point) => {
       if (!Number.isInteger(point) || point < 0 || point >= G.board.length) return false;
       const ok = play(point);
@@ -11699,9 +10718,6 @@ window.__hexagoDebug = {
       resign(); after();
       return true;
     },
-    // --- 待機 ---
-    // AIの思考が終わるまで待ち、そのあとの状態を返す。
-    // AIの手番でなければ即座に返る。タイムアウトで reject する。
     awaitAI: (timeoutMs) => {
       const limit = Number.isFinite(timeoutMs) ? Math.max(100, timeoutMs) : 30000;
       return new Promise((resolve, reject) => {
@@ -11714,11 +10730,9 @@ window.__hexagoDebug = {
           }
           setTimeout(tick, 25);
         };
-        // まだ思考が始まっていない場合(AI手番なら開始を待つ)を考慮し、少しだけ猶予を見る
         setTimeout(tick, isBusy() ? 0 : 30);
       });
     },
-    // --- 設定 ---
     setBoardSize: (n) => {
       if (![9, 13, 19, 25].includes(Number(n))) return false;
       pendingSize = Number(n);
@@ -11757,16 +10771,11 @@ window.__hexagoDebug = {
       save();
       return true;
     },
-    // 新しい対局を開始する(設定変更を確定させたいときに使う)
     newGame: () => { return reset(); },
-    // --- AI ---
     think: (budgetMs) => D.think(budgetMs),
-    // --- 共有 ---
     shareUrl: () => (window.HexagoReplayUI && window.HexagoReplayUI.shareUrl ? window.HexagoReplayUI.shareUrl() : ''),
-    // --- 棋譜 ---
     exportRecord: () => D.exportRecord(),
     importRecord: (json) => D.importJSON(typeof json === 'string' ? json : JSON.stringify(json)),
-    // --- リプレイ ---
     replay: {
       open: () => { if (window.HexagoReplayUI) window.HexagoReplayUI.open(); return !!(window.HexagoReplayView && window.HexagoReplayView.active()); },
       seek: (n) => {
@@ -11791,8 +10800,6 @@ window.__hexagoDebug = {
       }
     }
   };
-
-  // 仕様(単一の真実)。dev/agent-spec.js はこれを読み取って各種ファイルを生成する。
   Agent.help = () => ({
     name: 'HEXAGO',
     description: '六角形の盤で打つ囲碁風ゲーム。このページの window.__hexagoAgent から全操作を関数呼び出しで行えます。スクリーンショットやマウス操作は不要です。',
@@ -11830,38 +10837,26 @@ window.__hexagoDebug = {
       '1つのページを同時に複数のエージェントで操作すると状態が干渉します。'
     ]
   });
-
   window.__hexagoAgent = Agent;
-  // 既存フックも同じ入口から使えるようにする(過去のE2E資産との互換)
   for (const k of Object.keys(D)) if (!(k in Agent)) Agent[k] = D[k];
 })();
 
 // --- ./js/ui/ai-debug.js ---
-// ===== デバッグモード =====
-// AI が各手をどう評価したか(訪問数・勝率)を記録し、盤面にヒートマップで重ねる。
-// 記録はこのモードが ON のときだけ。共有URLや棋譜JSONには含めない。
 (function () {
   'use strict';
   const KEY = 'hexago-debug';
   let enabled = false;
-  // 手数(ply) → { player, moves: [{move, visits, value}], visits, winrate }
   const records = new Map();
-  // 訪問数のみを使う(勝率は探索済みの手でしか意味がない)
   let overlayStyle = 'heat';    // 'heat' | 'number' | 'both'
   let showOverlay = true;
-
   try { enabled = localStorage.getItem(KEY) === '1'; } catch (e) { }
-
   function enabledNow() { return enabled; }
-
   function setEnabled(on) {
     enabled = !!on;
     try { localStorage.setItem(KEY, enabled ? '1' : '0'); } catch (e) { }
     if (!enabled) records.clear();
     syncUi();
   }
-
-  // AI の手番で選んだ結果を記録する。ply は「その手を打つ前」の手数。
   function recordAI(player, result) {
     if (!enabled || !result) return;
     const list = Array.isArray(result.rootMoves) ? result.rootMoves
@@ -11869,10 +10864,8 @@ window.__hexagoDebug = {
     const moves = list
       .filter(m => m && Number.isInteger(m.move) && m.move >= 0)
       .map(m => ({ move: m.move, visits: Math.max(1, m.visits | 0), value: Number(m.value) || 0 }));
-    // AI が探索しなかった空点も、ヒューリスティック評価で埋めて盤全体を塗れるようにする
     const all = buildFullBoardValues(player, moves, window.HexagoReplay ? window.HexagoReplay.buildGeometry((typeof G !== 'undefined' && G) ? G.size : 9) : null);
     if (!moves.length && !all.length) return;
-    // 手数は棋譜のイベント数から求める(G.hist は40手で打ち切られるため使えない)
     const ply = (G && G.record && Array.isArray(G.record.events))
       ? G.record.events.filter(e => e.type === 'play' || e.type === 'pass' || e.type === 'resign').length
       : 0;
@@ -11888,9 +10881,6 @@ window.__hexagoDebug = {
       at: Date.now()
     });
   }
-
-  // 探索済み候補に加えて、未探索の空点を軽量な近似評価で補い、盤面全体の値を返す。
-  // (エンジンは Worker 内にあるため直接呼べない。ここでは簡易な手厚み評価を使う)
   const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
   function neighbors(geo, i) {
     const out = [];
@@ -11900,7 +10890,6 @@ window.__hexagoDebug = {
     }
     return out;
   }
-  // その点に打ったときの簡易評価: 自分の石の隣接数 - 相手の石の隣接数 に距離減衰を掛ける
   function quickScore(board, geo, nbCache, i, player) {
     let own = 0, enemy = 0;
     const n1 = nbCache[i] || (nbCache[i] = neighbors(geo, i));
@@ -11908,7 +10897,6 @@ window.__hexagoDebug = {
       if (!board[n]) continue;
       if (board[n] === player) own++; else enemy++;
     }
-    // 2ホップ先も弱く見る(模様)
     let own2 = 0, enemy2 = 0;
     const seen = new Set(n1);
     for (const n of n1) {
@@ -11922,7 +10910,6 @@ window.__hexagoDebug = {
     }
     return own * 2 + own2 * 0.5 - enemy * 1.6 - enemy2 * 0.4;
   }
-
   function buildFullBoardValues(player, explored, geo) {
     const board = (typeof G !== 'undefined' && G && G.board) ? G.board : null;
     if (!board || !geo) return explored.map(m => ({ move: m.move, value: m.value, weight: m.visits, explored: true }));
@@ -11943,7 +10930,6 @@ window.__hexagoDebug = {
     for (const [i, v] of quick) {
       scored.push({ move: i, value: (v - minV) / span, visits: 0, weight: 0, explored: false });
     }
-    // 探索済みの手は探索データを優先(勝率ベース)
     let wMin = Infinity, wMax = -Infinity;
     for (const m of explored) { wMin = Math.min(wMin, m.value); wMax = Math.max(wMax, m.value); }
     const wSpan = Math.max(1e-6, wMax - wMin);
@@ -11952,42 +10938,21 @@ window.__hexagoDebug = {
     }
     return scored;
   }
-
   function getRecord(ply, player) {
     return records.get(ply + ':' + player) || null;
   }
-
   function clear() { records.clear(); }
-
-  // 盤面に評価値を重ねる。
-  //   訪問数のみを使う(勝率は探索した手でしか意味がなく、実質同じ情報だった)。
-  //   色は連続グラデーションではなく 4 段階の帯にして「どこが強いか」を読みやすくする。
-  //   style: 'heat' … 全点を段階色で塗る
-  //          'number' … 探索した手だけ数値を出す
-  //          'both' … 段階色 + 探索した手の数値(塗りは共通で二重に濃くしない)
-  //   実際に打たれた手は白リングで強調する。
-  // 訪問数は 1 桁以上ばらつく(数百 vs 数万)ので、対数スケールで 0..1 に落として
-  // 4 段階に分ける。線形だと突出した 1 点以外が全部最下段に潰れてしまう。
-  // 実際の分布は「ほぼ 0(未探索)」と「数百〜数万(探索済み)」の2峰になり、
-  // 探索済みの中でも差がある。0.70 付近が「探索されたかどうか」の境目。
-  // AI は上位手にほぼ均等に探索を配分するため、値は狭い範囲に固まる。
-  // そこで「探索したか」を主軸にし、探索量の差は色味で段階化する。
-  // 一色(赤)の濃淡で表す。多色より「どこが強いか」が一目で分かる。
-  // 未探索はほぼ無色、探索が多いほど濃い赤。
   function heatFill(t) {
     t = Math.max(0, Math.min(1, t));
-    // 0.0 → ごく薄い赤 / 1.0 → 濃い赤
     const alpha = 0.14 + 0.58 * Math.pow(t, 0.85);
     const light = 58 - 14 * t;   // 明るさ 58% → 44%
     return `hsla(355, 78%, ${light}%, ${alpha.toFixed(3)})`;
   }
-  // 訪問数 → 0..1(対数スケール)。0 は 0 のまま。
   function logRatio(v, max) {
     if (!(v > 0) || !(max > 0)) return 0;
     if (max <= 1) return 1;
     return Math.log(1 + v) / Math.log(1 + max);
   }
-
   function drawOverlay(canvas, ctx, metrics, overlay) {
     if (!enabled || !showOverlay || !overlay) return;
     const { cell, pos } = metrics;
@@ -11995,20 +10960,14 @@ window.__hexagoDebug = {
     const style = overlayStyle;  // 'heat' | 'number' | 'both'
     const all = overlay.all || [];
     const list = (overlay.moves || []).filter(m => m.visits > 0);
-    // 相対的な強弱で段階を決める。
-    // 「合計に対するシェア」だと全点がほぼ均等になり段階が潰れるため、
-    // 一番探索された点を 1.0 とした比率を使う。
     let maxVisits = 0;
     for (const m of all) maxVisits = Math.max(maxVisits, m.visits || 0);
-    // 未探索の点は簡易評価の順位で 0..1 に(記録に無ければ 0)
     const unexplored = all.filter(m => !((m.visits || 0) > 0));
     const sortedU = unexplored.slice().sort((a, b) => (a.value || 0) - (b.value || 0));
     const rankOfUnexplored = new Map();
     sortedU.forEach((m, i) => {
       rankOfUnexplored.set(m.move, sortedU.length <= 1 ? 0.5 : i / (sortedU.length - 1));
     });
-
-    // --- 色むら(全点・単一の塗り) ---
     if (style !== 'number') {
       ctx.save();
       for (const m of all) {
@@ -12021,8 +10980,6 @@ window.__hexagoDebug = {
       }
       ctx.restore();
     }
-
-    // --- 数値(探索した手のみ / 塗りは heat と共通) ---
     if (style !== 'heat') {
       ctx.save();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -12037,16 +10994,13 @@ window.__hexagoDebug = {
       }
       ctx.restore();
     }
-
   }
-
   function shortNum(n) {
     if (n >= 100000) return Math.round(n / 1000) + 'k';
     if (n >= 10000) return (n / 1000).toFixed(1) + 'k';
     if (n >= 1000) return (n / 1000).toFixed(2).replace(/\.?0+$/, '') + 'k';
     return String(n);
   }
-
   function syncUi() {
     document.body.classList.toggle('debug-on', enabled);
     const btn = document.getElementById('btnDebugMode');
@@ -12058,18 +11012,14 @@ window.__hexagoDebug = {
       btn.classList.toggle('text-white', enabled);
       btn.classList.toggle('bg-neutral-100', !enabled);
     }
-    // パネルはリプレイ中だけ出す(対戦中に表示しても意味がない)
     syncPanel();
   }
-
-  // デバッグパネルの表示を現在の状況に合わせる
   function syncPanel() {
     const panel = document.getElementById('debugPanel');
     if (!panel) return;
     const replaying = typeof window.HexagoReplayView !== 'undefined' && window.HexagoReplayView.active();
     panel.classList.toggle('hidden', !(enabled && replaying));
   }
-
   document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('btnDebugMode');
     if (btn) btn.onclick = () => { setEnabled(!enabled); if (typeof render === 'function') render(); };
@@ -12080,7 +11030,6 @@ window.__hexagoDebug = {
     if (styleSel) styleSel.onchange = () => { overlayStyle = styleSel.value; if (typeof render === 'function') render(); };
     syncUi();
   });
-
   window.HexagoDebug = {
     enabled: enabledNow,
     setEnabled,
@@ -12095,20 +11044,16 @@ window.__hexagoDebug = {
 })();
 
 // --- ./js/main.js ---
-// ===== 起動 =====
 window.onload = () => {
   buildThemes();
   const restored = load();
   if (!restored) { build(9); G = newG(9); G.phase = 'setup'; setSeen(); }
-  // applyTheme()/save() can clear the stored online session, so read it before them.
   const pendingOnline = restored ? readOnlineSession() : null;
   applyTheme(theme); syncSettings();
   const resumedOnline = !!(pendingOnline && resumeOnlineSession(pendingOnline));
   if (!restored) $('setModal').classList.remove('hidden');
   if (G.over && G.result) $('bnResult').classList.remove('hidden');
   resizeCanvas(); updateUI();
-  // 読み込み時はいったんリプレイ表示を解除したうえで、
-  // 終局済みならリプレイ画面から始める(終局=リプレイ状態)。
   if (window.HexagoReplayUI && window.HexagoReplayUI.reset) window.HexagoReplayUI.reset();
   if (G.over && G.result && window.HexagoReplayUI && window.HexagoReplayUI.open) {
     setTimeout(() => { if (G.over) window.HexagoReplayUI.open({ keepResultModal: true }); }, 0);
